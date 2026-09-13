@@ -1,4 +1,6 @@
 <?php
+error_log("DEBUG MYSQLHOST=" . var_export(getenv("MYSQLHOST"), true));
+
 $host = getenv("MYSQLHOST") ?: "localhost";
 $username = getenv("MYSQLUSER") ?: "root";
 $password = getenv("MYSQLPASSWORD") ?: "";
