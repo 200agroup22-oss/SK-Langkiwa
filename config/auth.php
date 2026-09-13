@@ -3,18 +3,13 @@ require_once __DIR__ . '/db.php';
 
 // Change APP_BASE to '' if the app is deployed at the web root instead of /200A.
 if (!defined('APP_BASE')) {
-<<<<<<< HEAD
-    define('APP_BASE', ' ');
-=======
     define('APP_BASE', '');
->>>>>>> b2d6751608c3c49570e33986527d9880861bef13
 }
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-<<<<<<< HEAD
 function isLoggedIn()
 {
     return isset($_SESSION['user_id']);
@@ -22,13 +17,6 @@ function isLoggedIn()
 
 function currentUser()
 {
-=======
-function isLoggedIn() {
-    return isset($_SESSION['user_id']);
-}
-
-function currentUser() {
->>>>>>> b2d6751608c3c49570e33986527d9880861bef13
     if (!isLoggedIn()) {
         return null;
     }
@@ -41,12 +29,8 @@ function currentUser() {
     ];
 }
 
-<<<<<<< HEAD
 function dashboardUrlForRole($role)
 {
-=======
-function dashboardUrlForRole($role) {
->>>>>>> b2d6751608c3c49570e33986527d9880861bef13
     switch ($role) {
         case 'admin':
             return APP_BASE . '/admin/AdminDashboard.php';
@@ -61,12 +45,8 @@ function dashboardUrlForRole($role) {
 // Education application flip users.role to 'scholar' out from under an already-logged-in session
 // — without this, the nav/dashboard would keep showing the old role until the user logs out and
 // back in. Also catches a mid-session deactivation (status != 'active') and force-logs the user out.
-<<<<<<< HEAD
 function syncSession()
 {
-=======
-function syncSession() {
->>>>>>> b2d6751608c3c49570e33986527d9880861bef13
     global $conn;
     if (!isLoggedIn()) {
         return;
@@ -92,12 +72,8 @@ function syncSession() {
 
 // $roles: a role string or array of allowed roles. Redirects to login (if guest)
 // or to the caller's own dashboard (if logged in but wrong role).
-<<<<<<< HEAD
 function requireRole($roles)
 {
-=======
-function requireRole($roles) {
->>>>>>> b2d6751608c3c49570e33986527d9880861bef13
     if (!is_array($roles)) {
         $roles = [$roles];
     }
@@ -112,7 +88,6 @@ function requireRole($roles) {
     }
 }
 
-<<<<<<< HEAD
 function setFlash($type, $message)
 {
     $_SESSION['flash_' . $type] = $message;
@@ -120,13 +95,6 @@ function setFlash($type, $message)
 
 function getFlash($type)
 {
-=======
-function setFlash($type, $message) {
-    $_SESSION['flash_' . $type] = $message;
-}
-
-function getFlash($type) {
->>>>>>> b2d6751608c3c49570e33986527d9880861bef13
     if (!empty($_SESSION['flash_' . $type])) {
         $message = $_SESSION['flash_' . $type];
         unset($_SESSION['flash_' . $type]);
