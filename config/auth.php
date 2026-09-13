@@ -3,18 +3,20 @@ require_once __DIR__ . '/db.php';
 
 // Change APP_BASE to '' if the app is deployed at the web root instead of /200A.
 if (!defined('APP_BASE')) {
-    define('APP_BASE', '/200A');
+    define('APP_BASE', ' ');
 }
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-function isLoggedIn() {
+function isLoggedIn()
+{
     return isset($_SESSION['user_id']);
 }
 
-function currentUser() {
+function currentUser()
+{
     if (!isLoggedIn()) {
         return null;
     }
@@ -27,7 +29,8 @@ function currentUser() {
     ];
 }
 
-function dashboardUrlForRole($role) {
+function dashboardUrlForRole($role)
+{
     switch ($role) {
         case 'admin':
             return APP_BASE . '/admin/AdminDashboard.php';
@@ -42,7 +45,8 @@ function dashboardUrlForRole($role) {
 // Education application flip users.role to 'scholar' out from under an already-logged-in session
 // — without this, the nav/dashboard would keep showing the old role until the user logs out and
 // back in. Also catches a mid-session deactivation (status != 'active') and force-logs the user out.
-function syncSession() {
+function syncSession()
+{
     global $conn;
     if (!isLoggedIn()) {
         return;
@@ -68,7 +72,8 @@ function syncSession() {
 
 // $roles: a role string or array of allowed roles. Redirects to login (if guest)
 // or to the caller's own dashboard (if logged in but wrong role).
-function requireRole($roles) {
+function requireRole($roles)
+{
     if (!is_array($roles)) {
         $roles = [$roles];
     }
@@ -83,11 +88,13 @@ function requireRole($roles) {
     }
 }
 
-function setFlash($type, $message) {
+function setFlash($type, $message)
+{
     $_SESSION['flash_' . $type] = $message;
 }
 
-function getFlash($type) {
+function getFlash($type)
+{
     if (!empty($_SESSION['flash_' . $type])) {
         $message = $_SESSION['flash_' . $type];
         unset($_SESSION['flash_' . $type]);
