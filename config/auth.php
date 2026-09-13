@@ -3,7 +3,7 @@ require_once __DIR__ . '/db.php';
 
 // Change APP_BASE to '' if the app is deployed at the web root instead of /200A.
 if (!defined('APP_BASE')) {
-    define('APP_BASE', '/200A');
+    define('APP_BASE', '');
 }
 
 if (session_status() === PHP_SESSION_NONE) {
