@@ -26,7 +26,8 @@ use PHPMailer\PHPMailer\Exception as PHPMailerException;
 
 // Sends a 6-digit OTP email for 'register' or 'reset'. Returns true on success (including the
 // debug-log fallback below), false only on a real send failure once SMTP is configured.
-function sendOtpEmail($toEmail, $toName, $otpCode, $purpose) {
+function sendOtpEmail($toEmail, $toName, $otpCode, $purpose)
+{
     if (MAIL_USERNAME === '') {
         $line = date('Y-m-d H:i:s') . " | $purpose | $toEmail | OTP: $otpCode\n";
         file_put_contents(__DIR__ . '/otp_debug.log', $line, FILE_APPEND);
@@ -45,6 +46,8 @@ function sendOtpEmail($toEmail, $toName, $otpCode, $purpose) {
         $mail->Password = MAIL_PASSWORD;
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port = MAIL_PORT;
+        $mail->Timeout = 10;
+        $mail->SMTPKeepAlive = false;
 
         $mail->setFrom(MAIL_USERNAME, MAIL_FROM_NAME);
         $mail->addAddress($toEmail, $toName);
