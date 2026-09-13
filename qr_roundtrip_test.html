@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>QR round-trip test</title></head>
+<body>
+<div id="qrcode"></div>
+<canvas id="decodeCanvas" style="display:none;"></canvas>
+<pre id="result" style="font-size:16px;"></pre>
+
+<script src="assets/js/qrcode.min.js"></script>
+<script src="assets/js/jsQR.min.js"></script>
+<script>
+const TOKEN = "87a5d6e21b3b0c3d757b26270f1000af";
+const el = document.getElementById('qrcode');
+new QRCode(el, { text: TOKEN, width: 200, height: 200 });
+
+setTimeout(() => {
+    // Find whatever element the library actually rendered (canvas or img)
+    const canvasEl = el.querySelector('canvas');
+    const imgEl = el.querySelector('img');
+    const result = document.getElementById('result');
+
+    const decodeCanvas = document.getElementById('decodeCanvas');
+    const ctx = decodeCanvas.getContext('2d');
+
+    function decodeAndReport(sourceCanvas, label) {
+        decodeCanvas.width = sourceCanvas.width;
+        decodeCanvas.height = sourceCanvas.height;
+        ctx.drawImage(sourceCanvas, 0, 0);
+        const imageData = ctx.getImageData(0, 0, decodeCanvas.width, decodeCanvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height);
+        result.textContent += label + ':\n';
+        result.textContent += '  original token: ' + TOKEN + '\n';
+        result.textContent += '  decoded data:   ' + (code ? code.data : '(no QR detected)') + '\n';
+        result.textContent += '  match: ' + (code && code.data === TOKEN) + '\n\n';
+    }
+
+    if (canvasEl) {
+        decodeAndReport(canvasEl, 'From <canvas> element (hidden, pre-conversion)');
+    } else {
+        result.textContent += 'No <canvas> element found in #qrcode.\n';
+    }
+
+    if (imgEl) {
+        const tempImg = new Image();
+        tempImg.onload = () => {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = tempImg.naturalWidth || tempImg.width;
+            tempCanvas.height = tempImg.naturalHeight || tempImg.height;
+            const tctx = tempCanvas.getContext('2d');
+            tctx.drawImage(tempImg, 0, 0);
+            decodeAndReport(tempCanvas, 'From <img> element (final visible output, what the scholar actually shows)');
+        };
+        tempImg.src = imgEl.src;
+    } else {
+        result.textContent += 'No <img> element found in #qrcode.\n';
+    }
+}, 500);
+</script>
+</body>
+</html>
