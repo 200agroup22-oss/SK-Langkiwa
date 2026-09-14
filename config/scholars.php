@@ -1,7 +1,8 @@
 <?php
 require_once __DIR__ . '/forms.php';
 
-function getCurrentTerm() {
+function getCurrentTerm()
+{
     global $conn;
     $row = $conn->query("SELECT current_academic_year, current_semester, requirements_deadline, requirements_open, activities_required_per_term, default_allowance_amount FROM site_settings WHERE id = 1")->fetch_assoc();
     return $row;
@@ -10,7 +11,8 @@ function getCurrentTerm() {
 // Whether scholars can currently submit updated requirements: the window has to have been
 // opened (via End Semester, or by hand in Site Settings) and, if a deadline was set, it hasn't
 // passed yet. A blank deadline leaves the window open indefinitely once opened.
-function isRequirementsWindowOpen($term) {
+function isRequirementsWindowOpen($term)
+{
     if (empty($term['requirements_open'])) {
         return false;
     }
@@ -25,7 +27,8 @@ function isRequirementsWindowOpen($term) {
 // Semester). 3rd Semester / Summer are still selectable by hand in Site Settings for schools
 // that run a summer term, but they're a side branch, not part of the auto-advance cycle — ending
 // one of those also rolls straight into next year's 1st Semester.
-function getNextTerm($academicYear, $semester) {
+function getNextTerm($academicYear, $semester)
+{
     if ($semester === '1st Semester') {
         return ['academic_year' => $academicYear, 'semester' => '2nd Semester'];
     }
@@ -37,7 +40,8 @@ function getNextTerm($academicYear, $semester) {
     return ['academic_year' => $nextYear, 'semester' => '1st Semester'];
 }
 
-function countPresentActivities($scholarId, $academicYear, $semester) {
+function countPresentActivities($scholarId, $academicYear, $semester)
+{
     global $conn;
     $stmt = $conn->prepare("SELECT COUNT(*) AS c FROM attendance att
         JOIN activities a ON a.activity_id = att.activity_id
@@ -52,7 +56,8 @@ function countPresentActivities($scholarId, $academicYear, $semester) {
 // How many activities a scholar needs to attend this term is just how many the admin has
 // actually posted for it (Education > Activities) — not a fixed number — so this counts real,
 // non-archived activity rows instead of reading a hardcoded setting.
-function countTotalActivities($committeeId, $academicYear, $semester) {
+function countTotalActivities($committeeId, $academicYear, $semester)
+{
     global $conn;
     $stmt = $conn->prepare("SELECT COUNT(*) AS c FROM activities WHERE committee_id = ? AND academic_year = ? AND semester = ? AND archived_at IS NULL");
     $stmt->bind_param('iss', $committeeId, $academicYear, $semester);
@@ -62,7 +67,8 @@ function countTotalActivities($committeeId, $academicYear, $semester) {
     return (int)$row['c'];
 }
 
-function countAssignedActivities($scholarId, $academicYear, $semester) {
+function countAssignedActivities($scholarId, $academicYear, $semester)
+{
     global $conn;
     $stmt = $conn->prepare("SELECT COUNT(*) AS c FROM attendance att
         JOIN activities a ON a.activity_id = att.activity_id
@@ -76,7 +82,8 @@ function countAssignedActivities($scholarId, $academicYear, $semester) {
 
 // Fetches (creating if needed) a scholar's allowance_distributions row for the current term,
 // and recomputes activities_completed/eligibility from live attendance data.
-function ensureAllowanceRecord($scholarId) {
+function ensureAllowanceRecord($scholarId)
+{
     global $conn;
     $term = getCurrentTerm();
     $ay = $term['current_academic_year'];
@@ -134,7 +141,8 @@ function ensureAllowanceRecord($scholarId) {
     return $record;
 }
 
-function getScholarByUserId($userId) {
+function getScholarByUserId($userId)
+{
     global $conn;
     $stmt = $conn->prepare("SELECT * FROM scholars WHERE user_id = ?");
     $stmt->bind_param('i', $userId);

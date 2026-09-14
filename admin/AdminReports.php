@@ -614,6 +614,7 @@ $activeLink = 'AdminReports';
                             <select class="form-select" id="reportType" required>
                                 <option value="" selected disabled>Select report type</option>
                                 <option value="consolidated">Consolidated Summary Report</option>
+                                <option value="applicants">Applicants List Report (All Statuses)</option>
                                 <option value="beneficiaries">Beneficiaries Report</option>
                                 <option value="financial">Financial / Funds Released Report</option>
                                 <option value="in-kind">In-Kind Assistance Report</option>

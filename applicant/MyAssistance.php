@@ -21,17 +21,20 @@ $approvedCount = count(array_filter($applications, fn($a) => $a['status'] === 'a
 $awaitingCount = count(array_filter($applications, fn($a) => $a['status'] === 'approved' && !$a['beneficiary_id']));
 $releasedCount = count(array_filter($applications, fn($a) => in_array($a['ben_status'], ['released', 'distributed'], true)));
 
-function statusBadgeClass($status) {
+function statusBadgeClass($status)
+{
     return $status === 'approved' ? 'badge-approved' : ($status === 'declined' ? 'badge-declined' : 'badge-pending');
 }
 
-function statusLabel($status) {
+function statusLabel($status)
+{
     if ($status === 'approved') return 'Approved';
     if ($status === 'declined') return 'Declined';
     return '⏳ Pending';
 }
 
-function benStatusBadge($status) {
+function benStatusBadge($status)
+{
     switch ($status) {
         case 'released':
             return ['bg-success', 'Released'];

@@ -171,7 +171,8 @@ switch ($sortBy) {
 $archivedResult = $conn->query("SELECT * FROM users WHERE status = 'archived' ORDER BY archived_at DESC");
 $archivedUsers = $archivedResult->fetch_all(MYSQLI_ASSOC);
 
-function roleLabel($role, $positionTitle) {
+function roleLabel($role, $positionTitle)
+{
     if ($positionTitle !== '' && $positionTitle !== null) {
         return $positionTitle;
     }

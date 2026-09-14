@@ -290,122 +290,122 @@ $roleLabel = ucfirst($user['role']);
         echo '<div class="container">';
     }
     ?>
-        <div class="profile-wrapper">
+    <div class="profile-wrapper">
 
-            <!-- Banner -->
-            <div class="profile-banner">
-                <img src="<?php echo e($photoUrl); ?>" class="avatar-ring" alt="Profile Picture">
-                <h5><?php echo e($user['first_name'] . ' ' . $user['last_name']); ?></h5>
-                <div class="username">User ID: <?php echo str_pad($user['user_id'], 3, '0', STR_PAD_LEFT); ?></div>
-                <span class="scholar-badge">
-                    <i class="bi bi-patch-check-fill"></i> <?php echo e($roleLabel); ?>
-                </span>
-            </div>
+        <!-- Banner -->
+        <div class="profile-banner">
+            <img src="<?php echo e($photoUrl); ?>" class="avatar-ring" alt="Profile Picture">
+            <h5><?php echo e($user['first_name'] . ' ' . $user['last_name']); ?></h5>
+            <div class="username">User ID: <?php echo str_pad($user['user_id'], 3, '0', STR_PAD_LEFT); ?></div>
+            <span class="scholar-badge">
+                <i class="bi bi-patch-check-fill"></i> <?php echo e($roleLabel); ?>
+            </span>
+        </div>
 
-            <!-- Form Card -->
-            <div class="form-card">
+        <!-- Form Card -->
+        <div class="form-card">
 
-                <?php if ($profileSuccess): ?>
-                    <div class="alert alert-success py-2"><?php echo e($profileSuccess); ?></div>
-                <?php endif; ?>
-                <?php if ($profileError): ?>
-                    <div class="alert alert-danger py-2"><?php echo e($profileError); ?></div>
-                <?php endif; ?>
+            <?php if ($profileSuccess): ?>
+                <div class="alert alert-success py-2"><?php echo e($profileSuccess); ?></div>
+            <?php endif; ?>
+            <?php if ($profileError): ?>
+                <div class="alert alert-danger py-2"><?php echo e($profileError); ?></div>
+            <?php endif; ?>
 
-                <form action="" method="post" enctype="multipart/form-data">
+            <form action="" method="post" enctype="multipart/form-data">
 
-                    <!-- Photo Upload -->
-                    <div class="section-label">
-                        <i class="bi bi-camera-fill"></i> Profile Photo
+                <!-- Photo Upload -->
+                <div class="section-label">
+                    <i class="bi bi-camera-fill"></i> Profile Photo
+                </div>
+                <div class="row mb-4">
+                    <div class="col-md-8">
+                        <label class="file-upload-label w-100">
+                            <i class="bi bi-image"></i> <span id="photoFileName">Choose new photo</span>
+                            <input type="file" name="profile_photo" id="profilePhotoInput" class="d-none" accept="image/*"
+                                onchange="document.getElementById('photoFileName').textContent = this.files[0] ? this.files[0].name : 'Choose new photo';">
+                        </label>
                     </div>
-                    <div class="row mb-4">
-                        <div class="col-md-8">
-                            <label class="file-upload-label w-100">
-                                <i class="bi bi-image"></i> <span id="photoFileName">Choose new photo</span>
-                                <input type="file" name="profile_photo" id="profilePhotoInput" class="d-none" accept="image/*"
-                                    onchange="document.getElementById('photoFileName').textContent = this.files[0] ? this.files[0].name : 'Choose new photo';">
-                            </label>
-                        </div>
-                        <div class="col-md-4">
-                            <button type="button" class="btn-save w-100" style="padding: 9px;" onclick="document.getElementById('profilePhotoInput').click();">
-                                <i class="bi bi-camera-fill me-1"></i> Change Photo
-                            </button>
-                        </div>
+                    <div class="col-md-4">
+                        <button type="button" class="btn-save w-100" style="padding: 9px;" onclick="document.getElementById('profilePhotoInput').click();">
+                            <i class="bi bi-camera-fill me-1"></i> Change Photo
+                        </button>
                     </div>
+                </div>
 
-                    <!-- Personal Info -->
-                    <div class="section-label">
-                        <i class="bi bi-person-fill"></i> Personal Information
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">First Name</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-person-fill"></i></span>
-                                <input type="text" name="first_name" class="form-control" value="<?php echo e($user['first_name']); ?>" required>
-                            </div>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Last Name</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-person-fill"></i></span>
-                                <input type="text" name="last_name" class="form-control" value="<?php echo e($user['last_name']); ?>" required>
-                            </div>
-                        </div>
-                        <div class="col-md-12">
-                            <label class="form-label">Email Address</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-envelope-fill"></i></span>
-                                <input type="email" name="email" class="form-control" value="<?php echo e($user['email']); ?>" required>
-                            </div>
+                <!-- Personal Info -->
+                <div class="section-label">
+                    <i class="bi bi-person-fill"></i> Personal Information
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">First Name</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-person-fill"></i></span>
+                            <input type="text" name="first_name" class="form-control" value="<?php echo e($user['first_name']); ?>" required>
                         </div>
                     </div>
-
-                    <!-- Change Password -->
-                    <div class="section-label">
-                        <i class="bi bi-shield-lock-fill"></i> Change Password
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Last Name</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-person-fill"></i></span>
+                            <input type="text" name="last_name" class="form-control" value="<?php echo e($user['last_name']); ?>" required>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Current Password</label>
+                    <div class="col-md-12">
+                        <label class="form-label">Email Address</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-envelope-fill"></i></span>
+                            <input type="email" name="email" class="form-control" value="<?php echo e($user['email']); ?>" required>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Change Password -->
+                <div class="section-label">
+                    <i class="bi bi-shield-lock-fill"></i> Change Password
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Current Password</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-lock-fill"></i></span>
+                        <input type="password" name="current_password" class="form-control" placeholder="Enter current password">
+                        <span class="input-group-text" style="cursor:pointer;" onclick="togglePasswordVisibility(this)"><i class="bi bi-eye-fill"></i></span>
+                    </div>
+                </div>
+                <div class="row mb-4">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">New Password</label>
                         <div class="input-group">
                             <span class="input-group-text"><i class="bi bi-lock-fill"></i></span>
-                            <input type="password" name="current_password" class="form-control" placeholder="Enter current password">
+                            <input type="password" name="new_password" class="form-control" placeholder="Enter new password" minlength="8">
                             <span class="input-group-text" style="cursor:pointer;" onclick="togglePasswordVisibility(this)"><i class="bi bi-eye-fill"></i></span>
                         </div>
                     </div>
-                    <div class="row mb-4">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">New Password</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-lock-fill"></i></span>
-                                <input type="password" name="new_password" class="form-control" placeholder="Enter new password" minlength="8">
-                                <span class="input-group-text" style="cursor:pointer;" onclick="togglePasswordVisibility(this)"><i class="bi bi-eye-fill"></i></span>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Confirm New Password</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-lock-fill"></i></span>
-                                <input type="password" name="confirm_new_password" class="form-control" placeholder="Re-enter new password" minlength="8">
-                                <span class="input-group-text" style="cursor:pointer;" onclick="togglePasswordVisibility(this)"><i class="bi bi-eye-fill"></i></span>
-                            </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Confirm New Password</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-lock-fill"></i></span>
+                            <input type="password" name="confirm_new_password" class="form-control" placeholder="Re-enter new password" minlength="8">
+                            <span class="input-group-text" style="cursor:pointer;" onclick="togglePasswordVisibility(this)"><i class="bi bi-eye-fill"></i></span>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Buttons -->
-                    <div class="d-flex gap-2">
-                        <button type="submit" name="update_user" class="btn-save">
-                            <i class="bi bi-floppy-fill me-1"></i> Save Changes
-                        </button>
-                        <a href="<?php echo dashboardUrlForRole($user['role']); ?>" class="btn-cancel text-decoration-none text-center">
-                            Cancel
-                        </a>
-                    </div>
+                <!-- Buttons -->
+                <div class="d-flex gap-2">
+                    <button type="submit" name="update_user" class="btn-save">
+                        <i class="bi bi-floppy-fill me-1"></i> Save Changes
+                    </button>
+                    <a href="<?php echo dashboardUrlForRole($user['role']); ?>" class="btn-cancel text-decoration-none text-center">
+                        Cancel
+                    </a>
+                </div>
 
-                </form>
-            </div>
-
+            </form>
         </div>
+
+    </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>

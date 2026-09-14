@@ -38,7 +38,8 @@ foreach ($sidebarCommittees as $sc) {
 // Two links only count as "the same page" when both their path AND their program_id query param
 // (if any) match — otherwise every program-specific tab under a committee (which all point at the
 // same base form page, differing only by ?program_id=) would light up together.
-function navLinkIsActive($url, $currentPath) {
+function navLinkIsActive($url, $currentPath)
+{
     global $sidebarCurrentQuery;
     if (rtrim((string)parse_url($url, PHP_URL_PATH), '/') !== $currentPath) {
         return false;
@@ -62,7 +63,8 @@ function navLinkIsActive($url, $currentPath) {
 </style>
 <div class="section-label">SK COMMITTEES</div>
 <ul class="nav flex-column">
-    <?php foreach ($committeeLinks as $group): $cd = $group['def']; $links = $group['links']; ?>
+    <?php foreach ($committeeLinks as $group): $cd = $group['def'];
+        $links = $group['links']; ?>
         <?php if (count($links) === 1): ?>
             <li class="nav-item">
                 <a class="nav-link<?php echo navLinkIsActive($links[0]['url'], $currentPath) ? ' active' : ''; ?>" href="<?php echo e($links[0]['url']); ?>"><i class="bi <?php echo e($cd['icon']); ?>"></i><?php echo e($cd['label']); ?></a>

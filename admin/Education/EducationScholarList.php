@@ -7,8 +7,8 @@ $fields = getFormFields($committeeId, 'scholarship');
 $term = getCurrentTerm();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Set by the requirement-field handlers below so the redirect reopens the Updated
-    // Requirements modal instead of dropping the admin back on the plain scholar list.
+    // Set by the requirement-field handlers below so the redirect reopens the Manage
+    // Requirement Types modal instead of dropping the admin back on the plain scholar list.
     $redirectHash = '';
 
     if (isset($_POST['edit_scholar'])) {
@@ -36,61 +36,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setFlash('success', 'Scholar eligibility updated.');
     }
 
-    if (isset($_POST['set_requirement_decision'])) {
-        $scholarId = (int)$_POST['scholar_id'];
-        $decision = $_POST['decision'] === 'declined' ? 'declined' : 'update';
-        ensureAllowanceRecord($scholarId);
-        $stmt = $conn->prepare("UPDATE allowance_distributions SET requirement_decision = ? WHERE scholar_id = ? AND academic_year = ? AND semester = ?");
-        $stmt->bind_param('siss', $decision, $scholarId, $term['current_academic_year'], $term['current_semester']);
-        $stmt->execute();
-        $stmt->close();
-
-        if ($decision === 'declined') {
-            $stmt = $conn->prepare("UPDATE scholars SET status = 'archived' WHERE scholar_id = ?");
-            $stmt->bind_param('i', $scholarId);
-            $stmt->execute();
-            $stmt->close();
-
-            $stmt = $conn->prepare("UPDATE users u JOIN scholars s ON s.user_id = u.user_id SET u.role = 'applicant' WHERE s.scholar_id = ?");
-            $stmt->bind_param('i', $scholarId);
-            $stmt->execute();
-            $stmt->close();
-
-            logAudit('Declined Scholar Renewal', 'Scholar #' . $scholarId);
-            setFlash('success', 'Scholar declined for renewal and archived.');
-        } else {
-            logAudit('Requested Updated Requirements', 'Scholar #' . $scholarId);
-            setFlash('success', 'Scholar marked to submit updated requirements.');
-        }
-    }
-
     if (isset($_POST['end_semester'])) {
         $next = getNextTerm($term['current_academic_year'], $term['current_semester']);
         $deadlineInput = trim($_POST['requirements_deadline'] ?? '');
         $deadline = ($deadlineInput !== '' && DateTime::createFromFormat('Y-m-d', $deadlineInput)) ? $deadlineInput : null;
 
-        // Safety net: a scholar declined via the requirements modal is archived immediately at
-        // that point, but cover the edge case of a decision recorded without the archive having
-        // gone through, so nobody declined ever rolls into the new term.
-        $stmt = $conn->prepare("SELECT ad.scholar_id FROM allowance_distributions ad
-            JOIN scholars s ON s.scholar_id = ad.scholar_id
-            WHERE ad.academic_year = ? AND ad.semester = ? AND ad.requirement_decision = 'declined' AND s.status = 'active'");
+        // Every currently active scholar "finishes" the ending term right here — moved to
+        // 'pending' and flagged with the academic year/semester they just completed. They keep
+        // scholar-portal access to submit renewal documents for the new term; nobody is
+        // auto-approved or auto-declined. The admin reviews each one and decides Approve
+        // (continue) or Decline (remove) from the Applicants page's Renewals tab.
+        $stmt = $conn->prepare("UPDATE scholars SET status = 'pending', finished_academic_year = ?, finished_semester = ? WHERE status = 'active'");
         $stmt->bind_param('ss', $term['current_academic_year'], $term['current_semester']);
         $stmt->execute();
-        $declinedIds = array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'scholar_id');
         $stmt->close();
-
-        foreach ($declinedIds as $declinedId) {
-            $stmt = $conn->prepare("UPDATE scholars SET status = 'archived' WHERE scholar_id = ?");
-            $stmt->bind_param('i', $declinedId);
-            $stmt->execute();
-            $stmt->close();
-
-            $stmt = $conn->prepare("UPDATE users u JOIN scholars s ON s.user_id = u.user_id SET u.role = 'applicant' WHERE s.scholar_id = ?");
-            $stmt->bind_param('i', $declinedId);
-            $stmt->execute();
-            $stmt->close();
-        }
 
         $stmt = $conn->prepare("UPDATE site_settings SET current_academic_year = ?, current_semester = ?, requirements_deadline = ?, requirements_open = 1 WHERE id = 1");
         $stmt->bind_param('sss', $next['academic_year'], $next['semester'], $deadline);
@@ -99,13 +58,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $deadlineNote = $deadline ? (' Requirements deadline: ' . date('M j, Y', strtotime($deadline)) . '.') : '';
         logAudit('Ended Semester', $term['current_academic_year'] . ' ' . $term['current_semester'] . ' -> ' . $next['academic_year'] . ' ' . $next['semester'] . ($deadline ? ' (deadline ' . $deadline . ')' : ''));
-        setFlash('success', 'Semester ended. Now in ' . $next['academic_year'] . ', ' . $next['semester'] . '. Remaining scholars must submit updated requirements.' . $deadlineNote);
+        setFlash('success', 'Semester ended. Now in ' . $next['academic_year'] . ', ' . $next['semester'] . '. All scholars are now pending renewal — review them on the Applicants page\'s Renewals tab.' . $deadlineNote);
     }
 
     if (isset($_POST['archive_scholar'])) {
         $scholarId = (int)$_POST['scholar_id'];
-        $stmt = $conn->prepare("UPDATE scholars SET status = 'archived' WHERE scholar_id = ?");
-        $stmt->bind_param('i', $scholarId);
+        $stmt = $conn->prepare("UPDATE scholars SET status = 'archived', finished_academic_year = ?, finished_semester = ? WHERE scholar_id = ?");
+        $stmt->bind_param('ssi', $term['current_academic_year'], $term['current_semester'], $scholarId);
         $stmt->execute();
         $stmt->close();
 
@@ -138,7 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setFlash('success', 'Scholar restored.');
     }
 
-    // -- Requirement document types (the columns in the "Updated Requirements" modal) --
+    // -- Requirement document types (the file fields scholars submit each term for renewal) --
     // Scoped tightly to committee_id + program_track='scholarship' + input_type='file' in every
     // query below so this can only ever touch the requirement-file fields shown in that modal —
     // never the rest of the iSKolar application form (Last Name, School, etc.), which stays
@@ -241,35 +200,20 @@ foreach ($scholars as &$sch) {
 }
 unset($sch);
 
+// Purely permanent removals now — scholars.status='pending' (awaiting a renewal decision) is
+// reviewed separately on the Applicants page's Renewals tab, not here.
 $archivedScholars = $conn->query("SELECT s.*, u.first_name, u.last_name FROM scholars s JOIN users u ON u.user_id = s.user_id WHERE s.status = 'archived' ORDER BY u.last_name")->fetch_all(MYSQLI_ASSOC);
 
 $nextTerm = getNextTerm($term['current_academic_year'], $term['current_semester']);
 $deadlinePassed = !empty($term['requirements_deadline']) && strtotime($term['requirements_deadline']) < strtotime('today');
 $windowOpen = isRequirementsWindowOpen($term);
-$updateRequestedCount = 0;
-$undecidedCount = 0;
-foreach ($scholars as $sch) {
-    if (($sch['allowance']['requirement_decision'] ?? 'pending') === 'update') {
-        $updateRequestedCount++;
-    } else {
-        $undecidedCount++;
-    }
-}
 
-// Files a scholar attaches via scholar/UpdateRequirements.php each term — separate from the
-// documents they submitted with their original application ($sch['files']/View modal above).
-// Nothing in the admin UI showed these before; this is the only place they're surfaced.
+// Requirement document types (the file fields scholars must submit each term) — managed here via
+// "Manage Requirement Types"; the actual per-scholar submission review lives on the Applicants
+// page's Renewals tab now.
 $requirementDocFields = array_values(array_filter($fields, fn($f) => $f['input_type'] === 'file'));
-$requirementFiles = [];
-$reqFilesStmt = $conn->prepare("SELECT scholar_id, field_id, file_path, original_name, uploaded_at FROM scholar_requirement_files WHERE academic_year = ? AND semester = ? ORDER BY uploaded_at DESC");
-$reqFilesStmt->bind_param('ss', $term['current_academic_year'], $term['current_semester']);
-$reqFilesStmt->execute();
-foreach ($reqFilesStmt->get_result() as $rf) {
-    $requirementFiles[(int)$rf['scholar_id']][(int)$rf['field_id']] = $rf;
-}
-$reqFilesStmt->close();
 
-$yearLevelLabel = fn($n) => $n ? $n . (['','st','nd','rd'][$n] ?? 'th') . ' Year' : '—';
+$yearLevelLabel = fn($n) => $n ? $n . (['', 'st', 'nd', 'rd'][$n] ?? 'th') . ' Year' : '—';
 $eligibilityBadge = fn($e) => $e === 'eligible' ? 'badge-eligible' : ($e === 'not_eligible' ? 'badge-not-eligible' : 'badge-pending-elig');
 $eligibilityLabel = fn($e) => $e === 'eligible' ? 'Eligible' : ($e === 'not_eligible' ? 'Not Eligible' : 'Pending');
 
@@ -344,9 +288,9 @@ $activeLink = 'EducationScholarList';
                 <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#archivesModal">
                     <i class="bi bi-archive me-1"></i> Archives
                 </button>
-                <button class="btn btn-sm btn-outline-dark" data-bs-toggle="modal" data-bs-target="#requirementsModal">
-                    <i class="bi bi-file-earmark-check me-1"></i> Updated Requirements
-                </button>
+                <a class="btn btn-sm btn-outline-dark" href="<?php echo APP_BASE; ?>/admin/Education/EducationApplicants.php?tab=renewals">
+                    <i class="bi bi-file-earmark-check me-1"></i> Renewals
+                </a>
                 <button class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#manageRequirementTypesModal">
                     <i class="bi bi-pencil-square me-1"></i> Manage Requirement Types
                 </button>
@@ -496,6 +440,12 @@ $activeLink = 'EducationScholarList';
                                 <div class="info-label">Year Level</div>
                                 <div class="info-value"><?php echo $yearLevelLabel($sch['year_level']); ?></div>
                             </div>
+                            <?php if (!empty($sch['finished_academic_year'])): ?>
+                                <div class="col-12">
+                                    <div class="info-label">Last Completed Term</div>
+                                    <div class="info-value"><?php echo e($sch['finished_academic_year'] . ', ' . $sch['finished_semester']); ?></div>
+                                </div>
+                            <?php endif; ?>
                         </div>
                         <hr>
                         <div class="section-divider"><i class="bi bi-paperclip me-1"></i> Application Documents</div>
@@ -507,10 +457,10 @@ $activeLink = 'EducationScholarList';
                                 <div class="col-md-6">
                                     <div class="info-label mb-1"><?php echo e($field['label']); ?></div>
                                     <?php if ($file): ?>
-                                    <a class="doc-item" href="<?php echo APP_BASE . '/' . e($file['path']); ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-image-fill"></i><?php echo e($file['original_name']); ?><i class="bi bi-check-circle-fill doc-check"></i></a>
-                                <?php else: ?>
-                                    <div class="doc-item"><i class="bi bi-file-earmark-image-fill"></i>Not submitted</div>
-                                <?php endif; ?>
+                                        <a class="doc-item" href="<?php echo APP_BASE . '/' . e($file['path']); ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-image-fill"></i><?php echo e($file['original_name']); ?><i class="bi bi-check-circle-fill doc-check"></i></a>
+                                    <?php else: ?>
+                                        <div class="doc-item"><i class="bi bi-file-earmark-image-fill"></i>Not submitted</div>
+                                    <?php endif; ?>
                                 </div>
                             <?php endforeach; ?>
                         </div>
@@ -569,6 +519,7 @@ $activeLink = 'EducationScholarList';
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-4">
+                    <p class="text-muted mb-3" style="font-size:12px;">Permanently declined or manually removed scholars. Renewal decisions for scholars pending a new term are made from the <a href="<?php echo APP_BASE; ?>/admin/Education/EducationApplicants.php?tab=renewals">Applicants page's Renewals tab</a> instead.</p>
                     <div class="table-card">
                         <div class="table-responsive-wrap">
                             <table class="table mb-0" style="font-size:13px;">
@@ -577,13 +528,14 @@ $activeLink = 'EducationScholarList';
                                         <th>ID</th>
                                         <th>Full Name</th>
                                         <th>School</th>
+                                        <th>Finished</th>
                                         <th class="text-center">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <?php if (empty($archivedScholars)): ?>
                                         <tr>
-                                            <td colspan="4" class="text-center text-muted">No archived scholars.</td>
+                                            <td colspan="5" class="text-center text-muted">No archived scholars.</td>
                                         </tr>
                                     <?php endif; ?>
                                     <?php foreach ($archivedScholars as $arch): ?>
@@ -591,6 +543,13 @@ $activeLink = 'EducationScholarList';
                                             <td><?php echo str_pad($arch['scholar_id'], 3, '0', STR_PAD_LEFT); ?></td>
                                             <td><?php echo e($arch['first_name'] . ' ' . $arch['last_name']); ?></td>
                                             <td><?php echo e($arch['school']); ?></td>
+                                            <td>
+                                                <?php if (!empty($arch['finished_academic_year'])): ?>
+                                                    <span class="badge bg-light text-dark border" style="font-size:11px;font-weight:600;"><?php echo e($arch['finished_academic_year'] . ', ' . $arch['finished_semester']); ?></span>
+                                                <?php else: ?>
+                                                    <span class="text-muted">—</span>
+                                                <?php endif; ?>
+                                            </td>
                                             <td class="text-center">
                                                 <form method="post">
                                                     <input type="hidden" name="scholar_id" value="<?php echo $arch['scholar_id']; ?>">
@@ -603,97 +562,6 @@ $activeLink = 'EducationScholarList';
                             </table>
                         </div>
                     </div>
-                </div>
-                <div class="modal-footer border-0">
-                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- UPDATED REQUIREMENTS MODAL -->
-    <div class="modal fade" id="requirementsModal" tabindex="-1">
-        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content border-0 shadow">
-                <div class="modal-header">
-                    <div>
-                        <h6 class="modal-title fw-bold mb-1"><i class="bi bi-file-earmark-check me-2"></i> Updated Requirements — A.Y. <?php echo e($term['current_academic_year']); ?>, <?php echo e($term['current_semester']); ?></h6>
-                        <?php if (!empty($term['requirements_deadline'])): ?>
-                            <div class="<?php echo $deadlinePassed ? 'text-danger' : 'text-muted'; ?>" style="font-size:12px;">
-                                <i class="bi bi-clock-history me-1"></i>Deadline: <?php echo date('M j, Y', strtotime($term['requirements_deadline'])); ?><?php echo $deadlinePassed ? ' — passed' : ''; ?>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body p-4">
-                    <p class="text-muted mb-3" style="font-size:12px;">
-                        Showing each scholar's submitted requirement documents for this term.
-                        <button type="button" class="btn btn-link btn-sm p-0 align-baseline" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#manageRequirementTypesModal">Manage requirement types</button>
-                    </p>
-                    <?php if (empty($requirementDocFields)): ?>
-                        <p class="text-muted text-center mb-0">No requirement document fields are configured for this track yet.</p>
-                    <?php else: ?>
-                        <div class="table-card">
-                            <div class="table-responsive-wrap">
-                                <table class="table mb-0" style="font-size:13px;">
-                                    <thead>
-                                        <tr>
-                                            <th>Scholar</th>
-                                            <?php foreach ($requirementDocFields as $rf): ?>
-                                                <th><?php echo e($rf['label']); ?></th>
-                                            <?php endforeach; ?>
-                                            <th class="text-center">Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php if (empty($scholars)): ?>
-                                            <tr>
-                                                <td colspan="<?php echo count($requirementDocFields) + 2; ?>" class="text-center text-muted">No scholars yet.</td>
-                                            </tr>
-                                        <?php endif; ?>
-                                        <?php foreach ($scholars as $sch): ?>
-                                            <tr>
-                                                <td class="fw-semibold"><?php echo e($sch['first_name'] . ' ' . $sch['last_name']); ?></td>
-                                                <?php foreach ($requirementDocFields as $rf):
-                                                    $submitted = $requirementFiles[$sch['scholar_id']][$rf['field_id']] ?? null;
-                                                ?>
-                                                    <td>
-                                                        <?php if ($submitted): ?>
-                                                            <a class="doc-item" href="<?php echo APP_BASE . '/' . e($submitted['file_path']); ?>" target="_blank" rel="noopener">
-                                                                <i class="bi bi-file-earmark-image-fill"></i><?php echo e($submitted['original_name']); ?><i class="bi bi-check-circle-fill doc-check"></i>
-                                                            </a>
-                                                            <div class="text-muted" style="font-size:11px;"><?php echo date('M j, Y g:i A', strtotime($submitted['uploaded_at'])); ?></div>
-                                                        <?php else: ?>
-                                                            <div class="doc-item" style="color:#a94442;"><i class="bi bi-exclamation-circle-fill"></i>Not submitted<?php echo $deadlinePassed ? ' (overdue)' : ''; ?></div>
-                                                        <?php endif; ?>
-                                                    </td>
-                                                <?php endforeach; ?>
-                                                <td class="text-center">
-                                                    <?php if (($sch['allowance']['requirement_decision'] ?? 'pending') === 'update'): ?>
-                                                        <span class="badge bg-success bg-opacity-10 text-success border border-success" style="font-size:11px;"><i class="bi bi-check-circle me-1"></i>Update requested</span>
-                                                    <?php else: ?>
-                                                        <div class="d-flex gap-1 justify-content-center">
-                                                            <form method="post" onsubmit="return confirm('Mark <?php echo e(addslashes($sch['first_name'] . ' ' . $sch['last_name'])); ?> for renewal? They will need to submit updated requirements for the new semester.');">
-                                                                <input type="hidden" name="scholar_id" value="<?php echo $sch['scholar_id']; ?>">
-                                                                <input type="hidden" name="decision" value="update">
-                                                                <button type="submit" name="set_requirement_decision" class="btn btn-sm btn-outline-success py-0 px-2" style="font-size:11px;">Update</button>
-                                                            </form>
-                                                            <form method="post" onsubmit="return confirm('Decline renewal for <?php echo e(addslashes($sch['first_name'] . ' ' . $sch['last_name'])); ?>? This will archive them as a scholar.');">
-                                                                <input type="hidden" name="scholar_id" value="<?php echo $sch['scholar_id']; ?>">
-                                                                <input type="hidden" name="decision" value="declined">
-                                                                <button type="submit" name="set_requirement_decision" class="btn btn-sm btn-outline-danger py-0 px-2" style="font-size:11px;">Decline</button>
-                                                            </form>
-                                                        </div>
-                                                    <?php endif; ?>
-                                                </td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    <?php endif; ?>
                 </div>
                 <div class="modal-footer border-0">
                     <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -806,27 +674,27 @@ $activeLink = 'EducationScholarList';
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <form method="post" onsubmit="return confirm('End the current semester and move to <?php echo e(addslashes($nextTerm['academic_year'] . ' ' . $nextTerm['semester'])); ?>?');">
-                <div class="modal-body p-4">
-                    <div class="d-flex align-items-center justify-content-center gap-3 mb-3" style="font-size:14px;">
-                        <span class="fw-semibold text-muted"><?php echo e($term['current_academic_year']); ?><br><?php echo e($term['current_semester']); ?></span>
-                        <i class="bi bi-arrow-right fs-4 text-muted"></i>
-                        <span class="fw-bold text-success"><?php echo e($nextTerm['academic_year']); ?><br><?php echo e($nextTerm['semester']); ?></span>
+                    <div class="modal-body p-4">
+                        <div class="d-flex align-items-center justify-content-center gap-3 mb-3" style="font-size:14px;">
+                            <span class="fw-semibold text-muted"><?php echo e($term['current_academic_year']); ?><br><?php echo e($term['current_semester']); ?></span>
+                            <i class="bi bi-arrow-right fs-4 text-muted"></i>
+                            <span class="fw-bold text-success"><?php echo e($nextTerm['academic_year']); ?><br><?php echo e($nextTerm['semester']); ?></span>
+                        </div>
+                        <ul class="mb-3" style="font-size:13px;">
+                            <li>All <strong><?php echo count($scholars); ?></strong> currently active scholar(s) will be marked <strong>Pending</strong> and flagged as having finished <?php echo e($term['current_academic_year'] . ', ' . $term['current_semester']); ?> — the Scholars list will start empty for the new term.</li>
+                            <li>They keep scholar-portal access to submit renewal documents. Review each one and decide Approve or Decline from the Applicants page's <strong>Renewals</strong> tab.</li>
+                        </ul>
+                        <div class="mb-2">
+                            <label class="form-label fw-semibold" style="font-size:13px;">Requirements Deadline for <?php echo e($nextTerm['academic_year'] . ', ' . $nextTerm['semester']); ?></label>
+                            <input type="date" class="form-control form-control-sm" name="requirements_deadline" value="<?php echo e(date('Y-m-d', strtotime('+30 days'))); ?>" min="<?php echo e(date('Y-m-d')); ?>">
+                            <div class="form-text" style="font-size:11px;">Scholars must submit their updated requirements by this date. Leave blank for no deadline — it can be set or changed later in Site Settings.</div>
+                        </div>
+                        <p class="text-muted mb-0" style="font-size:12px;">This advances the site's current academic year/semester and opens the requirements submission window for scholars (closed while a semester is ongoing). Existing attendance, allowance, and requirement records stay tied to the term that just ended.</p>
                     </div>
-                    <ul class="mb-3" style="font-size:13px;">
-                        <li><strong><?php echo $updateRequestedCount; ?></strong> scholar(s) marked "Update" will continue into the new term and must submit updated requirements.</li>
-                        <li><strong><?php echo $undecidedCount; ?></strong> scholar(s) with no decision yet will also continue by default — they can still be reviewed later.</li>
-                    </ul>
-                    <div class="mb-2">
-                        <label class="form-label fw-semibold" style="font-size:13px;">Requirements Deadline for <?php echo e($nextTerm['academic_year'] . ', ' . $nextTerm['semester']); ?></label>
-                        <input type="date" class="form-control form-control-sm" name="requirements_deadline" value="<?php echo e(date('Y-m-d', strtotime('+30 days'))); ?>" min="<?php echo e(date('Y-m-d')); ?>">
-                        <div class="form-text" style="font-size:11px;">Scholars must submit their updated requirements by this date. Leave blank for no deadline — it can be set or changed later in Site Settings.</div>
+                    <div class="modal-footer border-0">
+                        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" name="end_semester" class="btn btn-sm btn-danger"><i class="bi bi-calendar-check me-1"></i> End Semester &amp; Continue</button>
                     </div>
-                    <p class="text-muted mb-0" style="font-size:12px;">This advances the site's current academic year/semester and opens the requirements submission window for scholars (closed while a semester is ongoing). Existing attendance, allowance, and requirement records stay tied to the term that just ended.</p>
-                </div>
-                <div class="modal-footer border-0">
-                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" name="end_semester" class="btn btn-sm btn-danger"><i class="bi bi-calendar-check me-1"></i> End Semester &amp; Continue</button>
-                </div>
                 </form>
             </div>
         </div>
@@ -843,7 +711,9 @@ $activeLink = 'EducationScholarList';
         document.querySelectorAll('[data-bs-toggle="dropdown"]').forEach(function(toggle) {
             new bootstrap.Dropdown(toggle, {
                 popperConfig: function(defaultConfig) {
-                    return Object.assign({}, defaultConfig, { strategy: 'fixed' });
+                    return Object.assign({}, defaultConfig, {
+                        strategy: 'fixed'
+                    });
                 }
             });
         });

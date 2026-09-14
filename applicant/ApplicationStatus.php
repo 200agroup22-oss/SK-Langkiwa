@@ -3,6 +3,7 @@ require_once __DIR__ . '/../config/forms.php';
 requireRole(['applicant', 'scholar']);
 
 $me = currentUser();
+$identity = ownIdentityFields($me['user_id']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_application'])) {
     $applicationId = (int)($_POST['application_id'] ?? 0);
@@ -16,6 +17,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_application'])) 
     if (!$app) {
         setFlash('error', 'Application not found.');
     } else {
+        foreach ($identity as $key => $val) {
+            $_POST[$key] = $val;
+        }
         $existingFiles = getApplicationFiles($applicationId);
         $errors = validateDynamicSubmission($app['committee_id'], $_POST, $_FILES, $existingFiles, $app['program_track'], $app['program_id']);
         if (empty($errors)) {
@@ -50,11 +54,13 @@ foreach ($applications as &$app) {
 }
 unset($app);
 
-function statusBadgeClass($status) {
+function statusBadgeClass($status)
+{
     return $status === 'approved' ? 'badge-approved' : ($status === 'declined' ? 'badge-declined' : 'badge-pending');
 }
 
-function statusLabel($status) {
+function statusLabel($status)
+{
     if ($status === 'approved') return 'Approved';
     if ($status === 'declined') return 'Declined';
     return '⏳ Pending';
@@ -236,42 +242,42 @@ function statusLabel($status) {
         <!-- Application Card -->
         <div class="section-card">
             <div class="table-responsive">
-            <table class="table mb-0" style="font-size: 13px;">
-                <thead>
-                    <tr style="background-color: #a5d6a7;">
-                        <th style="background-color: #a5d6a7; color: #1b5e20; padding: 10px 14px; font-weight: 600; border: none;">Committee</th>
-                        <th style="background-color: #a5d6a7; color: #1b5e20; padding: 10px 14px; font-weight: 600; border: none;">Date Submitted</th>
-                        <th style="background-color: #a5d6a7; color: #1b5e20; padding: 10px 14px; font-weight: 600; border: none;">Status</th>
-                        <th style="background-color: #a5d6a7; color: #1b5e20; padding: 10px 14px; font-weight: 600; border: none;">Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php if (empty($applications)): ?>
-                        <tr>
-                            <td colspan="4" class="text-center text-muted py-4">You haven't submitted any applications yet.</td>
+                <table class="table mb-0" style="font-size: 13px;">
+                    <thead>
+                        <tr style="background-color: #a5d6a7;">
+                            <th style="background-color: #a5d6a7; color: #1b5e20; padding: 10px 14px; font-weight: 600; border: none;">Committee</th>
+                            <th style="background-color: #a5d6a7; color: #1b5e20; padding: 10px 14px; font-weight: 600; border: none;">Date Submitted</th>
+                            <th style="background-color: #a5d6a7; color: #1b5e20; padding: 10px 14px; font-weight: 600; border: none;">Status</th>
+                            <th style="background-color: #a5d6a7; color: #1b5e20; padding: 10px 14px; font-weight: 600; border: none;">Action</th>
                         </tr>
-                    <?php endif; ?>
-                    <?php foreach ($applications as $app): ?>
-                        <tr>
-                            <td style="padding: 12px 14px; vertical-align: middle;"><?php echo e($app['committee_name']); ?></td>
-                            <td style="padding: 12px 14px; vertical-align: middle;"><?php echo date('F j, Y', strtotime($app['submitted_at'])); ?></td>
-                            <td style="padding: 12px 14px; vertical-align: middle;">
-                                <span class="<?php echo statusBadgeClass($app['status']); ?>"><?php echo statusLabel($app['status']); ?></span>
-                            </td>
-                            <td style="padding: 12px 14px; vertical-align: middle;">
-                                <div class="d-flex gap-1">
-                                    <button class="btn-view" data-bs-toggle="modal" data-bs-target="#viewModal<?php echo $app['application_id']; ?>">
-                                        <i class="bi bi-eye"></i> View
-                                    </button>
-                                    <button class="btn-edit" data-bs-toggle="modal" data-bs-target="#editModal<?php echo $app['application_id']; ?>">
-                                        <i class="bi bi-pencil"></i> Edit
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($applications)): ?>
+                            <tr>
+                                <td colspan="4" class="text-center text-muted py-4">You haven't submitted any applications yet.</td>
+                            </tr>
+                        <?php endif; ?>
+                        <?php foreach ($applications as $app): ?>
+                            <tr>
+                                <td style="padding: 12px 14px; vertical-align: middle;"><?php echo e($app['committee_name']); ?></td>
+                                <td style="padding: 12px 14px; vertical-align: middle;"><?php echo date('F j, Y', strtotime($app['submitted_at'])); ?></td>
+                                <td style="padding: 12px 14px; vertical-align: middle;">
+                                    <span class="<?php echo statusBadgeClass($app['status']); ?>"><?php echo statusLabel($app['status']); ?></span>
+                                </td>
+                                <td style="padding: 12px 14px; vertical-align: middle;">
+                                    <div class="d-flex gap-1">
+                                        <button class="btn-view" data-bs-toggle="modal" data-bs-target="#viewModal<?php echo $app['application_id']; ?>">
+                                            <i class="bi bi-eye"></i> View
+                                        </button>
+                                        <button class="btn-edit" data-bs-toggle="modal" data-bs-target="#editModal<?php echo $app['application_id']; ?>">
+                                            <i class="bi bi-pencil"></i> Edit
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
             </div>
         </div>
 
@@ -357,7 +363,7 @@ function statusLabel($status) {
                             <?php endif; ?>
 
                             <input type="hidden" name="application_id" value="<?php echo $app['application_id']; ?>">
-                            <?php renderDynamicFormFields($app['committee_id'], $app['answers'], $app['files'], $app['program_track'], $app['program_id']); ?>
+                            <?php renderDynamicFormFields($app['committee_id'], $app['answers'], $app['files'], $app['program_track'], $app['program_id'], $identity); ?>
 
                         </div>
                         <div class="modal-footer border-0">

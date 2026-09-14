@@ -7,7 +7,8 @@ $track = 'scholarship';
 $fields = getFormFields($committeeId, $track);
 $me = currentUser();
 
-function yearLevelToInt($text) {
+function yearLevelToInt($text)
+{
     if (preg_match('/(\d)/', $text, $m)) {
         return (int)$m[1];
     }
@@ -16,6 +17,38 @@ function yearLevelToInt($text) {
 
 // ---- POST handlers (redirect-after-POST) ----
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Renewal actions redirect back to the Renewals tab instead of the default New Applicants one.
+    $redirectTab = '';
+
+    if (isset($_POST['approve_renewal'])) {
+        $redirectTab = '?tab=renewals';
+        $scholarId = (int)$_POST['scholar_id'];
+        $stmt = $conn->prepare("UPDATE scholars SET status = 'active' WHERE scholar_id = ? AND status = 'pending'");
+        $stmt->bind_param('i', $scholarId);
+        $stmt->execute();
+        $stmt->close();
+        logAudit('Approved Scholar Renewal', 'Scholar #' . $scholarId);
+        setFlash('success', 'Renewal approved — scholar is back on the active list.');
+    }
+
+    if (isset($_POST['decline_renewal'])) {
+        $redirectTab = '?tab=renewals';
+        $scholarId = (int)$_POST['scholar_id'];
+        $stmt = $conn->prepare("UPDATE scholars SET status = 'archived' WHERE scholar_id = ? AND status = 'pending'");
+        $stmt->bind_param('i', $scholarId);
+        $stmt->execute();
+        $stmt->close();
+
+        // Declining a renewal is a permanent removal, same as the Scholars page's manual Archive
+        // action — the account drops back to a plain applicant and loses scholar-portal access.
+        $stmt = $conn->prepare("UPDATE users u JOIN scholars s ON s.user_id = u.user_id SET u.role = 'applicant' WHERE s.scholar_id = ?");
+        $stmt->bind_param('i', $scholarId);
+        $stmt->execute();
+        $stmt->close();
+
+        logAudit('Declined Scholar Renewal', 'Scholar #' . $scholarId);
+        setFlash('success', 'Renewal declined — scholar archived.');
+    }
 
     if (isset($_POST['add_applicant'])) {
         $errors = validateDynamicSubmission($committeeId, $_POST, $_FILES, [], $track);
@@ -134,15 +167,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setFlash('success', 'Applicant restored.');
     }
 
-    header("Location: EducationApplicants.php");
+    header("Location: EducationApplicants.php" . $redirectTab);
     exit();
 }
 
 $pageError = getFlash('error');
 $pageSuccess = getFlash('success');
+$activeTab = ($_GET['tab'] ?? '') === 'renewals' ? 'renewals' : 'new';
 
 $applications = listApplications($committeeId, $track);
 $archivedApplications = listArchivedApplications($committeeId, $track);
+
+$settings = $conn->query("SELECT current_academic_year, current_semester FROM site_settings WHERE id = 1")->fetch_assoc();
+
+// ---- Renewals tab: scholars whose term ended and are awaiting an Approve/Decline decision ----
+$pendingScholars = $conn->query("SELECT s.*, u.first_name, u.last_name, u.email FROM scholars s JOIN users u ON u.user_id = s.user_id WHERE s.status = 'pending' ORDER BY u.last_name ASC")->fetch_all(MYSQLI_ASSOC);
+$renewalDocFields = array_values(array_filter($fields, fn($f) => $f['input_type'] === 'file'));
+$renewalFiles = [];
+if (!empty($pendingScholars)) {
+    $rfStmt = $conn->prepare("SELECT scholar_id, field_id, file_path, original_name, uploaded_at FROM scholar_requirement_files WHERE academic_year = ? AND semester = ?");
+    $rfStmt->bind_param('ss', $settings['current_academic_year'], $settings['current_semester']);
+    $rfStmt->execute();
+    foreach ($rfStmt->get_result() as $rf) {
+        $renewalFiles[(int)$rf['scholar_id']][(int)$rf['field_id']] = $rf;
+    }
+    $rfStmt->close();
+}
 
 // ---- filter / sort / search (GET, applied in PHP over the small result set) ----
 $statusFilter = $_GET['status'] ?? '';
@@ -186,7 +236,6 @@ switch ($sortBy) {
         break;
 }
 
-$settings = $conn->query("SELECT current_academic_year, current_semester FROM site_settings WHERE id = 1")->fetch_assoc();
 $activeLink = 'EducationApplicants';
 ?>
 <!DOCTYPE html>
@@ -219,89 +268,172 @@ $activeLink = 'EducationApplicants';
             <span class="term-badge sem"><i class="bi bi-book"></i> <?php echo e($settings['current_semester']); ?></span>
         </div>
 
-        <form method="get">
-            <!-- Table Header -->
-            <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-                <div class="d-flex gap-2 align-items-center flex-wrap">
-                    <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addApplicantModal">
-                        <i class="bi bi-plus-lg me-1"></i> Add Applicant
-                    </button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#archivesApplicantModal">
-                        <i class="bi bi-archive me-1"></i> Archives
-                    </button>
+        <!-- Applicants / Renewals Tabs -->
+        <ul class="nav nav-tabs mb-3">
+            <li class="nav-item">
+                <a class="nav-link <?php echo $activeTab === 'new' ? 'active' : ''; ?>" href="?tab=new"><i class="bi bi-person-plus me-1"></i> New Applicants</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link <?php echo $activeTab === 'renewals' ? 'active' : ''; ?>" href="?tab=renewals">
+                    <i class="bi bi-arrow-repeat me-1"></i> Renewals
+                    <?php if (!empty($pendingScholars)): ?><span class="badge bg-warning text-dark ms-1"><?php echo count($pendingScholars); ?></span><?php endif; ?>
+                </a>
+            </li>
+        </ul>
+
+        <?php if ($activeTab === 'new'): ?>
+            <form method="get">
+                <input type="hidden" name="tab" value="new">
+                <!-- Table Header -->
+                <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                    <div class="d-flex gap-2 align-items-center flex-wrap">
+                        <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addApplicantModal">
+                            <i class="bi bi-plus-lg me-1"></i> Add Applicant
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#archivesApplicantModal">
+                            <i class="bi bi-archive me-1"></i> Archives
+                        </button>
+                    </div>
+                    <div class="search-box">
+                        <input type="text" name="q" value="<?php echo e($search); ?>" placeholder="Search...">
+                        <i class="bi bi-search"></i>
+                    </div>
                 </div>
-                <div class="search-box">
-                    <input type="text" name="q" value="<?php echo e($search); ?>" placeholder="Search...">
-                    <i class="bi bi-search"></i>
+
+                <!-- Filter Bar -->
+                <div class="filter-bar d-flex gap-2 align-items-center mb-3 flex-wrap">
+                    <span style="font-size:12px; color:#666; font-weight:600;"><i class="bi bi-funnel me-1"></i>Filter:</span>
+                    <select class="filter-select" name="status" onchange="this.form.submit()">
+                        <option value="">All Status</option>
+                        <option value="pending" <?php echo $statusFilter === 'pending' ? 'selected' : ''; ?>>Pending</option>
+                        <option value="approved" <?php echo $statusFilter === 'approved' ? 'selected' : ''; ?>>Approved</option>
+                        <option value="declined" <?php echo $statusFilter === 'declined' ? 'selected' : ''; ?>>Declined</option>
+                    </select>
+                    <span style="font-size:12px; color:#666; font-weight:600; margin-left:6px;"><i class="bi bi-sort-down me-1"></i>Sort by:</span>
+                    <select class="filter-select" name="sort" onchange="this.form.submit()">
+                        <option value="">Default Order</option>
+                        <option value="name_asc" <?php echo $sortBy === 'name_asc' ? 'selected' : ''; ?>>Name: A → Z</option>
+                        <option value="name_desc" <?php echo $sortBy === 'name_desc' ? 'selected' : ''; ?>>Name: Z → A</option>
+                        <option value="id_oldest" <?php echo $sortBy === 'id_oldest' ? 'selected' : ''; ?>>Applicant ID: Oldest First</option>
+                        <option value="id_newest" <?php echo $sortBy === 'id_newest' ? 'selected' : ''; ?>>Applicant ID: Newest First</option>
+                        <option value="year_asc" <?php echo $sortBy === 'year_asc' ? 'selected' : ''; ?>>Year Level: 1st → 4th</option>
+                        <option value="year_desc" <?php echo $sortBy === 'year_desc' ? 'selected' : ''; ?>>Year Level: 4th → 1st</option>
+                    </select>
+                </div>
+            </form>
+
+            <!-- Table -->
+            <div class="table-card">
+                <div class="table-responsive-wrap">
+                    <table class="table mb-0">
+                        <thead>
+                            <tr>
+                                <th>Applicant ID</th>
+                                <th>Full Name</th>
+                                <th>School</th>
+                                <th>Course</th>
+                                <th>Year Level</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($applications)): ?>
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted py-4">No applicants found.</td>
+                                </tr>
+                            <?php endif; ?>
+                            <?php foreach ($applications as $app): ?>
+                                <tr>
+                                    <td><?php echo str_pad($app['application_id'], 3, '0', STR_PAD_LEFT); ?></td>
+                                    <td><?php echo e($app['full_name']); ?></td>
+                                    <td><?php echo e($app['school']); ?></td>
+                                    <td><?php echo e($app['course']); ?></td>
+                                    <td><?php echo e($app['year_level_text']); ?></td>
+                                    <td><span class="badge text-bg-<?php echo $app['status'] === 'approved' ? 'success' : ($app['status'] === 'declined' ? 'danger' : 'warning'); ?>"><?php echo ucfirst($app['status']); ?></span></td>
+                                    <td class="d-flex gap-1">
+                                        <button class="btn-view" data-bs-toggle="modal" data-bs-target="#viewModal<?php echo $app['application_id']; ?>"><i class="bi bi-eye"></i> View</button>
+                                        <button class="btn-edit" data-bs-toggle="modal" data-bs-target="#editModal<?php echo $app['application_id']; ?>"><i class="bi bi-pencil"></i> Edit</button>
+                                        <button class="btn-archive" data-bs-toggle="modal" data-bs-target="#archiveModal<?php echo $app['application_id']; ?>"><i class="bi bi-archive"></i> Archive</button>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
-            <!-- Filter Bar -->
-            <div class="filter-bar d-flex gap-2 align-items-center mb-3 flex-wrap">
-                <span style="font-size:12px; color:#666; font-weight:600;"><i class="bi bi-funnel me-1"></i>Filter:</span>
-                <select class="filter-select" name="status" onchange="this.form.submit()">
-                    <option value="">All Status</option>
-                    <option value="pending" <?php echo $statusFilter === 'pending' ? 'selected' : ''; ?>>Pending</option>
-                    <option value="approved" <?php echo $statusFilter === 'approved' ? 'selected' : ''; ?>>Approved</option>
-                    <option value="declined" <?php echo $statusFilter === 'declined' ? 'selected' : ''; ?>>Declined</option>
-                </select>
-                <span style="font-size:12px; color:#666; font-weight:600; margin-left:6px;"><i class="bi bi-sort-down me-1"></i>Sort by:</span>
-                <select class="filter-select" name="sort" onchange="this.form.submit()">
-                    <option value="">Default Order</option>
-                    <option value="name_asc" <?php echo $sortBy === 'name_asc' ? 'selected' : ''; ?>>Name: A → Z</option>
-                    <option value="name_desc" <?php echo $sortBy === 'name_desc' ? 'selected' : ''; ?>>Name: Z → A</option>
-                    <option value="id_oldest" <?php echo $sortBy === 'id_oldest' ? 'selected' : ''; ?>>Applicant ID: Oldest First</option>
-                    <option value="id_newest" <?php echo $sortBy === 'id_newest' ? 'selected' : ''; ?>>Applicant ID: Newest First</option>
-                    <option value="year_asc" <?php echo $sortBy === 'year_asc' ? 'selected' : ''; ?>>Year Level: 1st → 4th</option>
-                    <option value="year_desc" <?php echo $sortBy === 'year_desc' ? 'selected' : ''; ?>>Year Level: 4th → 1st</option>
-                </select>
+            <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
+                <span style="font-size:12px; color:#888;">Showing <?php echo count($applications); ?> of <?php echo count($applications); ?> entries</span>
             </div>
-        </form>
-
-        <!-- Table -->
-        <div class="table-card">
-            <div class="table-responsive-wrap">
-                <table class="table mb-0">
-                    <thead>
-                        <tr>
-                            <th>Applicant ID</th>
-                            <th>Full Name</th>
-                            <th>School</th>
-                            <th>Course</th>
-                            <th>Year Level</th>
-                            <th>Status</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if (empty($applications)): ?>
+        <?php else: ?>
+            <!-- Renewals Tab: scholars whose term ended, awaiting an Approve/Decline decision -->
+            <p class="text-muted mb-3" style="font-size:13px;">Scholars whose term ended and are pending a renewal decision. They keep scholar-portal access to submit requirement documents for this term — Approve puts them back on the active Scholars list, Decline archives them permanently.</p>
+            <div class="table-card">
+                <div class="table-responsive-wrap">
+                    <table class="table mb-0">
+                        <thead>
                             <tr>
-                                <td colspan="7" class="text-center text-muted py-4">No applicants found.</td>
+                                <th>Scholar ID</th>
+                                <th>Full Name</th>
+                                <th>School</th>
+                                <th>Finished</th>
+                                <?php foreach ($renewalDocFields as $rf): ?>
+                                    <th><?php echo e($rf['label']); ?></th>
+                                <?php endforeach; ?>
+                                <th class="text-center">Action</th>
                             </tr>
-                        <?php endif; ?>
-                        <?php foreach ($applications as $app): ?>
-                            <tr>
-                                <td><?php echo str_pad($app['application_id'], 3, '0', STR_PAD_LEFT); ?></td>
-                                <td><?php echo e($app['full_name']); ?></td>
-                                <td><?php echo e($app['school']); ?></td>
-                                <td><?php echo e($app['course']); ?></td>
-                                <td><?php echo e($app['year_level_text']); ?></td>
-                                <td><span class="badge text-bg-<?php echo $app['status'] === 'approved' ? 'success' : ($app['status'] === 'declined' ? 'danger' : 'warning'); ?>"><?php echo ucfirst($app['status']); ?></span></td>
-                                <td class="d-flex gap-1">
-                                    <button class="btn-view" data-bs-toggle="modal" data-bs-target="#viewModal<?php echo $app['application_id']; ?>"><i class="bi bi-eye"></i> View</button>
-                                    <button class="btn-edit" data-bs-toggle="modal" data-bs-target="#editModal<?php echo $app['application_id']; ?>"><i class="bi bi-pencil"></i> Edit</button>
-                                    <button class="btn-archive" data-bs-toggle="modal" data-bs-target="#archiveModal<?php echo $app['application_id']; ?>"><i class="bi bi-archive"></i> Archive</button>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($pendingScholars)): ?>
+                                <tr>
+                                    <td colspan="<?php echo 5 + count($renewalDocFields); ?>" class="text-center text-muted py-4">No scholars pending renewal.</td>
+                                </tr>
+                            <?php endif; ?>
+                            <?php foreach ($pendingScholars as $ps): ?>
+                                <tr>
+                                    <td><?php echo str_pad($ps['scholar_id'], 3, '0', STR_PAD_LEFT); ?></td>
+                                    <td><?php echo e($ps['first_name'] . ' ' . $ps['last_name']); ?></td>
+                                    <td><?php echo e($ps['school']); ?></td>
+                                    <td>
+                                        <?php if (!empty($ps['finished_academic_year'])): ?>
+                                            <span class="badge bg-light text-dark border" style="font-size:11px;font-weight:600;"><?php echo e($ps['finished_academic_year'] . ', ' . $ps['finished_semester']); ?></span>
+                                        <?php else: ?>
+                                            <span class="text-muted">—</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <?php foreach ($renewalDocFields as $rf):
+                                        $submitted = $renewalFiles[$ps['scholar_id']][$rf['field_id']] ?? null;
+                                    ?>
+                                        <td>
+                                            <?php if ($submitted): ?>
+                                                <a class="doc-item" href="<?php echo APP_BASE . '/' . e($submitted['file_path']); ?>" target="_blank" rel="noopener">
+                                                    <i class="bi bi-file-earmark-image-fill"></i><?php echo e($submitted['original_name']); ?><i class="bi bi-check-circle-fill doc-check"></i>
+                                                </a>
+                                            <?php else: ?>
+                                                <div class="doc-item" style="color:#a94442;"><i class="bi bi-exclamation-circle-fill"></i>Not submitted</div>
+                                            <?php endif; ?>
+                                        </td>
+                                    <?php endforeach; ?>
+                                    <td class="text-center">
+                                        <div class="d-flex gap-1 justify-content-center">
+                                            <form method="post" onsubmit="return confirm('Approve renewal for <?php echo e(addslashes($ps['first_name'] . ' ' . $ps['last_name'])); ?>? They will go back on the active Scholars list.');">
+                                                <input type="hidden" name="scholar_id" value="<?php echo $ps['scholar_id']; ?>">
+                                                <button type="submit" name="approve_renewal" class="btn btn-sm btn-outline-success py-0 px-2" style="font-size:11px;"><i class="bi bi-check-lg"></i> Approve</button>
+                                            </form>
+                                            <form method="post" onsubmit="return confirm('Decline renewal for <?php echo e(addslashes($ps['first_name'] . ' ' . $ps['last_name'])); ?>? They will be archived and lose scholar-portal access.');">
+                                                <input type="hidden" name="scholar_id" value="<?php echo $ps['scholar_id']; ?>">
+                                                <button type="submit" name="decline_renewal" class="btn btn-sm btn-outline-danger py-0 px-2" style="font-size:11px;"><i class="bi bi-x-lg"></i> Decline</button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
             </div>
-        </div>
-
-        <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
-            <span style="font-size:12px; color:#888;">Showing <?php echo count($applications); ?> of <?php echo count($applications); ?> entries</span>
-        </div>
+        <?php endif; ?>
     </div>
 
     <!-- ADD -->
@@ -355,10 +487,10 @@ $activeLink = 'EducationApplicants';
                                 <div class="col-md-6">
                                     <div class="info-label mb-1"><?php echo e($field['label']); ?></div>
                                     <?php if ($file): ?>
-                                    <a class="doc-item" href="<?php echo APP_BASE . '/' . e($file['path']); ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-image-fill"></i><?php echo e($file['original_name']); ?><i class="bi bi-check-circle-fill doc-check"></i></a>
-                                <?php else: ?>
-                                    <div class="doc-item"><i class="bi bi-file-earmark-image-fill"></i>Not submitted</div>
-                                <?php endif; ?>
+                                        <a class="doc-item" href="<?php echo APP_BASE . '/' . e($file['path']); ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-image-fill"></i><?php echo e($file['original_name']); ?><i class="bi bi-check-circle-fill doc-check"></i></a>
+                                    <?php else: ?>
+                                        <div class="doc-item"><i class="bi bi-file-earmark-image-fill"></i>Not submitted</div>
+                                    <?php endif; ?>
                                 </div>
                             <?php endforeach; ?>
                         </div>

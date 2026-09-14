@@ -6,9 +6,10 @@
 require_once __DIR__ . '/../config/scholars.php';
 require_once __DIR__ . '/../config/fpdf/fpdf.php';
 requireRole('admin');
+$me = currentUser();
 
 // ---- Validate report type ----
-$allowedTypes = ['consolidated', 'beneficiaries', 'financial', 'in-kind', 'application-status', 'scholars'];
+$allowedTypes = ['consolidated', 'applicants', 'beneficiaries', 'financial', 'in-kind', 'application-status', 'scholars'];
 $type = $_GET['type'] ?? '';
 if (!in_array($type, $allowedTypes, true)) {
     http_response_code(400);
@@ -58,7 +59,8 @@ if ($programParam !== 'all') {
 }
 
 // ---- Validate from/to dates (YYYY-MM-DD) ----
-function isValidDate($value) {
+function isValidDate($value)
+{
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
         return false;
     }
@@ -86,29 +88,42 @@ $scopeLabel = $committeeLabel . ($programLabel !== null ? ' — ' . $programLabe
 logAudit('Generated Report', $reportLabel . ' / ' . $scopeLabel . ' / ' . $from . ' to ' . $to);
 
 // ---- PDF setup ----
-class ReportPDF extends FPDF {
+class ReportPDF extends FPDF
+{
     public $reportTitle = '';
     public $committeeLabel = '';
     public $programLabel = '';
     public $dateRange = '';
+    public $logoPath = '';
 
-    function Header() {
+    function Header()
+    {
         $this->SetFillColor(69, 184, 77);
         $this->Rect(0, 0, $this->GetPageWidth(), 26, 'F');
+
+        $textX = 10;
+        if ($this->logoPath && file_exists($this->logoPath)) {
+            $ext = strtolower(pathinfo($this->logoPath, PATHINFO_EXTENSION));
+            $imageType = in_array($ext, ['jpg', 'jpeg'], true) ? 'JPG' : strtoupper($ext);
+            $this->Image($this->logoPath, 8, 4, 18, 18, $imageType);
+            $textX = 30;
+        }
+
         $this->SetTextColor(255, 255, 255);
         $this->SetFont('Helvetica', 'B', 15);
-        $this->SetXY(10, 5);
+        $this->SetXY($textX, 5);
         $this->Cell(0, 8, pdfEnc(siteName() . ' - ' . $this->reportTitle), 0, 1);
         $this->SetFont('Helvetica', '', 9);
-        $this->SetXY(10, 13);
+        $this->SetXY($textX, 13);
         $this->Cell(0, 5, pdfEnc('Committee: ' . $this->committeeLabel . '   |   Program: ' . $this->programLabel), 0, 1);
-        $this->SetXY(10, 18.5);
+        $this->SetXY($textX, 18.5);
         $this->Cell(0, 5, pdfEnc('Period: ' . $this->dateRange), 0, 1);
         $this->SetTextColor(0, 0, 0);
         $this->SetY(32);
     }
 
-    function Footer() {
+    function Footer()
+    {
         $this->SetY(-15);
         $this->SetFont('Helvetica', 'I', 8);
         $this->SetTextColor(120, 120, 120);
@@ -118,13 +133,15 @@ class ReportPDF extends FPDF {
 
 // FPDF's core fonts only support Windows-1252, not UTF-8 — without this, em dashes, curly
 // quotes, and accented names (e.g. "Peña") render as mojibake ("â€”" etc.) in the PDF.
-function pdfEnc($text) {
+function pdfEnc($text)
+{
     $text = (string)$text;
     $converted = @iconv('UTF-8', 'Windows-1252//TRANSLIT', $text);
     return $converted !== false ? $converted : $text;
 }
 
-function fitText($pdf, $text, $width) {
+function fitText($pdf, $text, $width)
+{
     $text = pdfEnc($text);
     if ($pdf->GetStringWidth($text) <= $width - 2) {
         return $text;
@@ -136,7 +153,8 @@ function fitText($pdf, $text, $width) {
 }
 
 // Prints a section heading, adding a fresh page first if there isn't room left for it plus a row or two.
-function sectionTitle($pdf, $text) {
+function sectionTitle($pdf, $text)
+{
     if ($pdf->GetY() > $pdf->GetPageHeight() - 40) {
         $pdf->AddPage();
     } else {
@@ -149,7 +167,8 @@ function sectionTitle($pdf, $text) {
 }
 
 // Renders a bordered table with a repeating header row across page breaks.
-function renderTable($pdf, $headers, $widths, $rows) {
+function renderTable($pdf, $headers, $widths, $rows)
+{
     $printHeader = function () use ($pdf, $headers, $widths) {
         $pdf->SetFont('Helvetica', 'B', 8.5);
         $pdf->SetFillColor(169, 216, 171);
@@ -187,7 +206,8 @@ function renderTable($pdf, $headers, $widths, $rows) {
 }
 
 // Prints a bold, right-aligned total line beneath a table (e.g. "Total Beneficiaries: 42").
-function renderTotalLine($pdf, $text) {
+function renderTotalLine($pdf, $text)
+{
     if ($pdf->GetY() > $pdf->GetPageHeight() - 25) {
         $pdf->AddPage();
     }
@@ -197,12 +217,38 @@ function renderTotalLine($pdf, $text) {
     $pdf->Cell(0, 7, pdfEnc($text), 0, 1, 'R');
 }
 
+// Prints a formal "printed by" signature block (blank space for a pen signature, a line,
+// then the printed name/position/date beneath it) at the end of the report.
+function renderSignatureBlock($pdf, $name, $position)
+{
+    if ($pdf->GetY() > $pdf->GetPageHeight() - 45) {
+        $pdf->AddPage();
+    }
+    $pdf->Ln(16);
+    $blockWidth = 80;
+    $x = $pdf->GetPageWidth() - 10 - $blockWidth;
+    $y = $pdf->GetY();
+    $pdf->Line($x, $y, $x + $blockWidth, $y);
+    $pdf->SetXY($x, $y + 1);
+    $pdf->SetFont('Helvetica', 'B', 10.5);
+    $pdf->SetTextColor(30, 30, 30);
+    $pdf->Cell($blockWidth, 6, pdfEnc(strtoupper($name)), 0, 2, 'C');
+    $pdf->SetX($x);
+    $pdf->SetFont('Helvetica', '', 9);
+    $pdf->SetTextColor(90, 90, 90);
+    $pdf->Cell($blockWidth, 5, pdfEnc($position !== '' ? $position : 'System Administrator'), 0, 2, 'C');
+    $pdf->SetX($x);
+    $pdf->SetFont('Helvetica', 'I', 8);
+    $pdf->Cell($blockWidth, 5, pdfEnc('Printed by / Generated on ' . date('F j, Y')), 0, 1, 'C');
+}
+
 $pdf = new ReportPDF('L', 'mm', 'A4');
 $pdf->AliasNbPages();
 $pdf->reportTitle = $reportLabel . ' Report';
 $pdf->committeeLabel = $committeeLabel;
 $pdf->programLabel = $programLabel !== null ? $programLabel : 'All Programs';
 $pdf->dateRange = $from . ' to ' . $to;
+$pdf->logoPath = siteLogoPath();
 $pdf->SetMargins(10, 10, 10);
 $pdf->SetAutoPageBreak(true, 20);
 $pdf->AddPage();
@@ -210,68 +256,68 @@ $pdf->AddPage();
 switch ($type) {
 
     case 'consolidated': {
-        $headers = ['Committee', 'Total Programs', 'Total Beneficiaries', 'Funds Released', 'In-Kind Items (Qty)', 'Approval Rate'];
-        $widths = [70, 40, 45, 45, 45, 32];
+            $headers = ['Committee', 'Total Programs', 'Total Beneficiaries', 'Funds Released', 'In-Kind Items (Qty)', 'Approval Rate'];
+            $widths = [70, 40, 45, 45, 45, 32];
 
-        $committeesStmt = $conn->prepare("SELECT * FROM committees WHERE (? = 0 OR committee_id = ?) ORDER BY committee_id ASC");
-        $committeesStmt->bind_param('ii', $committeeId, $committeeId);
-        $committeesStmt->execute();
-        $committeeRows = $committeesStmt->get_result()->fetch_all(MYSQLI_ASSOC);
-        $committeesStmt->close();
+            $committeesStmt = $conn->prepare("SELECT * FROM committees WHERE (? = 0 OR committee_id = ?) ORDER BY committee_id ASC");
+            $committeesStmt->bind_param('ii', $committeeId, $committeeId);
+            $committeesStmt->execute();
+            $committeeRows = $committeesStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $committeesStmt->close();
 
-        $rows = [];
-        $grandBenCount = 0;
-        foreach ($committeeRows as $c) {
-            $cid = (int)$c['committee_id'];
+            $rows = [];
+            $grandBenCount = 0;
+            foreach ($committeeRows as $c) {
+                $cid = (int)$c['committee_id'];
 
-            $stmt = $conn->prepare("SELECT COUNT(*) c FROM programs WHERE committee_id = ? AND archived_at IS NULL");
-            $stmt->bind_param('i', $cid);
-            $stmt->execute();
-            $totalPrograms = $programId > 0 ? 1 : (int)($stmt->get_result()->fetch_assoc()['c'] ?? 0);
-            $stmt->close();
+                $stmt = $conn->prepare("SELECT COUNT(*) c FROM programs WHERE committee_id = ? AND archived_at IS NULL");
+                $stmt->bind_param('i', $cid);
+                $stmt->execute();
+                $totalPrograms = $programId > 0 ? 1 : (int)($stmt->get_result()->fetch_assoc()['c'] ?? 0);
+                $stmt->close();
 
-            $stmt = $conn->prepare("SELECT COUNT(*) c FROM applications WHERE committee_id = ? AND status = 'approved' AND archived_at IS NULL AND submitted_at BETWEEN ? AND ? AND (? = 0 OR program_id = ?)");
-            $stmt->bind_param('issii', $cid, $fromInclusive, $toInclusive, $programId, $programId);
-            $stmt->execute();
-            $benCount = (int)($stmt->get_result()->fetch_assoc()['c'] ?? 0);
-            $stmt->close();
+                $stmt = $conn->prepare("SELECT COUNT(*) c FROM applications WHERE committee_id = ? AND status = 'approved' AND archived_at IS NULL AND submitted_at BETWEEN ? AND ? AND (? = 0 OR program_id = ?)");
+                $stmt->bind_param('issii', $cid, $fromInclusive, $toInclusive, $programId, $programId);
+                $stmt->execute();
+                $benCount = (int)($stmt->get_result()->fetch_assoc()['c'] ?? 0);
+                $stmt->close();
 
-            $stmt = $conn->prepare("SELECT COALESCE(SUM(b.amount), 0) s FROM assistance_beneficiaries b JOIN applications a ON a.application_id = b.application_id WHERE a.committee_id = ? AND b.type = 'cash' AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.program_id = ?)");
-            $stmt->bind_param('issii', $cid, $fromInclusive, $toInclusive, $programId, $programId);
-            $stmt->execute();
-            $funds = (float)($stmt->get_result()->fetch_assoc()['s'] ?? 0);
-            $stmt->close();
+                $stmt = $conn->prepare("SELECT COALESCE(SUM(b.amount), 0) s FROM assistance_beneficiaries b JOIN applications a ON a.application_id = b.application_id WHERE a.committee_id = ? AND b.type = 'cash' AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.program_id = ?)");
+                $stmt->bind_param('issii', $cid, $fromInclusive, $toInclusive, $programId, $programId);
+                $stmt->execute();
+                $funds = (float)($stmt->get_result()->fetch_assoc()['s'] ?? 0);
+                $stmt->close();
 
-            $stmt = $conn->prepare("SELECT COALESCE(SUM(b.quantity), 0) q FROM assistance_beneficiaries b JOIN applications a ON a.application_id = b.application_id WHERE a.committee_id = ? AND b.type = 'in_kind' AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.program_id = ?)");
-            $stmt->bind_param('issii', $cid, $fromInclusive, $toInclusive, $programId, $programId);
-            $stmt->execute();
-            $inKindQty = (int)($stmt->get_result()->fetch_assoc()['q'] ?? 0);
-            $stmt->close();
+                $stmt = $conn->prepare("SELECT COALESCE(SUM(b.quantity), 0) q FROM assistance_beneficiaries b JOIN applications a ON a.application_id = b.application_id WHERE a.committee_id = ? AND b.type = 'in_kind' AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.program_id = ?)");
+                $stmt->bind_param('issii', $cid, $fromInclusive, $toInclusive, $programId, $programId);
+                $stmt->execute();
+                $inKindQty = (int)($stmt->get_result()->fetch_assoc()['q'] ?? 0);
+                $stmt->close();
 
-            $stmt = $conn->prepare("SELECT status, COUNT(*) c FROM applications WHERE committee_id = ? AND archived_at IS NULL AND submitted_at BETWEEN ? AND ? AND (? = 0 OR program_id = ?) GROUP BY status");
-            $stmt->bind_param('issii', $cid, $fromInclusive, $toInclusive, $programId, $programId);
-            $stmt->execute();
-            $decided = ['approved' => 0, 'declined' => 0];
-            foreach ($stmt->get_result() as $row) {
-                if (isset($decided[$row['status']])) $decided[$row['status']] = (int)$row['c'];
+                $stmt = $conn->prepare("SELECT status, COUNT(*) c FROM applications WHERE committee_id = ? AND archived_at IS NULL AND submitted_at BETWEEN ? AND ? AND (? = 0 OR program_id = ?) GROUP BY status");
+                $stmt->bind_param('issii', $cid, $fromInclusive, $toInclusive, $programId, $programId);
+                $stmt->execute();
+                $decided = ['approved' => 0, 'declined' => 0];
+                foreach ($stmt->get_result() as $row) {
+                    if (isset($decided[$row['status']])) $decided[$row['status']] = (int)$row['c'];
+                }
+                $stmt->close();
+                $decidedTotal = $decided['approved'] + $decided['declined'];
+                $approvalRate = $decidedTotal > 0 ? round(($decided['approved'] / $decidedTotal) * 100) . '%' : 'N/A';
+
+                $rows[] = [$c['name'], $totalPrograms, $benCount, (string)number_format($funds, 2), $inKindQty, $approvalRate];
+                $grandBenCount += $benCount;
             }
-            $stmt->close();
-            $decidedTotal = $decided['approved'] + $decided['declined'];
-            $approvalRate = $decidedTotal > 0 ? round(($decided['approved'] / $decidedTotal) * 100) . '%' : 'N/A';
 
-            $rows[] = [$c['name'], $totalPrograms, $benCount, (string)number_format($funds, 2), $inKindQty, $approvalRate];
-            $grandBenCount += $benCount;
-        }
+            renderTable($pdf, $headers, $widths, $rows);
+            renderTotalLine($pdf, 'Total Beneficiaries (All Committees): ' . $grandBenCount);
 
-        renderTable($pdf, $headers, $widths, $rows);
-        renderTotalLine($pdf, 'Total Beneficiaries (All Committees): ' . $grandBenCount);
+            // ---- Appendix: full list of approved applicants/beneficiaries behind the summary above ----
+            sectionTitle($pdf, 'Approved Applicants / Beneficiaries');
+            $detailHeaders = ['Application ID', 'Full Name', 'Committee', 'Assistance', 'Amount / Items', 'Submitted At', 'Decided At'];
+            $detailWidths = [25, 50, 45, 28, 50, 40, 39];
 
-        // ---- Appendix: full list of approved applicants/beneficiaries behind the summary above ----
-        sectionTitle($pdf, 'Approved Applicants / Beneficiaries');
-        $detailHeaders = ['Application ID', 'Full Name', 'Committee', 'Assistance', 'Amount / Items', 'Submitted At', 'Decided At'];
-        $detailWidths = [25, 50, 45, 28, 50, 40, 39];
-
-        $stmt = $conn->prepare("SELECT a.application_id, u.first_name, u.last_name, c.name AS committee_name, a.submitted_at, a.decided_at,
+            $stmt = $conn->prepare("SELECT a.application_id, u.first_name, u.last_name, c.name AS committee_name, a.submitted_at, a.decided_at,
                 b.type AS b_type, b.amount, b.items, b.quantity
             FROM applications a
             JOIN users u ON u.user_id = a.user_id
@@ -279,199 +325,232 @@ switch ($type) {
             LEFT JOIN assistance_beneficiaries b ON b.application_id = a.application_id
             WHERE a.status = 'approved' AND a.archived_at IS NULL AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.committee_id = ?) AND (? = 0 OR a.program_id = ?)
             ORDER BY a.committee_id ASC, a.submitted_at ASC");
-        $stmt->bind_param('ssiiii', $fromInclusive, $toInclusive, $committeeId, $committeeId, $programId, $programId);
-        $stmt->execute();
-        $detailRows = [];
-        foreach ($stmt->get_result() as $row) {
-            if ($row['b_type'] === 'cash') {
-                $assistance = 'Cash';
-                $amountItems = number_format((float)$row['amount'], 2);
-            } elseif ($row['b_type'] === 'in_kind') {
-                $assistance = 'In-Kind';
-                $amountItems = trim(($row['items'] ?: '') . ' (' . (int)$row['quantity'] . ')');
-            } else {
-                $assistance = 'Pending';
-                $amountItems = '—';
+            $stmt->bind_param('ssiiii', $fromInclusive, $toInclusive, $committeeId, $committeeId, $programId, $programId);
+            $stmt->execute();
+            $detailRows = [];
+            foreach ($stmt->get_result() as $row) {
+                if ($row['b_type'] === 'cash') {
+                    $assistance = 'Cash';
+                    $amountItems = number_format((float)$row['amount'], 2);
+                } elseif ($row['b_type'] === 'in_kind') {
+                    $assistance = 'In-Kind';
+                    $amountItems = trim(($row['items'] ?: '') . ' (' . (int)$row['quantity'] . ')');
+                } else {
+                    $assistance = 'Pending';
+                    $amountItems = '—';
+                }
+                $detailRows[] = [
+                    $row['application_id'],
+                    trim($row['first_name'] . ' ' . $row['last_name']),
+                    $row['committee_name'],
+                    $assistance,
+                    $amountItems,
+                    $row['submitted_at'],
+                    $row['decided_at'] ?: '—',
+                ];
             }
-            $detailRows[] = [
-                $row['application_id'],
-                trim($row['first_name'] . ' ' . $row['last_name']),
-                $row['committee_name'],
-                $assistance,
-                $amountItems,
-                $row['submitted_at'],
-                $row['decided_at'] ?: '—',
-            ];
-        }
-        $stmt->close();
+            $stmt->close();
 
-        renderTable($pdf, $detailHeaders, $detailWidths, $detailRows);
-        break;
-    }
+            renderTable($pdf, $detailHeaders, $detailWidths, $detailRows);
+            break;
+        }
+
+    case 'applicants': {
+            $headers = ['Application ID', 'Full Name', 'Email', 'Committee', 'Program', 'Status', 'Submitted At', 'Decided At'];
+            $widths = [28, 42, 48, 33, 39, 25, 32, 30];
+
+            $stmt = $conn->prepare("SELECT a.application_id, u.first_name, u.last_name, u.email, c.name AS committee_name, p.name AS program_name, a.status, a.submitted_at, a.decided_at
+            FROM applications a
+            JOIN users u ON u.user_id = a.user_id
+            JOIN committees c ON c.committee_id = a.committee_id
+            LEFT JOIN programs p ON p.program_id = a.program_id
+            WHERE a.archived_at IS NULL AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.committee_id = ?) AND (? = 0 OR a.program_id = ?)
+            ORDER BY a.submitted_at ASC");
+            $stmt->bind_param('ssiiii', $fromInclusive, $toInclusive, $committeeId, $committeeId, $programId, $programId);
+            $stmt->execute();
+            $rows = [];
+            foreach ($stmt->get_result() as $row) {
+                $rows[] = [
+                    $row['application_id'],
+                    trim($row['first_name'] . ' ' . $row['last_name']),
+                    $row['email'],
+                    $row['committee_name'],
+                    $row['program_name'] ?: '—',
+                    ucfirst($row['status']),
+                    $row['submitted_at'],
+                    $row['decided_at'] ?: '—',
+                ];
+            }
+            $stmt->close();
+
+            renderTable($pdf, $headers, $widths, $rows);
+            renderTotalLine($pdf, 'Total Applicants: ' . count($rows));
+            break;
+        }
 
     case 'beneficiaries': {
-        $headers = ['Application ID', 'Full Name', 'Email', 'Committee', 'Status', 'Submitted At', 'Decided At'];
-        $widths = [25, 50, 60, 45, 30, 35, 32];
+            $headers = ['Application ID', 'Full Name', 'Email', 'Committee', 'Status', 'Submitted At', 'Decided At'];
+            $widths = [25, 50, 60, 45, 30, 35, 32];
 
-        $stmt = $conn->prepare("SELECT a.application_id, u.first_name, u.last_name, u.email, c.name AS committee_name, a.status, a.submitted_at, a.decided_at
+            $stmt = $conn->prepare("SELECT a.application_id, u.first_name, u.last_name, u.email, c.name AS committee_name, a.status, a.submitted_at, a.decided_at
             FROM applications a
             JOIN users u ON u.user_id = a.user_id
             JOIN committees c ON c.committee_id = a.committee_id
             WHERE a.status = 'approved' AND a.archived_at IS NULL AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.committee_id = ?) AND (? = 0 OR a.program_id = ?)
             ORDER BY a.submitted_at ASC");
-        $stmt->bind_param('ssiiii', $fromInclusive, $toInclusive, $committeeId, $committeeId, $programId, $programId);
-        $stmt->execute();
-        $rows = [];
-        foreach ($stmt->get_result() as $row) {
-            $rows[] = [
-                $row['application_id'],
-                trim($row['first_name'] . ' ' . $row['last_name']),
-                $row['email'],
-                $row['committee_name'],
-                ucfirst($row['status']),
-                $row['submitted_at'],
-                $row['decided_at'] ?: '—',
-            ];
-        }
-        $stmt->close();
+            $stmt->bind_param('ssiiii', $fromInclusive, $toInclusive, $committeeId, $committeeId, $programId, $programId);
+            $stmt->execute();
+            $rows = [];
+            foreach ($stmt->get_result() as $row) {
+                $rows[] = [
+                    $row['application_id'],
+                    trim($row['first_name'] . ' ' . $row['last_name']),
+                    $row['email'],
+                    $row['committee_name'],
+                    ucfirst($row['status']),
+                    $row['submitted_at'],
+                    $row['decided_at'] ?: '—',
+                ];
+            }
+            $stmt->close();
 
-        renderTable($pdf, $headers, $widths, $rows);
-        renderTotalLine($pdf, 'Total Beneficiaries: ' . count($rows));
-        break;
-    }
+            renderTable($pdf, $headers, $widths, $rows);
+            renderTotalLine($pdf, 'Total Beneficiaries: ' . count($rows));
+            break;
+        }
 
     case 'financial': {
-        $headers = ['Beneficiary ID', 'Full Name', 'Committee', 'Amount', 'Status', 'Date Released', 'Date Distributed'];
-        $widths = [28, 55, 45, 35, 30, 42, 42];
+            $headers = ['Beneficiary ID', 'Full Name', 'Committee', 'Amount', 'Status', 'Date Released', 'Date Distributed'];
+            $widths = [28, 55, 45, 35, 30, 42, 42];
 
-        $stmt = $conn->prepare("SELECT b.beneficiary_id, u.first_name, u.last_name, c.name AS committee_name, b.amount, b.status, b.date_released, b.date_distributed
+            $stmt = $conn->prepare("SELECT b.beneficiary_id, u.first_name, u.last_name, c.name AS committee_name, b.amount, b.status, b.date_released, b.date_distributed
             FROM assistance_beneficiaries b
             JOIN applications a ON a.application_id = b.application_id
             JOIN users u ON u.user_id = a.user_id
             JOIN committees c ON c.committee_id = a.committee_id
             WHERE b.type = 'cash' AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.committee_id = ?) AND (? = 0 OR a.program_id = ?)
             ORDER BY b.beneficiary_id ASC");
-        $stmt->bind_param('ssiiii', $fromInclusive, $toInclusive, $committeeId, $committeeId, $programId, $programId);
-        $stmt->execute();
-        $rows = [];
-        foreach ($stmt->get_result() as $row) {
-            $rows[] = [
-                $row['beneficiary_id'],
-                trim($row['first_name'] . ' ' . $row['last_name']),
-                $row['committee_name'],
-                number_format((float)$row['amount'], 2),
-                ucfirst($row['status']),
-                $row['date_released'] ?: '—',
-                $row['date_distributed'] ?: '—',
-            ];
-        }
-        $stmt->close();
+            $stmt->bind_param('ssiiii', $fromInclusive, $toInclusive, $committeeId, $committeeId, $programId, $programId);
+            $stmt->execute();
+            $rows = [];
+            foreach ($stmt->get_result() as $row) {
+                $rows[] = [
+                    $row['beneficiary_id'],
+                    trim($row['first_name'] . ' ' . $row['last_name']),
+                    $row['committee_name'],
+                    number_format((float)$row['amount'], 2),
+                    ucfirst($row['status']),
+                    $row['date_released'] ?: '—',
+                    $row['date_distributed'] ?: '—',
+                ];
+            }
+            $stmt->close();
 
-        renderTable($pdf, $headers, $widths, $rows);
-        renderTotalLine($pdf, 'Total Beneficiaries: ' . count($rows));
-        break;
-    }
+            renderTable($pdf, $headers, $widths, $rows);
+            renderTotalLine($pdf, 'Total Beneficiaries: ' . count($rows));
+            break;
+        }
 
     case 'in-kind': {
-        $headers = ['Beneficiary ID', 'Full Name', 'Committee', 'Items', 'Quantity', 'Status', 'Date Distributed'];
-        $widths = [25, 50, 40, 62, 25, 30, 45];
+            $headers = ['Beneficiary ID', 'Full Name', 'Committee', 'Items', 'Quantity', 'Status', 'Date Distributed'];
+            $widths = [25, 50, 40, 62, 25, 30, 45];
 
-        $stmt = $conn->prepare("SELECT b.beneficiary_id, u.first_name, u.last_name, c.name AS committee_name, b.items, b.quantity, b.status, b.date_distributed
+            $stmt = $conn->prepare("SELECT b.beneficiary_id, u.first_name, u.last_name, c.name AS committee_name, b.items, b.quantity, b.status, b.date_distributed
             FROM assistance_beneficiaries b
             JOIN applications a ON a.application_id = b.application_id
             JOIN users u ON u.user_id = a.user_id
             JOIN committees c ON c.committee_id = a.committee_id
             WHERE b.type = 'in_kind' AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.committee_id = ?) AND (? = 0 OR a.program_id = ?)
             ORDER BY b.beneficiary_id ASC");
-        $stmt->bind_param('ssiiii', $fromInclusive, $toInclusive, $committeeId, $committeeId, $programId, $programId);
-        $stmt->execute();
-        $rows = [];
-        foreach ($stmt->get_result() as $row) {
-            $rows[] = [
-                $row['beneficiary_id'],
-                trim($row['first_name'] . ' ' . $row['last_name']),
-                $row['committee_name'],
-                $row['items'],
-                $row['quantity'],
-                ucfirst($row['status']),
-                $row['date_distributed'] ?: '—',
-            ];
-        }
-        $stmt->close();
-
-        renderTable($pdf, $headers, $widths, $rows);
-        renderTotalLine($pdf, 'Total Beneficiaries: ' . count($rows));
-        break;
-    }
-
-    case 'application-status': {
-        $headers = ['Committee', 'Pending', 'Approved', 'Declined', 'Total'];
-        $widths = [95, 45, 45, 45, 47];
-
-        $committeesStmt = $conn->prepare("SELECT * FROM committees WHERE (? = 0 OR committee_id = ?) ORDER BY committee_id ASC");
-        $committeesStmt->bind_param('ii', $committeeId, $committeeId);
-        $committeesStmt->execute();
-        $committeeRows = $committeesStmt->get_result()->fetch_all(MYSQLI_ASSOC);
-        $committeesStmt->close();
-
-        $rows = [];
-        $grandApproved = 0;
-        foreach ($committeeRows as $c) {
-            $cid = (int)$c['committee_id'];
-            $stmt = $conn->prepare("SELECT status, COUNT(*) c FROM applications WHERE committee_id = ? AND archived_at IS NULL AND submitted_at BETWEEN ? AND ? AND (? = 0 OR program_id = ?) GROUP BY status");
-            $stmt->bind_param('issii', $cid, $fromInclusive, $toInclusive, $programId, $programId);
+            $stmt->bind_param('ssiiii', $fromInclusive, $toInclusive, $committeeId, $committeeId, $programId, $programId);
             $stmt->execute();
-            $counts = ['pending' => 0, 'approved' => 0, 'declined' => 0];
+            $rows = [];
             foreach ($stmt->get_result() as $row) {
-                if (isset($counts[$row['status']])) $counts[$row['status']] = (int)$row['c'];
+                $rows[] = [
+                    $row['beneficiary_id'],
+                    trim($row['first_name'] . ' ' . $row['last_name']),
+                    $row['committee_name'],
+                    $row['items'],
+                    $row['quantity'],
+                    ucfirst($row['status']),
+                    $row['date_distributed'] ?: '—',
+                ];
             }
             $stmt->close();
-            $total = $counts['pending'] + $counts['approved'] + $counts['declined'];
-            $rows[] = [$c['name'], $counts['pending'], $counts['approved'], $counts['declined'], $total];
-            $grandApproved += $counts['approved'];
+
+            renderTable($pdf, $headers, $widths, $rows);
+            renderTotalLine($pdf, 'Total Beneficiaries: ' . count($rows));
+            break;
         }
 
-        renderTable($pdf, $headers, $widths, $rows);
-        renderTotalLine($pdf, 'Total Beneficiaries (Approved): ' . $grandApproved);
+    case 'application-status': {
+            $headers = ['Committee', 'Pending', 'Approved', 'Declined', 'Total'];
+            $widths = [95, 45, 45, 45, 47];
 
-        // ---- Appendix: full applicant list (every status) behind the counts above ----
-        sectionTitle($pdf, 'Applicant List (All Statuses)');
-        $detailHeaders = ['Application ID', 'Full Name', 'Committee', 'Status', 'Submitted At', 'Decided At'];
-        $detailWidths = [28, 60, 50, 33, 53, 53];
+            $committeesStmt = $conn->prepare("SELECT * FROM committees WHERE (? = 0 OR committee_id = ?) ORDER BY committee_id ASC");
+            $committeesStmt->bind_param('ii', $committeeId, $committeeId);
+            $committeesStmt->execute();
+            $committeeRows = $committeesStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $committeesStmt->close();
 
-        $stmt = $conn->prepare("SELECT a.application_id, u.first_name, u.last_name, c.name AS committee_name, a.status, a.submitted_at, a.decided_at
+            $rows = [];
+            $grandApproved = 0;
+            foreach ($committeeRows as $c) {
+                $cid = (int)$c['committee_id'];
+                $stmt = $conn->prepare("SELECT status, COUNT(*) c FROM applications WHERE committee_id = ? AND archived_at IS NULL AND submitted_at BETWEEN ? AND ? AND (? = 0 OR program_id = ?) GROUP BY status");
+                $stmt->bind_param('issii', $cid, $fromInclusive, $toInclusive, $programId, $programId);
+                $stmt->execute();
+                $counts = ['pending' => 0, 'approved' => 0, 'declined' => 0];
+                foreach ($stmt->get_result() as $row) {
+                    if (isset($counts[$row['status']])) $counts[$row['status']] = (int)$row['c'];
+                }
+                $stmt->close();
+                $total = $counts['pending'] + $counts['approved'] + $counts['declined'];
+                $rows[] = [$c['name'], $counts['pending'], $counts['approved'], $counts['declined'], $total];
+                $grandApproved += $counts['approved'];
+            }
+
+            renderTable($pdf, $headers, $widths, $rows);
+            renderTotalLine($pdf, 'Total Beneficiaries (Approved): ' . $grandApproved);
+
+            // ---- Appendix: full applicant list (every status) behind the counts above ----
+            sectionTitle($pdf, 'Applicant List (All Statuses)');
+            $detailHeaders = ['Application ID', 'Full Name', 'Committee', 'Status', 'Submitted At', 'Decided At'];
+            $detailWidths = [28, 60, 50, 33, 53, 53];
+
+            $stmt = $conn->prepare("SELECT a.application_id, u.first_name, u.last_name, c.name AS committee_name, a.status, a.submitted_at, a.decided_at
             FROM applications a
             JOIN users u ON u.user_id = a.user_id
             JOIN committees c ON c.committee_id = a.committee_id
             WHERE a.archived_at IS NULL AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.committee_id = ?) AND (? = 0 OR a.program_id = ?)
             ORDER BY a.committee_id ASC, a.submitted_at ASC");
-        $stmt->bind_param('ssiiii', $fromInclusive, $toInclusive, $committeeId, $committeeId, $programId, $programId);
-        $stmt->execute();
-        $detailRows = [];
-        foreach ($stmt->get_result() as $row) {
-            $detailRows[] = [
-                $row['application_id'],
-                trim($row['first_name'] . ' ' . $row['last_name']),
-                $row['committee_name'],
-                ucfirst($row['status']),
-                $row['submitted_at'],
-                $row['decided_at'] ?: '—',
-            ];
-        }
-        $stmt->close();
+            $stmt->bind_param('ssiiii', $fromInclusive, $toInclusive, $committeeId, $committeeId, $programId, $programId);
+            $stmt->execute();
+            $detailRows = [];
+            foreach ($stmt->get_result() as $row) {
+                $detailRows[] = [
+                    $row['application_id'],
+                    trim($row['first_name'] . ' ' . $row['last_name']),
+                    $row['committee_name'],
+                    ucfirst($row['status']),
+                    $row['submitted_at'],
+                    $row['decided_at'] ?: '—',
+                ];
+            }
+            $stmt->close();
 
-        renderTable($pdf, $detailHeaders, $detailWidths, $detailRows);
-        break;
-    }
+            renderTable($pdf, $detailHeaders, $detailWidths, $detailRows);
+            break;
+        }
 
     case 'scholars': {
-        $headers = ['Scholar ID', 'Full Name', 'School', 'Course', 'Year Level', 'Activities (Present/Held)', 'Eligibility', 'Allowance Amount'];
-        $widths = [22, 48, 45, 40, 20, 45, 32, 25];
+            $headers = ['Scholar ID', 'Full Name', 'School', 'Course', 'Year Level', 'Activities (Present/Held)', 'Eligibility', 'Allowance Amount'];
+            $widths = [22, 48, 45, 40, 20, 45, 32, 25];
 
-        // Activity counts are scoped to the report's date range (an activity's actual
-        // activity_date), not just the current academic term, so this reflects real
-        // participation history over whatever period was picked.
-        $stmt = $conn->prepare("SELECT s.scholar_id, u.first_name, u.last_name, s.school, s.course, s.year_level,
+            // Activity counts are scoped to the report's date range (an activity's actual
+            // activity_date), not just the current academic term, so this reflects real
+            // participation history over whatever period was picked.
+            $stmt = $conn->prepare("SELECT s.scholar_id, u.first_name, u.last_name, s.school, s.course, s.year_level,
                 (SELECT COUNT(*) FROM attendance att JOIN activities act ON act.activity_id = att.activity_id
                     WHERE att.scholar_id = s.scholar_id AND act.activity_date BETWEEN ? AND ? AND act.archived_at IS NULL) AS total_activities,
                 (SELECT COUNT(*) FROM attendance att JOIN activities act ON act.activity_id = att.activity_id
@@ -480,38 +559,47 @@ switch ($type) {
             JOIN users u ON u.user_id = s.user_id
             WHERE s.status = 'active'
             ORDER BY s.scholar_id ASC");
-        $stmt->bind_param('ssss', $from, $to, $from, $to);
-        $stmt->execute();
-        $scholarRows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-        $stmt->close();
+            $stmt->bind_param('ssss', $from, $to, $from, $to);
+            $stmt->execute();
+            $scholarRows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
 
-        $yearLevelLabel = fn($n) => $n ? $n . (['', 'st', 'nd', 'rd'][$n] ?? 'th') . ' Year' : '—';
+            $yearLevelLabel = fn($n) => $n ? $n . (['', 'st', 'nd', 'rd'][$n] ?? 'th') . ' Year' : '—';
 
-        $rows = [];
-        $totalPresent = 0;
-        $totalHeld = 0;
-        foreach ($scholarRows as $row) {
-            $scholarId = (int)$row['scholar_id'];
-            $allowance = ensureAllowanceRecord($scholarId);
-            $rows[] = [
-                str_pad($scholarId, 3, '0', STR_PAD_LEFT),
-                trim($row['first_name'] . ' ' . $row['last_name']),
-                $row['school'] ?: '—',
-                $row['course'] ?: '—',
-                $yearLevelLabel((int)$row['year_level']),
-                $row['present_count'] . ' / ' . $row['total_activities'],
-                ucfirst(str_replace('_', ' ', $allowance['eligibility'])),
-                number_format((float)$allowance['amount'], 2),
-            ];
-            $totalPresent += (int)$row['present_count'];
-            $totalHeld += (int)$row['total_activities'];
+            $rows = [];
+            $totalPresent = 0;
+            $totalHeld = 0;
+            foreach ($scholarRows as $row) {
+                $scholarId = (int)$row['scholar_id'];
+                $allowance = ensureAllowanceRecord($scholarId);
+                $rows[] = [
+                    str_pad($scholarId, 3, '0', STR_PAD_LEFT),
+                    trim($row['first_name'] . ' ' . $row['last_name']),
+                    $row['school'] ?: '—',
+                    $row['course'] ?: '—',
+                    $yearLevelLabel((int)$row['year_level']),
+                    $row['present_count'] . ' / ' . $row['total_activities'],
+                    ucfirst(str_replace('_', ' ', $allowance['eligibility'])),
+                    number_format((float)$allowance['amount'], 2),
+                ];
+                $totalPresent += (int)$row['present_count'];
+                $totalHeld += (int)$row['total_activities'];
+            }
+
+            renderTable($pdf, $headers, $widths, $rows);
+            renderTotalLine($pdf, 'Total Scholars: ' . count($rows) . '   |   Activity Participation: ' . $totalPresent . ' / ' . $totalHeld);
+            break;
         }
-
-        renderTable($pdf, $headers, $widths, $rows);
-        renderTotalLine($pdf, 'Total Scholars: ' . count($rows) . '   |   Activity Participation: ' . $totalPresent . ' / ' . $totalHeld);
-        break;
-    }
 }
+
+// ---- Formal "printed by" signature block, using the generating admin's name/position ----
+$printedByName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
+$stmt = $conn->prepare("SELECT position_title FROM users WHERE user_id = ?");
+$stmt->bind_param('i', $me['user_id']);
+$stmt->execute();
+$positionTitle = (string)($stmt->get_result()->fetch_assoc()['position_title'] ?? '');
+$stmt->close();
+renderSignatureBlock($pdf, $printedByName !== '' ? $printedByName : 'Administrator', $positionTitle);
 
 $filename = 'sk-langkiwa-report-' . $type . '-' . date('Ymd-His') . '.pdf';
 $pdf->Output('D', $filename);

@@ -3,6 +3,7 @@ require_once __DIR__ . '/../config/forms.php';
 requireRole(['applicant', 'scholar']);
 
 $me = currentUser();
+$identity = ownIdentityFields($me['user_id']);
 $committeeId = getCommitteeIdByCode('health');
 
 // A program-specific tab (added via Content Management > Add Program) links here with
@@ -37,6 +38,9 @@ $stmt->close();
 
 $formError = null;
 if (!$existing && !$programClosed && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    foreach ($identity as $key => $val) {
+        $_POST[$key] = $val;
+    }
     $errors = validateDynamicSubmission($committeeId, $_POST, $_FILES, [], 'assistance', $programId);
     if (empty($errors)) {
         $settings = $conn->query("SELECT current_academic_year, current_semester FROM site_settings WHERE id = 1")->fetch_assoc();
@@ -198,7 +202,7 @@ if (!$existing && !$programClosed && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         <?php endif; ?>
 
                         <form method="post" enctype="multipart/form-data">
-                            <?php renderDynamicFormFields($committeeId, [], [], 'assistance', $programId); ?>
+                            <?php renderDynamicFormFields($committeeId, [], [], 'assistance', $programId, $identity); ?>
                             <button type="submit" class="btn btn-sk-submit w-100">SUBMIT</button>
                         </form>
                     <?php endif; ?>

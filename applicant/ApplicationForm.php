@@ -3,6 +3,7 @@ require_once __DIR__ . '/../config/forms.php';
 requireRole(['applicant', 'scholar']);
 
 $me = currentUser();
+$identity = ownIdentityFields($me['user_id']);
 $committeeId = getCommitteeIdByCode('education');
 
 $existing = null;
@@ -14,6 +15,9 @@ $stmt->close();
 
 $formError = null;
 if (!$existing && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    foreach ($identity as $key => $val) {
+        $_POST[$key] = $val;
+    }
     $errors = validateDynamicSubmission($committeeId, $_POST, $_FILES, [], 'scholarship');
     if (empty($errors)) {
         $settings = $conn->query("SELECT current_academic_year, current_semester FROM site_settings WHERE id = 1")->fetch_assoc();
@@ -158,7 +162,7 @@ if (!$existing && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         <?php endif; ?>
 
                         <form method="post" enctype="multipart/form-data">
-                            <?php renderDynamicFormFields($committeeId, [], [], 'scholarship'); ?>
+                            <?php renderDynamicFormFields($committeeId, [], [], 'scholarship', null, $identity); ?>
                             <button type="submit" class="btn btn-sk-submit w-100">SUBMIT</button>
                         </form>
                     <?php endif; ?>

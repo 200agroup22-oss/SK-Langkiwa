@@ -2,35 +2,50 @@
 require_once __DIR__ . '/auth.php';
 
 // Escape for HTML output.
-function e($value) {
+function e($value)
+{
     return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
 }
 
 // Returns the URL of the current site logo — the admin-uploaded one (Configuration > System
 // Logo) if set, otherwise the bundled default. Used everywhere a logo is shown so uploading a
 // new one updates it site-wide.
-function siteLogoUrl() {
+function siteLogoUrl()
+{
     global $conn;
     $row = $conn->query("SELECT logo_path FROM site_settings WHERE id = 1")->fetch_assoc();
     return !empty($row['logo_path']) ? APP_BASE . '/' . $row['logo_path'] : APP_BASE . '/admin/photos/logo.jpg';
 }
 
+// Same resolution as siteLogoUrl(), but as a filesystem path instead of a URL — for contexts
+// like FPDF's Image() that need to read the file directly rather than fetch it over HTTP.
+function siteLogoPath()
+{
+    global $conn;
+    $row = $conn->query("SELECT logo_path FROM site_settings WHERE id = 1")->fetch_assoc();
+    $relative = !empty($row['logo_path']) ? $row['logo_path'] : 'admin/photos/logo.jpg';
+    return __DIR__ . '/../' . $relative;
+}
+
 // The admin-configured "Site / Barangay Name" (Content Management > Site Settings), used
 // everywhere the site's name is displayed so renaming it in one place updates it everywhere.
-function siteName() {
+function siteName()
+{
     global $conn;
     $row = $conn->query("SELECT site_name FROM site_settings WHERE id = 1")->fetch_assoc();
     return !empty($row['site_name']) ? $row['site_name'] : 'Sangguniang Kabataan ng Langkiwa';
 }
 
-function generateQrToken() {
+function generateQrToken()
+{
     return bin2hex(random_bytes(16));
 }
 
 // Validates a single $_FILES entry (extension, size, actual content type) without touching the
 // filesystem, so callers can surface a bad file as a normal form error before doing anything
 // that would need to be undone. Returns an error message string, or null if the file is valid.
-function validateUploadedFile(array $file) {
+function validateUploadedFile(array $file)
+{
     if ($file['error'] !== UPLOAD_ERR_OK) {
         return 'File upload failed (error code ' . $file['error'] . ').';
     }
@@ -59,7 +74,8 @@ function validateUploadedFile(array $file) {
  * ['path' => relative-path-from-app-root, 'original_name' => ...] or null if no file was sent.
  * Throws RuntimeException on upload/validation failure.
  */
-function handleUpload(array $file, $subdir = 'documents') {
+function handleUpload(array $file, $subdir = 'documents')
+{
     if (!isset($file['error']) || $file['error'] === UPLOAD_ERR_NO_FILE) {
         return null;
     }
@@ -91,7 +107,8 @@ function handleUpload(array $file, $subdir = 'documents') {
 // Creates a minimal 'applicant' user account for someone an admin adds by hand (e.g. a walk-in
 // applicant with no online account), so applications.user_id always has a real user to point at.
 // The account has no usable password (walk-ins don't log in) and a generated placeholder email.
-function getOrCreateWalkInUser($lastName, $firstName, $middleName = '') {
+function getOrCreateWalkInUser($lastName, $firstName, $middleName = '')
+{
     global $conn;
 
     $placeholderEmail = 'walkin.' . strtolower(preg_replace('/[^a-z0-9]/i', '', $firstName . $lastName)) . '.' . bin2hex(random_bytes(3)) . '@walkin.local';
@@ -106,7 +123,8 @@ function getOrCreateWalkInUser($lastName, $firstName, $middleName = '') {
     return $userId;
 }
 
-function logActivityLogin($userId, $fullName, $email, $role) {
+function logActivityLogin($userId, $fullName, $email, $role)
+{
     global $conn;
     $stmt = $conn->prepare("INSERT INTO activity_logs (user_id, full_name, email, role, logged_in_at) VALUES (?, ?, ?, ?, NOW())");
     $stmt->bind_param('isss', $userId, $fullName, $email, $role);
@@ -115,7 +133,8 @@ function logActivityLogin($userId, $fullName, $email, $role) {
     $stmt->close();
 }
 
-function logActivityLogout() {
+function logActivityLogout()
+{
     global $conn;
     if (empty($_SESSION['activity_log_id'])) {
         return;
@@ -128,14 +147,16 @@ function logActivityLogout() {
 
 // ---- OTP verification (registration + forgot password) ----
 
-function generateOtpCode() {
+function generateOtpCode()
+{
     return str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
 }
 
 // Starts (or restarts) a pending OTP challenge in the session. $data carries any extra
 // payload the flow needs once verified (e.g. the not-yet-created registration fields).
 // Returns the generated code so the caller can email it.
-function startOtp($purpose, $email, array $data = []) {
+function startOtp($purpose, $email, array $data = [])
+{
     $_SESSION['otp_pending'] = [
         'purpose' => $purpose, // 'register' or 'reset'
         'email' => $email,
@@ -147,7 +168,8 @@ function startOtp($purpose, $email, array $data = []) {
     return $_SESSION['otp_pending']['code'];
 }
 
-function logAudit($action, $details = null) {
+function logAudit($action, $details = null)
+{
     global $conn;
     $user = currentUser();
     $userId = $user ? $user['user_id'] : null;

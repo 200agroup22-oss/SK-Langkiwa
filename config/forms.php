@@ -1,7 +1,8 @@
 <?php
 require_once __DIR__ . '/functions.php';
 
-function getCommitteeIdByCode($code) {
+function getCommitteeIdByCode($code)
+{
     global $conn;
     $stmt = $conn->prepare("SELECT committee_id FROM committees WHERE code = ?");
     $stmt->bind_param('s', $code);
@@ -13,7 +14,8 @@ function getCommitteeIdByCode($code) {
 
 // Returns a committee's sidebar tabs (e.g. Education's "iSKolar ng Langkiwa" vs "Assistance
 // Program"), keyed by track_code. Pass $onlyVisible=false to include hidden tabs (for admin management UI).
-function getProgramTabs($committeeId, $onlyVisible = true) {
+function getProgramTabs($committeeId, $onlyVisible = true)
+{
     global $conn;
     // LEFT JOINed so each program-backed tab carries its catalog program's assistance_type — lets
     // the sidebar nest a program's link under the matching Cash/In-Kind Assistance item instead of
@@ -32,7 +34,8 @@ function getProgramTabs($committeeId, $onlyVisible = true) {
 }
 
 // Returns a single tab's DB row (label/icon/is_visible/max_slots), or a sensible fallback if none is configured yet.
-function getProgramTab($committeeId, $trackCode, $fallbackLabel = 'Assistance Program', $fallbackIcon = 'bi-hand-holding-heart-fill') {
+function getProgramTab($committeeId, $trackCode, $fallbackLabel = 'Assistance Program', $fallbackIcon = 'bi-hand-holding-heart-fill')
+{
     $tabs = getProgramTabs($committeeId, false);
     return $tabs[$trackCode] ?? ['label' => $fallbackLabel, 'icon' => $fallbackIcon, 'is_visible' => 1, 'max_slots' => null];
 }
@@ -40,7 +43,8 @@ function getProgramTab($committeeId, $trackCode, $fallbackLabel = 'Assistance Pr
 // Looks up a single program_tabs row by its tab_id — used by the Form-builder pages to know
 // which sidebar tab (e.g. a custom program like "test1") the admin actually clicked, since those
 // pages otherwise have no way to tell one program tab's "Form" link apart from another's.
-function getProgramTabById($tabId) {
+function getProgramTabById($tabId)
+{
     global $conn;
     $stmt = $conn->prepare("SELECT * FROM program_tabs WHERE tab_id = ?");
     $stmt->bind_param('i', $tabId);
@@ -55,7 +59,8 @@ function getProgramTabById($tabId) {
 // entry in `programs` (see AdminProgramManagement.php's "Add Program") and has no page of its
 // own — it reuses its committee's assistance-track form instead, tagging submissions with
 // ?program_id= so the application records which specific program it was for.
-function programTabApplicantUrl($committeeId, array $tab) {
+function programTabApplicantUrl($committeeId, array $tab)
+{
     $educationId = getCommitteeIdByCode('education');
     $healthId = getCommitteeIdByCode('health');
     $sportsId = getCommitteeIdByCode('sports');
@@ -98,7 +103,8 @@ function programTabApplicantUrl($committeeId, array $tab) {
 
 // Admin-side equivalent of programTabApplicantUrl() — points at the committee's existing
 // Applicants review page, since applications aren't reviewed per-program, only per track.
-function programTabAdminUrl($committeeId, array $tab) {
+function programTabAdminUrl($committeeId, array $tab)
+{
     $educationId = getCommitteeIdByCode('education');
     $healthId = getCommitteeIdByCode('health');
     $sportsId = getCommitteeIdByCode('sports');
@@ -141,7 +147,8 @@ function programTabAdminUrl($committeeId, array $tab) {
 // actually makes a newly-added Program show up as a sidebar tab. $sync=true updates an existing
 // tab in place (label/visibility/committee) instead of creating a new one; used when a program
 // is edited, toggled active/inactive, archived, or restored.
-function syncProgramTab($programId, $committeeId, $name, $isActive) {
+function syncProgramTab($programId, $committeeId, $name, $isActive)
+{
     global $conn;
     $isVisible = $isActive ? 1 : 0;
 
@@ -180,7 +187,8 @@ function syncProgramTab($programId, $committeeId, $name, $isActive) {
 // Copies the committee+track's current base fields (program_id IS NULL) into new rows scoped to
 // one program, so that program starts with a working form instead of an empty one. No-ops if the
 // program already has any fields of its own (avoids re-seeding/duplicating on a later re-sync).
-function cloneBaseFormFieldsIntoProgram($committeeId, $programTrack, $programId) {
+function cloneBaseFormFieldsIntoProgram($committeeId, $programTrack, $programId)
+{
     global $conn;
 
     $stmt = $conn->prepare("SELECT COUNT(*) c FROM form_fields WHERE committee_id = ? AND program_track = ? AND program_id = ?");
@@ -211,7 +219,8 @@ function cloneBaseFormFieldsIntoProgram($committeeId, $programTrack, $programId)
 }
 
 // Hides/unhides the tab for a program without touching its label — used by toggle/archive/restore.
-function setProgramTabVisible($programId, $isVisible) {
+function setProgramTabVisible($programId, $isVisible)
+{
     global $conn;
     $vis = $isVisible ? 1 : 0;
     $stmt = $conn->prepare("UPDATE program_tabs SET is_visible = ? WHERE program_id = ?");
@@ -221,7 +230,8 @@ function setProgramTabVisible($programId, $isVisible) {
 }
 
 // Counts approved, non-archived applications for a committee+track — used to enforce program_tabs.max_slots.
-function getApprovedCount($committeeId, $trackCode) {
+function getApprovedCount($committeeId, $trackCode)
+{
     global $conn;
     $stmt = $conn->prepare("SELECT COUNT(*) c FROM applications WHERE committee_id = ? AND program_track = ? AND status = 'approved' AND archived_at IS NULL");
     $stmt->bind_param('is', $committeeId, $trackCode);
@@ -232,7 +242,8 @@ function getApprovedCount($committeeId, $trackCode) {
 }
 
 // Returns true if a program's approved count has reached its configured max_slots (never true when unlimited).
-function isProgramFull($committeeId, $trackCode) {
+function isProgramFull($committeeId, $trackCode)
+{
     $tab = getProgramTab($committeeId, $trackCode);
     if (empty($tab['max_slots'])) {
         return false;
@@ -242,7 +253,8 @@ function isProgramFull($committeeId, $trackCode) {
 
 // Looks up a `programs` catalog row by id, including the fields needed to decide whether it's
 // currently accepting applications (status, app_start_date, app_end_date, archived_at).
-function getProgramById($programId) {
+function getProgramById($programId)
+{
     global $conn;
     $stmt = $conn->prepare("SELECT * FROM programs WHERE program_id = ?");
     $stmt->bind_param('i', $programId);
@@ -257,7 +269,8 @@ function getProgramById($programId) {
 // right now, or a human-readable reason when they're not. Used on both the admin program list
 // (to show an at-a-glance status) and every applicant-facing form (to actually block submission
 // outside the configured window instead of silently accepting it).
-function programClosedReason($program) {
+function programClosedReason($program)
+{
     if (!$program) {
         return null;
     }
@@ -278,7 +291,8 @@ function programClosedReason($program) {
 // keyword ('inactive' | 'not_open' | 'closed') instead of a sentence, for admin UI that wants to
 // pick its own badge label/color per case rather than showing one generic "Closed" for every reason.
 // Returns null when the program is open (or no program was given).
-function programClosedState($program) {
+function programClosedState($program)
+{
     if (!$program) {
         return null;
     }
@@ -305,7 +319,8 @@ function programClosedState($program) {
 // own) without touching anyone else's form. A brand-new program starts with a copy of the base
 // fields (see cloneBaseFormFieldsIntoProgram()) rather than an empty form, but from that point on
 // each is edited on its own.
-function getFormFields($committeeId, $programTrack = 'assistance', $programId = null) {
+function getFormFields($committeeId, $programTrack = 'assistance', $programId = null)
+{
     global $conn;
     $sql = "SELECT * FROM form_fields WHERE committee_id = ? AND program_track = ? AND archived_at IS NULL AND "
         . ($programId !== null ? "program_id = ?" : "program_id IS NULL")
@@ -325,7 +340,8 @@ function getFormFields($committeeId, $programTrack = 'assistance', $programId = 
 // Looks up which program (if any) an application was filed under, so its answers can be rendered
 // with that program's own fields layered on top of the shared ones — an application's own row is
 // the source of truth for this, not whatever program filter the current page happens to be showing.
-function getApplicationProgramId($applicationId) {
+function getApplicationProgramId($applicationId)
+{
     global $conn;
     $stmt = $conn->prepare("SELECT program_id FROM applications WHERE application_id = ?");
     $stmt->bind_param('i', $applicationId);
@@ -335,17 +351,46 @@ function getApplicationProgramId($applicationId) {
     return ($row && $row['program_id'] !== null) ? (int)$row['program_id'] : null;
 }
 
-function widthToColClass($width) {
+// Returns the account holder's own name, keyed by the field_key convention used for the built-in
+// "Last Name" / "First Name" / "Middle Name" dynamic fields — used to lock those fields to the
+// logged-in applicant's real identity on self-service forms, so one account can't submit (or
+// edit) an application under a different person's name. Always read fresh from `users`, not the
+// session, since session data can be stale and this is the value being trusted server-side.
+function ownIdentityFields($userId)
+{
+    global $conn;
+    $stmt = $conn->prepare("SELECT first_name, last_name, middle_name FROM users WHERE user_id = ?");
+    $stmt->bind_param('i', $userId);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$row) {
+        return [];
+    }
+    return [
+        'last_name' => $row['last_name'],
+        'first_name' => $row['first_name'],
+        'middle_name' => $row['middle_name'] ?? '',
+    ];
+}
+
+function widthToColClass($width)
+{
     switch ($width) {
-        case 'third': return 'col-md-4';
-        case 'half': return 'col-md-6';
-        case 'two_third': return 'col-md-8';
-        default: return 'col-md-12';
+        case 'third':
+            return 'col-md-4';
+        case 'half':
+            return 'col-md-6';
+        case 'two_third':
+            return 'col-md-8';
+        default:
+            return 'col-md-12';
     }
 }
 
 // Loads existing answers/files for an application, keyed by field_id, for pre-filling an edit form.
-function getApplicationAnswers($applicationId) {
+function getApplicationAnswers($applicationId)
+{
     global $conn;
     $answers = [];
     $stmt = $conn->prepare("SELECT field_id, value FROM application_answers WHERE application_id = ?");
@@ -358,7 +403,8 @@ function getApplicationAnswers($applicationId) {
     return $answers;
 }
 
-function getApplicationFiles($applicationId) {
+function getApplicationFiles($applicationId)
+{
     global $conn;
     $files = [];
     $stmt = $conn->prepare("SELECT field_id, file_path, original_name FROM application_files WHERE application_id = ?");
@@ -375,7 +421,12 @@ function getApplicationFiles($applicationId) {
 // $programId layers in that program's own fields on top of the committee's shared ones — pass the
 // program the applicant/application actually belongs to (see getApplicationProgramId() for an
 // existing application) so the right fields show up.
-function renderDynamicFormFields($committeeId, $existingAnswers = [], $existingFiles = [], $programTrack = 'assistance', $programId = null) {
+// $lockedIdentity (see ownIdentityFields()) pre-fills and locks any field whose field_key it
+// contains (last_name/first_name/middle_name) to that value — pass it on applicant self-service
+// forms so a user can't type a different person's name into their own application. Leave it null
+// (the default) for admin-facing forms, where typing/editing the applicant's name is the point.
+function renderDynamicFormFields($committeeId, $existingAnswers = [], $existingFiles = [], $programTrack = 'assistance', $programId = null, $lockedIdentity = null)
+{
     static $scriptPrinted = false;
     static $callCount = 0;
     // A page can render this more than once (e.g. an "Add Applicant" modal plus one "Edit"
@@ -392,10 +443,11 @@ function renderDynamicFormFields($committeeId, $existingAnswers = [], $existingF
         $label = e($field['label']);
         $icon = e($field['icon'] ?: 'bi-pencil-fill');
         $required = $field['is_required'] ? 'required' : '';
-        $value = e($existingAnswers[$field['field_id']] ?? '');
+        $isLocked = $lockedIdentity !== null && array_key_exists($field['field_key'], $lockedIdentity);
+        $value = $isLocked ? e($lockedIdentity[$field['field_key']]) : e($existingAnswers[$field['field_id']] ?? '');
 
         echo '<div class="' . $colClass . ' mb-3">';
-        echo '<label class="form-label"><i class="bi ' . $icon . ' me-1 text-success"></i>' . $label . ($field['is_required'] ? ' <span class="text-danger">*</span>' : '') . '</label>';
+        echo '<label class="form-label"><i class="bi ' . $icon . ' me-1 text-success"></i>' . $label . ($field['is_required'] ? ' <span class="text-danger">*</span>' : '') . ($isLocked ? ' <i class="bi bi-lock-fill text-muted ms-1" title="Locked to your account"></i>' : '') . '</label>';
 
         switch ($field['input_type']) {
             case 'textarea':
@@ -442,7 +494,9 @@ function renderDynamicFormFields($committeeId, $existingAnswers = [], $existingF
                 break;
 
             default:
-                echo '<input type="text" class="form-control js-sentence-case" name="' . $name . '" value="' . $value . '" ' . $required . '>';
+                $lockedAttr = $isLocked ? 'readonly' : '';
+                $inputClass = $isLocked ? 'form-control' : 'form-control js-sentence-case';
+                echo '<input type="text" class="' . $inputClass . '" name="' . $name . '" value="' . $value . '" ' . $required . ' ' . $lockedAttr . '>';
         }
 
         echo '</div>';
@@ -473,7 +527,8 @@ HTML;
 
 // Validates $_POST/$_FILES against the committee's required fields.
 // $existingFiles (field_id => file info) lets edits pass validation when a required file was already uploaded previously.
-function validateDynamicSubmission($committeeId, array $post, array $files, array $existingFiles = [], $programTrack = 'assistance', $programId = null) {
+function validateDynamicSubmission($committeeId, array $post, array $files, array $existingFiles = [], $programTrack = 'assistance', $programId = null)
+{
     $errors = [];
     foreach (getFormFields($committeeId, $programTrack, $programId) as $field) {
         $key = $field['field_key'];
@@ -501,7 +556,8 @@ function validateDynamicSubmission($committeeId, array $post, array $files, arra
 // attached. Pass $programId to scope this to one specific program tab (e.g. when the admin
 // navigated here via a program-specific sidebar link) instead of pooling every program under the
 // committee together; leave it null to see everything, same as before this parameter existed.
-function listApplications($committeeId, $programTrack, $programId = null) {
+function listApplications($committeeId, $programTrack, $programId = null)
+{
     global $conn;
     $sql = "SELECT a.*, u.email AS user_email FROM applications a
         JOIN users u ON u.user_id = a.user_id
@@ -526,7 +582,8 @@ function listApplications($committeeId, $programTrack, $programId = null) {
 }
 
 // Same as listApplications() but for the archive view.
-function listArchivedApplications($committeeId, $programTrack, $programId = null) {
+function listArchivedApplications($committeeId, $programTrack, $programId = null)
+{
     global $conn;
     $sql = "SELECT a.*, u.email AS user_email FROM applications a
         JOIN users u ON u.user_id = a.user_id
@@ -548,7 +605,8 @@ function listArchivedApplications($committeeId, $programTrack, $programId = null
 // Label to show for which program an application belongs to, e.g. in a "Program" table column —
 // looks up the program name from its catalog entry, falling back to "General" for applications
 // with no program_id (submitted via the committee's base assistance track).
-function programLabel($programId) {
+function programLabel($programId)
+{
     global $conn;
     if (empty($programId)) {
         return 'General';
@@ -563,7 +621,8 @@ function programLabel($programId) {
 
 // Convenience accessor: look up an application's answer value by its field_key (e.g. 'school_university')
 // rather than the numeric field_id, since callers usually know the key, not the id.
-function answerByKey($app, $fields, $key, $default = '') {
+function answerByKey($app, $fields, $key, $default = '')
+{
     foreach ($fields as $f) {
         if ($f['field_key'] === $key) {
             return $app['answers'][$f['field_id']] ?? $default;
@@ -574,7 +633,8 @@ function answerByKey($app, $fields, $key, $default = '') {
 
 // Persists $_POST/$_FILES for a committee's dynamic fields against an application.
 // Non-file answers are fully replaced; files are only replaced for fields with a newly uploaded file.
-function saveDynamicSubmission($applicationId, $committeeId, array $post, array $files, $programTrack = 'assistance', $programId = null) {
+function saveDynamicSubmission($applicationId, $committeeId, array $post, array $files, $programTrack = 'assistance', $programId = null)
+{
     global $conn;
 
     $del = $conn->prepare("DELETE FROM application_answers WHERE application_id = ?");

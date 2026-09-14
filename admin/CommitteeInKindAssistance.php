@@ -115,7 +115,7 @@ $sql = "SELECT a.application_id, a.user_id, a.program_id, ab.beneficiary_id, ab.
         FROM applications a
         LEFT JOIN assistance_beneficiaries ab ON ab.application_id = a.application_id AND ab.type = 'in_kind'
         WHERE a.committee_id = ? AND a.program_track = ? AND a.status = 'approved' AND a.archived_at IS NULL"
-        . ($programId !== null ? " AND a.program_id = ?" : "") . "
+    . ($programId !== null ? " AND a.program_id = ?" : "") . "
           AND (ab.beneficiary_id IS NOT NULL OR NOT EXISTS (SELECT 1 FROM assistance_beneficiaries ab2 WHERE ab2.application_id = a.application_id))
         ORDER BY a.application_id ASC";
 $stmt = $conn->prepare($sql);
@@ -193,18 +193,26 @@ switch ($sortBy) {
         break;
 }
 
-function statusBadgeClass($status) {
+function statusBadgeClass($status)
+{
     switch ($status) {
-        case 'distributed': return 'success';
-        case 'pending': return 'warning';
-        default: return 'secondary';
+        case 'distributed':
+            return 'success';
+        case 'pending':
+            return 'warning';
+        default:
+            return 'secondary';
     }
 }
-function statusLabel($status) {
+function statusLabel($status)
+{
     switch ($status) {
-        case 'distributed': return 'Distributed';
-        case 'pending': return 'Pending';
-        default: return 'Not Added';
+        case 'distributed':
+            return 'Distributed';
+        case 'pending':
+            return 'Pending';
+        default:
+            return 'Not Added';
     }
 }
 
@@ -444,10 +452,10 @@ $activeLink = 'CommitteeInKindAssistance_' . $committeeId;
                                 <div class="col-md-6">
                                     <div class="info-label mb-1"><?php echo e($field['label']); ?></div>
                                     <?php if ($file): ?>
-                                    <a class="doc-item" href="<?php echo APP_BASE . '/' . e($file['path']); ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-image-fill"></i><?php echo e($file['original_name']); ?><i class="bi bi-check-circle-fill doc-check"></i></a>
-                                <?php else: ?>
-                                    <div class="doc-item"><i class="bi bi-file-earmark-image-fill"></i>Not submitted</div>
-                                <?php endif; ?>
+                                        <a class="doc-item" href="<?php echo APP_BASE . '/' . e($file['path']); ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-image-fill"></i><?php echo e($file['original_name']); ?><i class="bi bi-check-circle-fill doc-check"></i></a>
+                                    <?php else: ?>
+                                        <div class="doc-item"><i class="bi bi-file-earmark-image-fill"></i>Not submitted</div>
+                                    <?php endif; ?>
                                 </div>
                             <?php endforeach; ?>
                         </div>

@@ -169,33 +169,33 @@ $announcements = $conn->query("SELECT title, message, posted_at FROM announcemen
                     <div class="section-title"><i class="bi bi-calendar2-event"></i> Important Dates</div>
                     <hr class="my-divider">
                     <div class="table-responsive">
-                    <table class="table table-sm table-bordered mb-0" style="font-size: 13px;">
-                        <thead class="table-success">
-                            <tr>
-                                <th>Event</th>
-                                <th>Date</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (empty($dates)): ?>
+                        <table class="table table-sm table-bordered mb-0" style="font-size: 13px;">
+                            <thead class="table-success">
                                 <tr>
-                                    <td colspan="2" class="text-center text-muted">No upcoming dates posted.</td>
+                                    <th>Event</th>
+                                    <th>Date</th>
                                 </tr>
-                            <?php endif; ?>
-                            <?php foreach ($dates as $d): ?>
-                                <tr>
-                                    <td><?php echo e($d['event_name']); ?></td>
-                                    <td><?php echo date('F j, Y', strtotime($d['event_date'])); ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                            <?php if (!empty($settings['requirements_deadline'])): ?>
-                                <tr>
-                                    <td>iSKolar Updated Requirements Deadline</td>
-                                    <td><?php echo date('F j, Y', strtotime($settings['requirements_deadline'])); ?></td>
-                                </tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                <?php if (empty($dates)): ?>
+                                    <tr>
+                                        <td colspan="2" class="text-center text-muted">No upcoming dates posted.</td>
+                                    </tr>
+                                <?php endif; ?>
+                                <?php foreach ($dates as $d): ?>
+                                    <tr>
+                                        <td><?php echo e($d['event_name']); ?></td>
+                                        <td><?php echo date('F j, Y', strtotime($d['event_date'])); ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                                <?php if (!empty($settings['requirements_deadline'])): ?>
+                                    <tr>
+                                        <td>iSKolar Updated Requirements Deadline</td>
+                                        <td><?php echo date('F j, Y', strtotime($settings['requirements_deadline'])); ?></td>
+                                    </tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 

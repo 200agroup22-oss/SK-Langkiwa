@@ -29,7 +29,8 @@ $formHeading = $viewingTab['label'] ?? $committee['name'];
 // (manages that program's own, separate field set).
 $programId = $viewingTab['program_id'] ?? null;
 
-function slugifyFieldKey($label, $committeeId, $track, $conn, $programId = null) {
+function slugifyFieldKey($label, $committeeId, $track, $conn, $programId = null)
+{
     $base = strtolower(trim(preg_replace('/[^a-zA-Z0-9]+/', '_', $label), '_'));
     if ($base === '') {
         $base = 'field';

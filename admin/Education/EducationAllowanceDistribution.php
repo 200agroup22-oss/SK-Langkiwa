@@ -35,7 +35,7 @@ unset($sch);
 // Scholars page) belong in the payout queue — everyone else stays hidden until they qualify.
 $scholars = array_values(array_filter($scholars, fn($sch) => $sch['allowance']['eligibility'] === 'eligible'));
 
-$yearLevelLabel = fn($n) => $n ? $n . (['','st','nd','rd'][$n] ?? 'th') . ' Year' : '—';
+$yearLevelLabel = fn($n) => $n ? $n . (['', 'st', 'nd', 'rd'][$n] ?? 'th') . ' Year' : '—';
 $eligibilityBadge = fn($e) => $e === 'eligible' ? 'badge-eligible' : ($e === 'not_eligible' ? 'badge-not-eligible' : 'badge-pending-elig');
 $eligibilityLabel = fn($e) => $e === 'eligible' ? 'Eligible' : ($e === 'not_eligible' ? 'Not Eligible' : 'Pending');
 

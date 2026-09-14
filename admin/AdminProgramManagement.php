@@ -4,7 +4,8 @@ requireRole('admin');
 
 $me = currentUser();
 
-function slugifyCode($name) {
+function slugifyCode($name)
+{
     $slug = strtolower(trim($name));
     $slug = preg_replace('/[^a-z0-9]+/', '_', $slug);
     return trim($slug, '_');
@@ -288,11 +289,13 @@ $statTotalPrograms = count($allPrograms);
 $statActivePrograms = count(array_filter($allPrograms, fn($p) => $p['status'] === 'active'));
 $statAnnouncements = count($announcements);
 
-function assistLabel($type) {
+function assistLabel($type)
+{
     return $type === 'in_kind' ? 'In-Kind Assistance' : 'Cash Assistance';
 }
 
-function assistBadgeClass($type) {
+function assistBadgeClass($type)
+{
     return $type === 'in_kind' ? 'assist-kind' : 'assist-cash';
 }
 
@@ -810,7 +813,8 @@ $activeLink = 'AdminProgramManagement';
 
             <!-- Committee Sections -->
             <div id="committeeSectionsContainer">
-                <?php foreach ($committees as $c): $cid = (int)$c['committee_id']; $cprograms = $programsByCommittee[$cid] ?? []; ?>
+                <?php foreach ($committees as $c): $cid = (int)$c['committee_id'];
+                    $cprograms = $programsByCommittee[$cid] ?? []; ?>
                     <div class="committee-block" data-committee-name="<?php echo e(strtolower($c['name'])); ?>">
                         <div class="committee-block-header">
                             <div class="title">
@@ -832,7 +836,8 @@ $activeLink = 'AdminProgramManagement';
                             <?php if (empty($cprograms)): ?>
                                 <div class="empty-committee">No programs yet for <?php echo e($c['name']); ?>.</div>
                             <?php endif; ?>
-                            <?php foreach ($cprograms as $p): $pid = (int)$p['program_id']; $benCount = $beneficiaryCounts[$pid] ?? 0;
+                            <?php foreach ($cprograms as $p): $pid = (int)$p['program_id'];
+                                $benCount = $beneficiaryCounts[$pid] ?? 0;
                                 $closedReason = programClosedReason($p);
                                 $closedState = programClosedState($p);
                                 $hasWindow = !empty($p['app_start_date']) || !empty($p['app_end_date']);
@@ -845,10 +850,10 @@ $activeLink = 'AdminProgramManagement';
                                             <span><i class="bi bi-people me-1"></i><?php echo $benCount; ?> beneficiaries</span>
                                             <?php if ($hasWindow): ?>
                                                 <span title="Application period"><i class="bi bi-calendar-range me-1"></i><?php
-                                                    echo $p['app_start_date'] ? date('M j, Y', strtotime($p['app_start_date'])) : 'Anytime';
-                                                    echo ' – ';
-                                                    echo $p['app_end_date'] ? date('M j, Y', strtotime($p['app_end_date'])) : 'No end date';
-                                                ?></span>
+                                                                                                                            echo $p['app_start_date'] ? date('M j, Y', strtotime($p['app_start_date'])) : 'Anytime';
+                                                                                                                            echo ' – ';
+                                                                                                                            echo $p['app_end_date'] ? date('M j, Y', strtotime($p['app_end_date'])) : 'No end date';
+                                                                                                                            ?></span>
                                             <?php else: ?>
                                                 <span><i class="bi bi-calendar3 me-1"></i><?php echo $p['created_at'] ? date('M j, Y', strtotime($p['created_at'])) : '—'; ?></span>
                                             <?php endif; ?>
@@ -943,7 +948,9 @@ $activeLink = 'AdminProgramManagement';
                 <?php if (empty($announcements)): ?>
                     <div class="empty-committee">No announcements posted yet.</div>
                 <?php endif; ?>
-                <?php foreach ($committees as $c): $cid = (int)$c['committee_id']; $group = $announcementsByGroup[$cid] ?? []; if (empty($group)) continue; ?>
+                <?php foreach ($committees as $c): $cid = (int)$c['committee_id'];
+                    $group = $announcementsByGroup[$cid] ?? [];
+                    if (empty($group)) continue; ?>
                     <div class="committee-block">
                         <div class="committee-block-header">
                             <div class="title">
@@ -1257,7 +1264,8 @@ $activeLink = 'AdminProgramManagement';
         </div>
     </div>
 
-    <?php foreach ($allPrograms as $p): $pid = (int)$p['program_id']; $benCount = $beneficiaryCounts[$pid] ?? 0;
+    <?php foreach ($allPrograms as $p): $pid = (int)$p['program_id'];
+        $benCount = $beneficiaryCounts[$pid] ?? 0;
         $reqLines = $p['eligibility_requirements'] ? explode("\n", $p['eligibility_requirements']) : [];
     ?>
         <!-- View Program Modal -->
@@ -1270,23 +1278,48 @@ $activeLink = 'AdminProgramManagement';
                     </div>
                     <div class="modal-body p-4">
                         <div class="row g-3">
-                            <div class="col-6"><div class="info-label">Assistance Type</div><div class="info-value"><?php echo assistLabel($p['assistance_type']); ?></div></div>
-                            <div class="col-6"><div class="info-label">Status</div><div class="info-value"><?php echo ucfirst($p['status']); ?></div></div>
-                            <div class="col-6"><div class="info-label">Amount</div><div class="info-value"><?php echo $p['amount'] !== null ? '₱' . number_format($p['amount'], 2) : '—'; ?></div></div>
-                            <div class="col-6"><div class="info-label">Release Schedule</div><div class="info-value"><?php echo e($p['release_schedule'] ?: '—'); ?></div></div>
-                            <div class="col-6"><div class="info-label">Application Start</div><div class="info-value"><?php echo e($p['app_start_date'] ?: '—'); ?></div></div>
-                            <div class="col-6"><div class="info-label">Application End</div><div class="info-value"><?php echo e($p['app_end_date'] ?: '—'); ?></div></div>
-                            <div class="col-12"><div class="info-label">Description</div><div class="info-value"><?php echo nl2br(e($p['description'] ?: '—')); ?></div></div>
-                            <div class="col-12"><div class="info-label">Eligibility Requirements</div>
+                            <div class="col-6">
+                                <div class="info-label">Assistance Type</div>
+                                <div class="info-value"><?php echo assistLabel($p['assistance_type']); ?></div>
+                            </div>
+                            <div class="col-6">
+                                <div class="info-label">Status</div>
+                                <div class="info-value"><?php echo ucfirst($p['status']); ?></div>
+                            </div>
+                            <div class="col-6">
+                                <div class="info-label">Amount</div>
+                                <div class="info-value"><?php echo $p['amount'] !== null ? '₱' . number_format($p['amount'], 2) : '—'; ?></div>
+                            </div>
+                            <div class="col-6">
+                                <div class="info-label">Release Schedule</div>
+                                <div class="info-value"><?php echo e($p['release_schedule'] ?: '—'); ?></div>
+                            </div>
+                            <div class="col-6">
+                                <div class="info-label">Application Start</div>
+                                <div class="info-value"><?php echo e($p['app_start_date'] ?: '—'); ?></div>
+                            </div>
+                            <div class="col-6">
+                                <div class="info-label">Application End</div>
+                                <div class="info-value"><?php echo e($p['app_end_date'] ?: '—'); ?></div>
+                            </div>
+                            <div class="col-12">
+                                <div class="info-label">Description</div>
+                                <div class="info-value"><?php echo nl2br(e($p['description'] ?: '—')); ?></div>
+                            </div>
+                            <div class="col-12">
+                                <div class="info-label">Eligibility Requirements</div>
                                 <div class="info-value">
                                     <?php if (empty($reqLines)): ?>—<?php else: ?>
-                                        <ul class="mb-0 ps-3">
-                                            <?php foreach ($reqLines as $rl): if (trim($rl) === '') continue; ?><li><?php echo e($rl); ?></li><?php endforeach; ?>
-                                        </ul>
-                                    <?php endif; ?>
+                                    <ul class="mb-0 ps-3">
+                                        <?php foreach ($reqLines as $rl): if (trim($rl) === '') continue; ?><li><?php echo e($rl); ?></li><?php endforeach; ?>
+                                    </ul>
+                                <?php endif; ?>
                                 </div>
                             </div>
-                            <div class="col-12"><div class="info-label">Beneficiaries (approved applicants)</div><div class="info-value"><?php echo $benCount; ?></div></div>
+                            <div class="col-12">
+                                <div class="info-label">Beneficiaries (approved applicants)</div>
+                                <div class="info-value"><?php echo $benCount; ?></div>
+                            </div>
                         </div>
                     </div>
                     <div class="modal-footer border-0">

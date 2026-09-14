@@ -5,7 +5,8 @@ requireRole('admin');
 $committeeId = getCommitteeIdByCode('education');
 $track = 'scholarship';
 
-function slugifyFieldKey($label, $committeeId, $track, $conn) {
+function slugifyFieldKey($label, $committeeId, $track, $conn)
+{
     $base = strtolower(trim(preg_replace('/[^a-zA-Z0-9]+/', '_', $label), '_'));
     if ($base === '') {
         $base = 'field';
