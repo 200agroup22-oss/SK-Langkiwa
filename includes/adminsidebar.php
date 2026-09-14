@@ -29,30 +29,41 @@ $extraCommitteesStmt->close();
 // to for its auto-generated Applications / Assistance Requests / Form submenu. Applications
 // aren't reviewed per-program (only per track), so every program under a committee shares that
 // committee's existing review pages — same as the built-in "Assistance Program" tab already does.
+// No 'form'/'form_active' entries here — form editing lives inline in Configuration's Forms tab
+// now, not on a per-program sidebar page (see renderExtraProgramTabLinks() below, which skips the
+// "Form" link entirely when a page set has none).
 $programSubmenuPages = [
     'education' => [
-        'applications' => 'Education/EducationAssistanceApplicants.php', 'applications_active' => 'EducationAssistanceApplicants',
-        'cash' => 'Education/EducationCashAssistance.php', 'cash_active' => 'EducationCashAssistance',
-        'inkind' => 'Education/EducationInKindAssistance.php', 'inkind_active' => 'EducationInKindAssistance',
-        'form' => 'Education/EducationAssistanceForms.php', 'form_active' => 'EducationAssistanceForms',
+        'applications' => 'Education/EducationAssistanceApplicants.php',
+        'applications_active' => 'EducationAssistanceApplicants',
+        'cash' => 'Education/EducationCashAssistance.php',
+        'cash_active' => 'EducationCashAssistance',
+        'inkind' => 'Education/EducationInKindAssistance.php',
+        'inkind_active' => 'EducationInKindAssistance',
     ],
     'health' => [
-        'applications' => 'Health/HealthApplicants.php', 'applications_active' => 'HealthApplicants',
-        'cash' => 'Health/HealthCashAssistance.php', 'cash_active' => 'HealthCashAssistance',
-        'inkind' => 'Health/HealthInKindAssistance.php', 'inkind_active' => 'HealthInKindAssistance',
-        'form' => 'Health/HealthForms.php', 'form_active' => 'HealthForms',
+        'applications' => 'Health/HealthApplicants.php',
+        'applications_active' => 'HealthApplicants',
+        'cash' => 'Health/HealthCashAssistance.php',
+        'cash_active' => 'HealthCashAssistance',
+        'inkind' => 'Health/HealthInKindAssistance.php',
+        'inkind_active' => 'HealthInKindAssistance',
     ],
     'sports' => [
-        'applications' => 'Sports/SportsApplicants.php', 'applications_active' => 'SportsApplicants',
-        'cash' => 'Sports/SportsCashAssistance.php', 'cash_active' => 'SportsCashAssistance',
-        'inkind' => 'Sports/SportsInkindAssistance.php', 'inkind_active' => 'SportsInkindAssistance',
-        'form' => 'Sports/SportsForms.php', 'form_active' => 'SportsForms',
+        'applications' => 'Sports/SportsApplicants.php',
+        'applications_active' => 'SportsApplicants',
+        'cash' => 'Sports/SportsCashAssistance.php',
+        'cash_active' => 'SportsCashAssistance',
+        'inkind' => 'Sports/SportsInkindAssistance.php',
+        'inkind_active' => 'SportsInkindAssistance',
     ],
     'active_citizenship' => [
-        'applications' => 'ActiveCitizenship/ActiveCitizenshipApplicants.php', 'applications_active' => 'ActiveCitizenshipApplicants',
-        'cash' => 'ActiveCitizenship/ActiveCitizenshipCashAssistance.php', 'cash_active' => 'ActiveCitizenshipCashAssistance',
-        'inkind' => 'ActiveCitizenship/ActiveCitizenshipInKindAssistance.php', 'inkind_active' => 'ActiveCitizenshipInKindAssistance',
-        'form' => 'ActiveCitizenship/ActiveCitizenshipForms.php', 'form_active' => 'ActiveCitizenshipForms',
+        'applications' => 'ActiveCitizenship/ActiveCitizenshipApplicants.php',
+        'applications_active' => 'ActiveCitizenshipApplicants',
+        'cash' => 'ActiveCitizenship/ActiveCitizenshipCashAssistance.php',
+        'cash_active' => 'ActiveCitizenshipCashAssistance',
+        'inkind' => 'ActiveCitizenship/ActiveCitizenshipInKindAssistance.php',
+        'inkind_active' => 'ActiveCitizenshipInKindAssistance',
     ],
 ];
 
@@ -63,12 +74,14 @@ $programSubmenuPages = [
 // data the destination page should actually filter to) to a page URL. Assistance Requests only
 // ever shows the ONE type (Cash or In-Kind) the program was actually created as — not both — since
 // a program has a single assistance_type in the catalog.
-function withProgramParams($urlPath, $ptab, $programId) {
+function withProgramParams($urlPath, $ptab, $programId)
+{
     $sep = strpos($urlPath, '?') !== false ? '&' : '?';
     return $urlPath . $sep . 'ptab=' . $ptab . '&program_id=' . $programId;
 }
 
-function renderExtraProgramTabLinks($committeeId, $tabs, $pages) {
+function renderExtraProgramTabLinks($committeeId, $tabs, $pages)
+{
     static $counter = 0;
     $currentPtab = isset($_GET['ptab']) ? (int)$_GET['ptab'] : null;
     foreach ($tabs as $t) {
@@ -127,23 +140,29 @@ function renderExtraProgramTabLinks($committeeId, $tabs, $pages) {
 // Page set for a committee added via Content Management that isn't one of the 4 built-in ones
 // (Education/Health/Sports/Active Citizenship). Those generic committees have no dedicated pages
 // of their own — every program under them shares the single generic CommitteeApplicants.php /
-// CommitteeCashAssistance.php / CommitteeInKindAssistance.php / CommitteeForms.php set instead,
-// selected via ?committee=<id>.
-function genericCommitteePages($committeeId) {
+// CommitteeCashAssistance.php / CommitteeInKindAssistance.php set instead, selected via
+// ?committee=<id>. Form editing isn't part of this set — it's handled inline in Configuration's
+// Forms tab for every committee, built-in or generic alike.
+function genericCommitteePages($committeeId)
+{
     return [
-        'applications' => 'CommitteeApplicants.php?committee=' . $committeeId, 'applications_active' => 'CommitteeApplicants_' . $committeeId,
-        'cash' => 'CommitteeCashAssistance.php?committee=' . $committeeId, 'cash_active' => 'CommitteeCashAssistance_' . $committeeId,
-        'inkind' => 'CommitteeInKindAssistance.php?committee=' . $committeeId, 'inkind_active' => 'CommitteeInKindAssistance_' . $committeeId,
-        'form' => 'CommitteeForms.php?committee=' . $committeeId, 'form_active' => 'CommitteeForms_' . $committeeId,
+        'applications' => 'CommitteeApplicants.php?committee=' . $committeeId,
+        'applications_active' => 'CommitteeApplicants_' . $committeeId,
+        'cash' => 'CommitteeCashAssistance.php?committee=' . $committeeId,
+        'cash_active' => 'CommitteeCashAssistance_' . $committeeId,
+        'inkind' => 'CommitteeInKindAssistance.php?committee=' . $committeeId,
+        'inkind_active' => 'CommitteeInKindAssistance_' . $committeeId,
     ];
 }
 
-function navActive($name) {
+function navActive($name)
+{
     global $activeLink;
     return $activeLink === $name ? ' active' : '';
 }
 
-function groupExpanded($prefixes) {
+function groupExpanded($prefixes)
+{
     global $activeLink;
     foreach ((array)$prefixes as $prefix) {
         if (strpos($activeLink, $prefix) === 0) {
@@ -153,7 +172,8 @@ function groupExpanded($prefixes) {
     return false;
 }
 
-function collapseAttrs($expanded) {
+function collapseAttrs($expanded)
+{
     return $expanded ? ['show', 'true'] : ['', 'false'];
 }
 ?>
@@ -208,8 +228,8 @@ function collapseAttrs($expanded) {
         <!-- EDUCATION COMMITTEE -->
         <?php
         $eduExpanded = groupExpanded('Education');
-        $iskolarExpanded = groupExpanded(['EducationApplicants', 'EducationScholarList', 'EducationAllowanceDistribution', 'EducationActivities', 'EducationForms', 'EducationAnnouncement']);
-        $eduAssistExpanded = $isBaseProgramView && groupExpanded(['EducationAssistanceApplicants', 'EducationCashAssistance', 'EducationInKindAssistance', 'EducationAssistanceForms']);
+        $iskolarExpanded = groupExpanded(['EducationApplicants', 'EducationScholarList', 'EducationAllowanceDistribution', 'EducationActivities', 'EducationAnnouncement']);
+        $eduAssistExpanded = $isBaseProgramView && groupExpanded(['EducationAssistanceApplicants', 'EducationCashAssistance', 'EducationInKindAssistance']);
         $eduAssistReqExpanded = $isBaseProgramView && groupExpanded(['EducationCashAssistance', 'EducationInKindAssistance']);
         ?>
         <a href="#educationMenu" class="nav-link-item nav-parent" data-bs-toggle="collapse" role="button" aria-expanded="<?php echo $eduExpanded ? 'true' : 'false'; ?>" aria-controls="educationMenu">
@@ -229,7 +249,6 @@ function collapseAttrs($expanded) {
                             <a href="<?php echo APP_BASE; ?>/admin/Education/EducationScholarList.php" class="nav-link-item nav-sub-sub<?php echo navActive('EducationScholarList'); ?>"><i class="bi bi-person-check-fill"></i> Scholars</a>
                             <a href="<?php echo APP_BASE; ?>/admin/Education/EducationAllowanceDistribution.php" class="nav-link-item nav-sub-sub<?php echo navActive('EducationAllowanceDistribution'); ?>"><i class="bi bi-cash"></i> Allowance Distribution</a>
                             <a href="<?php echo APP_BASE; ?>/admin/Education/EducationActivities.php" class="nav-link-item nav-sub-sub<?php echo navActive('EducationActivities'); ?>"><i class="bi bi-calendar-event-fill"></i> Activities</a>
-                            <a href="<?php echo APP_BASE; ?>/admin/Education/EducationForms.php" class="nav-link-item nav-sub-sub<?php echo navActive('EducationForms'); ?>"><i class="bi bi-file-earmark-text"></i> Form</a>
                             <a href="<?php echo APP_BASE; ?>/admin/Education/EducationAnnouncement.php" class="nav-link-item nav-sub-sub<?php echo navActive('EducationAnnouncement'); ?>"><i class="bi bi-bell-fill"></i> Announcement</a>
                         </div>
                     </div>
@@ -254,8 +273,6 @@ function collapseAttrs($expanded) {
                                     <a href="<?php echo APP_BASE; ?>/admin/Education/EducationInKindAssistance.php" class="nav-link-item nav-sub-sub-sub<?php echo $isBaseProgramView ? navActive('EducationInKindAssistance') : ''; ?>"><i class="bi bi-box-seam"></i> In-Kind Assistance</a>
                                 </div>
                             </div>
-
-                            <a href="<?php echo APP_BASE; ?>/admin/Education/EducationAssistanceForms.php" class="nav-link-item nav-sub-sub<?php echo $isBaseProgramView ? navActive('EducationAssistanceForms') : ''; ?>"><i class="bi bi-file-earmark-text"></i> Form</a>
                         </div>
                     </div>
                 <?php endif; ?>
@@ -266,7 +283,7 @@ function collapseAttrs($expanded) {
         <!-- HEALTH COMMITTEE -->
         <?php
         $healthExpanded = groupExpanded('Health');
-        $healthAssistExpanded = $isBaseProgramView && groupExpanded(['HealthApplicants', 'HealthCashAssistance', 'HealthInKindAssistance', 'HealthForms']);
+        $healthAssistExpanded = $isBaseProgramView && groupExpanded(['HealthApplicants', 'HealthCashAssistance', 'HealthInKindAssistance']);
         $healthReqExpanded = $isBaseProgramView && groupExpanded(['HealthCashAssistance', 'HealthInKindAssistance']);
         ?>
         <?php if (!empty($healthTabs['assistance']['is_visible'])): ?>
@@ -294,8 +311,6 @@ function collapseAttrs($expanded) {
                                     <a href="<?php echo APP_BASE; ?>/admin/Health/HealthInKindAssistance.php" class="nav-link-item nav-sub-sub-sub<?php echo $isBaseProgramView ? navActive('HealthInKindAssistance') : ''; ?>"><i class="bi bi-box-seam"></i> In-Kind Assistance</a>
                                 </div>
                             </div>
-
-                            <a href="<?php echo APP_BASE; ?>/admin/Health/HealthForms.php" class="nav-link-item nav-sub-sub<?php echo $isBaseProgramView ? navActive('HealthForms') : ''; ?>"><i class="bi bi-file-earmark-text"></i> Form</a>
                         </div>
                     </div>
                     <?php renderExtraProgramTabLinks($healthCommitteeId, $healthTabs, $programSubmenuPages['health']); ?>
@@ -306,7 +321,7 @@ function collapseAttrs($expanded) {
         <!-- SPORTS COMMITTEE -->
         <?php
         $sportsExpanded = groupExpanded('Sports');
-        $sportsAssistExpanded = $isBaseProgramView && groupExpanded(['SportsApplicants', 'SportsCashAssistance', 'SportsInkindAssistance', 'SportsForms']);
+        $sportsAssistExpanded = $isBaseProgramView && groupExpanded(['SportsApplicants', 'SportsCashAssistance', 'SportsInkindAssistance']);
         $sportsReqExpanded = $isBaseProgramView && groupExpanded(['SportsCashAssistance', 'SportsInkindAssistance']);
         ?>
         <?php if (!empty($sportsTabs['assistance']['is_visible'])): ?>
@@ -334,8 +349,6 @@ function collapseAttrs($expanded) {
                                     <a href="<?php echo APP_BASE; ?>/admin/Sports/SportsInkindAssistance.php" class="nav-link-item nav-sub-sub-sub<?php echo $isBaseProgramView ? navActive('SportsInkindAssistance') : ''; ?>"><i class="bi bi-box-seam"></i> In-Kind Assistance</a>
                                 </div>
                             </div>
-
-                            <a href="<?php echo APP_BASE; ?>/admin/Sports/SportsForms.php" class="nav-link-item nav-sub-sub<?php echo $isBaseProgramView ? navActive('SportsForms') : ''; ?>"><i class="bi bi-file-earmark-text"></i> Form</a>
                         </div>
                     </div>
                     <?php renderExtraProgramTabLinks($sportsCommitteeId, $sportsTabs, $programSubmenuPages['sports']); ?>
@@ -346,7 +359,7 @@ function collapseAttrs($expanded) {
         <!-- ACTIVE CITIZENSHIP -->
         <?php
         $citizenshipExpanded = groupExpanded('ActiveCitizenship');
-        $citizenshipAssistExpanded = $isBaseProgramView && groupExpanded(['ActiveCitizenshipApplicants', 'ActiveCitizenshipCashAssistance', 'ActiveCitizenshipInKindAssistance', 'ActiveCitizenshipForms']);
+        $citizenshipAssistExpanded = $isBaseProgramView && groupExpanded(['ActiveCitizenshipApplicants', 'ActiveCitizenshipCashAssistance', 'ActiveCitizenshipInKindAssistance']);
         $citizenshipReqExpanded = $isBaseProgramView && groupExpanded(['ActiveCitizenshipCashAssistance', 'ActiveCitizenshipInKindAssistance']);
         ?>
         <?php if (!empty($citizenshipTabs['assistance']['is_visible'])): ?>
@@ -374,8 +387,6 @@ function collapseAttrs($expanded) {
                                     <a href="<?php echo APP_BASE; ?>/admin/ActiveCitizenship/ActiveCitizenshipInKindAssistance.php" class="nav-link-item nav-sub-sub-sub<?php echo $isBaseProgramView ? navActive('ActiveCitizenshipInKindAssistance') : ''; ?>"><i class="bi bi-box-seam"></i> In-Kind Assistance</a>
                                 </div>
                             </div>
-
-                            <a href="<?php echo APP_BASE; ?>/admin/ActiveCitizenship/ActiveCitizenshipForms.php" class="nav-link-item nav-sub-sub<?php echo $isBaseProgramView ? navActive('ActiveCitizenshipForms') : ''; ?>"><i class="bi bi-file-earmark-text"></i> Form</a>
                         </div>
                     </div>
                     <?php renderExtraProgramTabLinks($citizenshipCommitteeId, $citizenshipTabs, $programSubmenuPages['active_citizenship']); ?>
