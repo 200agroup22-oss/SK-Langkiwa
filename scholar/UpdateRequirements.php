@@ -271,7 +271,7 @@ $reqError = getFlash('error');
                             <select class="form-select" name="year_level" style="font-size:13px;" <?php echo $windowOpen ? '' : 'disabled'; ?>>
                                 <option value="" disabled <?php echo empty($scholar['year_level']) ? 'selected' : ''; ?>>Select Year Level</option>
                                 <?php for ($y = 1; $y <= 4; $y++): ?>
-                                    <option value="<?php echo $y; ?>" <?php echo ($scholar && (int)$scholar['year_level'] === $y) ? 'selected' : ''; ?>><?php echo $y; ?><?php echo ['','st','nd','rd','th'][$y] ?? 'th'; ?> Year</option>
+                                    <option value="<?php echo $y; ?>" <?php echo ($scholar && (int)$scholar['year_level'] === $y) ? 'selected' : ''; ?>><?php echo $y; ?><?php echo ['', 'st', 'nd', 'rd', 'th'][$y] ?? 'th'; ?> Year</option>
                                 <?php endfor; ?>
                             </select>
                         </div>
