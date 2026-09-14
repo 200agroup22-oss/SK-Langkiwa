@@ -9,6 +9,8 @@
 // Ask a teammate for a copy, or create your own Brevo sender + API key for local testing.
 if (file_exists(__DIR__ . '/mail.local.php')) {
     require_once __DIR__ . '/mail.local.php';
+} elseif (getenv('BREVO_API_KEY')) {
+    define('BREVO_API_KEY', getenv('BREVO_API_KEY'));
 } else {
     define('BREVO_API_KEY', '');
 }
