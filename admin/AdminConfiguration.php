@@ -4,6 +4,19 @@ requireRole('admin');
 
 $me = currentUser();
 
+// ---- Forms tab: field type/width choices, shared by the save_field handler below and the
+// inline field editor rendered further down ----
+$fieldTypeMap = ['Text' => 'text', 'Number' => 'number', 'Date' => 'date', 'Textarea' => 'textarea', 'Dropdown' => 'dropdown', 'Radio Buttons' => 'radio', 'File Upload' => 'file'];
+$fieldTypeMapReverse = array_flip($fieldTypeMap);
+$fieldWidthMap = ['1/3' => 'third', 'Half' => 'half', '2/3' => 'two_third', 'Full' => 'full'];
+$fieldWidthMapReverse = array_flip($fieldWidthMap);
+
+// A POST redirects back into the Forms tab (instead of always landing on Settings) with the
+// program that was being edited still expanded — set by the save_field/archive_field/move_field
+// handlers below.
+$redirectTab = null;
+$redirectFtab = null;
+
 // ---- POST handlers (redirect-after-POST) ----
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
@@ -157,7 +170,107 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setFlash('success', 'Announcement removed.');
     }
 
-    header("Location: AdminConfiguration.php");
+    // ---- Forms tab: add/edit/reorder/remove a program's application-form fields, inline ----
+    if (isset($_POST['save_field'])) {
+        $formCommitteeId = (int)($_POST['form_committee_id'] ?? 0);
+        $formTrack = ($_POST['form_track'] ?? '') === 'scholarship' ? 'scholarship' : 'assistance';
+        $formProgramIdRaw = $_POST['form_program_id'] ?? '';
+        $formProgramId = $formProgramIdRaw === '' ? null : (int)$formProgramIdRaw;
+        $redirectTab = 'formsTab';
+        $redirectFtab = (int)($_POST['form_tab_id'] ?? 0);
+
+        $label = trim($_POST['label'] ?? '');
+        $inputType = $fieldTypeMap[$_POST['input_type'] ?? 'Text'] ?? 'text';
+        $icon = $_POST['icon'] ?? 'bi-fonts';
+        $width = $fieldWidthMap[$_POST['width'] ?? 'Full'] ?? 'full';
+        $required = isset($_POST['required']) ? 1 : 0;
+        $optionsText = trim($_POST['options'] ?? '');
+        $options = null;
+        if (($inputType === 'dropdown' || $inputType === 'radio') && $optionsText !== '') {
+            $options = json_encode(array_values(array_filter(array_map('trim', explode(',', $optionsText)))));
+        }
+        $fieldId = (int)($_POST['field_id'] ?? 0);
+
+        if ($formCommitteeId <= 0) {
+            setFlash('error', 'Invalid form.');
+        } elseif ($label === '') {
+            setFlash('error', 'Field label is required.');
+        } elseif ($fieldId > 0) {
+            $stmt = $conn->prepare("UPDATE form_fields SET label=?, input_type=?, icon=?, width=?, is_required=?, options=? WHERE field_id=? AND committee_id=? AND program_track=?");
+            $stmt->bind_param('ssssisiis', $label, $inputType, $icon, $width, $required, $options, $fieldId, $formCommitteeId, $formTrack);
+            $stmt->execute();
+            $stmt->close();
+            logAudit('Updated Form Field', $label);
+            setFlash('success', 'Field updated.');
+        } else {
+            $fieldKey = slugifyFieldKey($label, $formCommitteeId, $formTrack, $conn, $formProgramId);
+            $stmt = $conn->prepare("SELECT COALESCE(MAX(sort_order),0) AS m FROM form_fields WHERE committee_id = ? AND program_track = ?");
+            $stmt->bind_param('is', $formCommitteeId, $formTrack);
+            $stmt->execute();
+            $maxOrder = $stmt->get_result()->fetch_assoc()['m'];
+            $stmt->close();
+            $sortOrder = $maxOrder + 1;
+
+            $stmt = $conn->prepare("INSERT INTO form_fields (committee_id, program_track, program_id, label, field_key, input_type, icon, width, is_required, options, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param('isisssssisi', $formCommitteeId, $formTrack, $formProgramId, $label, $fieldKey, $inputType, $icon, $width, $required, $options, $sortOrder);
+            $stmt->execute();
+            $stmt->close();
+            logAudit('Added Form Field', $label);
+            setFlash('success', 'Field added.');
+        }
+    }
+
+    if (isset($_POST['archive_field'])) {
+        $formCommitteeId = (int)($_POST['form_committee_id'] ?? 0);
+        $formTrack = ($_POST['form_track'] ?? '') === 'scholarship' ? 'scholarship' : 'assistance';
+        $redirectTab = 'formsTab';
+        $redirectFtab = (int)($_POST['form_tab_id'] ?? 0);
+
+        $fieldId = (int)$_POST['field_id'];
+        $stmt = $conn->prepare("UPDATE form_fields SET archived_at = NOW() WHERE field_id = ? AND committee_id = ? AND program_track = ?");
+        $stmt->bind_param('iis', $fieldId, $formCommitteeId, $formTrack);
+        $stmt->execute();
+        $stmt->close();
+        logAudit('Removed Form Field', 'Field #' . $fieldId);
+        setFlash('success', 'Field removed.');
+    }
+
+    if (isset($_POST['move_field'])) {
+        $formCommitteeId = (int)($_POST['form_committee_id'] ?? 0);
+        $formTrack = ($_POST['form_track'] ?? '') === 'scholarship' ? 'scholarship' : 'assistance';
+        $formProgramIdRaw = $_POST['form_program_id'] ?? '';
+        $formProgramId = $formProgramIdRaw === '' ? null : (int)$formProgramIdRaw;
+        $redirectTab = 'formsTab';
+        $redirectFtab = (int)($_POST['form_tab_id'] ?? 0);
+
+        $fieldId = (int)$_POST['field_id'];
+        $direction = $_POST['direction'] === 'up' ? 'up' : 'down';
+        $scopeFields = getFormFields($formCommitteeId, $formTrack, $formProgramId);
+        $index = null;
+        foreach ($scopeFields as $i => $f) {
+            if ((int)$f['field_id'] === $fieldId) {
+                $index = $i;
+                break;
+            }
+        }
+        $swapWith = $direction === 'up' ? $index - 1 : $index + 1;
+        if ($index !== null && isset($scopeFields[$swapWith])) {
+            $a = $scopeFields[$index];
+            $b = $scopeFields[$swapWith];
+            $stmt = $conn->prepare("UPDATE form_fields SET sort_order = ? WHERE field_id = ?");
+            $stmt->bind_param('ii', $b['sort_order'], $a['field_id']);
+            $stmt->execute();
+            $stmt->bind_param('ii', $a['sort_order'], $b['field_id']);
+            $stmt->execute();
+            $stmt->close();
+        }
+    }
+
+    if ($redirectTab) {
+        header("Location: AdminConfiguration.php?tab=" . $redirectTab . ($redirectFtab ? '&ftab=' . $redirectFtab : ''));
+    } else {
+        header("Location: AdminConfiguration.php");
+    }
     exit();
 }
 
@@ -180,102 +293,36 @@ unset($row);
 $programSettingsCommittees = array_values(array_unique(array_column($programTabRows, 'committee_name')));
 sort($programSettingsCommittees);
 
-// ---- Forms tab: committee -> program/track picker that jumps to that form's existing field
-// editor page. Each built-in committee (Education/Health/Sports/Active Citizenship) keeps its own
-// dedicated editor page; any other committee shares the generic CommitteeForms.php. This just
-// finds the right URL for a given committee+track+tab so the picker can link to it directly
-// instead of the admin hunting for it in the sidebar's nested program submenus.
-function formEditorUrl($committeeCode, $committeeId, $trackCode, $tabId)
-{
-    $isBaseTab = in_array($trackCode, ['scholarship', 'assistance'], true);
-    switch ($committeeCode) {
-        case 'education':
-            if ($trackCode === 'scholarship') {
-                return APP_BASE . '/admin/Education/EducationForms.php';
-            }
-            $url = APP_BASE . '/admin/Education/EducationAssistanceForms.php';
-            return $isBaseTab ? $url : $url . '?ptab=' . $tabId;
-        case 'health':
-            $url = APP_BASE . '/admin/Health/HealthForms.php';
-            return $isBaseTab ? $url : $url . '?ptab=' . $tabId;
-        case 'sports':
-            $url = APP_BASE . '/admin/Sports/SportsForms.php';
-            return $isBaseTab ? $url : $url . '?ptab=' . $tabId;
-        case 'active_citizenship':
-            $url = APP_BASE . '/admin/ActiveCitizenship/ActiveCitizenshipForms.php';
-            return $isBaseTab ? $url : $url . '?ptab=' . $tabId;
-        default:
-            $url = APP_BASE . '/admin/CommitteeForms.php?committee=' . $committeeId;
-            return $isBaseTab ? $url : $url . '&ptab=' . $tabId;
-    }
-}
-
+// ---- Forms tab: committee -> program picker whose selected program's field editor renders
+// inline below (every program's editor is server-rendered up front, then hidden/shown by
+// formsCommitteeSelect/formsProgramSelect in JS — no page reload, no separate editor page). See
+// $iconChoices for the icon picker shared by every field editor instance.
 $allCommittees = $conn->query("SELECT * FROM committees WHERE archived_at IS NULL ORDER BY committee_id ASC")->fetch_all(MYSQLI_ASSOC);
-$formsByCommittee = [];
+$formPanels = [];
+$formCommitteeOptions = [];
 foreach ($allCommittees as $c) {
     $cid = (int)$c['committee_id'];
-    $forms = [];
     foreach (getProgramTabs($cid, false) as $t) {
-        $forms[] = [
+        $isBaseTab = in_array($t['track_code'], ['scholarship', 'assistance'], true);
+        $formTrack = $isBaseTab ? $t['track_code'] : 'assistance';
+        $formProgramId = $isBaseTab ? null : (int)$t['program_id'];
+        $formPanels[] = [
+            'tab_id' => (int)$t['tab_id'],
+            'committee_id' => $cid,
+            'committee_name' => $c['name'],
             'label' => $t['label'],
-            'url' => formEditorUrl($c['code'], $cid, $t['track_code'], (int)$t['tab_id']),
+            'track' => $formTrack,
+            'program_id' => $formProgramId,
+            'fields' => getFormFields($cid, $formTrack, $formProgramId),
         ];
+        $formCommitteeOptions[$cid] = $c['name'];
     }
-    $formsByCommittee[$cid] = $forms;
 }
-
-// ---- Activity Logs: filter (role, date range) + search, most-recent first, capped at 200 rows (no full pagination — thesis-scale data) ----
-$roleFilter = $_GET['role'] ?? '';
-$dateFilter = $_GET['logdate'] ?? '';
-$logSearch = trim($_GET['logq'] ?? '');
-
-$activityLogs = $conn->query("SELECT * FROM activity_logs ORDER BY logged_in_at DESC LIMIT 200")->fetch_all(MYSQLI_ASSOC);
-$distinctRoles = array_values(array_unique(array_map(fn($r) => $r['role'], $activityLogs)));
-
-if ($roleFilter !== '') {
-    $activityLogs = array_values(array_filter($activityLogs, fn($r) => $r['role'] === $roleFilter));
+$formPanelsByCommittee = [];
+foreach ($formPanels as $panel) {
+    $formPanelsByCommittee[$panel['committee_id']][] = ['tab_id' => $panel['tab_id'], 'label' => $panel['label']];
 }
-if ($dateFilter !== '') {
-    $now = time();
-    $activityLogs = array_values(array_filter($activityLogs, function ($r) use ($dateFilter, $now) {
-        $t = strtotime($r['logged_in_at']);
-        if ($dateFilter === 'today') return date('Y-m-d', $t) === date('Y-m-d', $now);
-        if ($dateFilter === 'week') return $t >= strtotime('monday this week', $now);
-        if ($dateFilter === 'month') return date('Y-m', $t) === date('Y-m', $now);
-        return true;
-    }));
-}
-if ($logSearch !== '') {
-    $needle = mb_strtolower($logSearch);
-    $activityLogs = array_values(array_filter($activityLogs, fn($r) => str_contains(mb_strtolower($r['full_name']), $needle) || str_contains(mb_strtolower($r['email']), $needle)));
-}
-
-// ---- Audit Logs: filter (action, date range) + search, capped at 200 rows ----
-$actionFilter = $_GET['action'] ?? '';
-$auditDateFilter = $_GET['auditdate'] ?? '';
-$auditSearch = trim($_GET['auditq'] ?? '');
-
-$distinctActions = $conn->query("SELECT DISTINCT action FROM audit_logs ORDER BY action ASC")->fetch_all(MYSQLI_ASSOC);
-
-$auditLogs = $conn->query("SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 200")->fetch_all(MYSQLI_ASSOC);
-
-if ($actionFilter !== '') {
-    $auditLogs = array_values(array_filter($auditLogs, fn($r) => $r['action'] === $actionFilter));
-}
-if ($auditDateFilter !== '') {
-    $now = time();
-    $auditLogs = array_values(array_filter($auditLogs, function ($r) use ($auditDateFilter, $now) {
-        $t = strtotime($r['created_at']);
-        if ($auditDateFilter === 'today') return date('Y-m-d', $t) === date('Y-m-d', $now);
-        if ($auditDateFilter === 'week') return $t >= strtotime('monday this week', $now);
-        if ($auditDateFilter === 'month') return date('Y-m', $t) === date('Y-m', $now);
-        return true;
-    }));
-}
-if ($auditSearch !== '') {
-    $needle = mb_strtolower($auditSearch);
-    $auditLogs = array_values(array_filter($auditLogs, fn($r) => str_contains(mb_strtolower($r['full_name']), $needle) || str_contains(mb_strtolower($r['email']), $needle) || str_contains(mb_strtolower($r['action']), $needle)));
-}
+$iconChoices = ['bi-fonts', 'bi-person', 'bi-geo-alt', 'bi-building', 'bi-mortarboard', 'bi-calendar3', 'bi-123', 'bi-menu-button-wide', 'bi-chat-left-text', 'bi-upload', 'bi-telephone', 'bi-envelope', 'bi-cash-coin', 'bi-box-seam', 'bi-person-vcard', 'bi-file-earmark-text'];
 
 $activeLink = 'AdminConfiguration';
 ?>
@@ -398,17 +445,6 @@ $activeLink = 'AdminConfiguration';
             border-radius: 8px;
             border: 1px solid #eee;
             overflow-x: auto;
-        }
-
-        .log-table-card {
-            max-height: 420px;
-            overflow-y: auto;
-        }
-
-        .log-table-card thead th {
-            position: sticky;
-            top: 0;
-            z-index: 1;
         }
 
         .table {
@@ -565,6 +601,86 @@ $activeLink = 'AdminConfiguration';
         .tab-pane-custom.active {
             display: block;
         }
+
+        .committee-tag {
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 10px;
+            border-radius: 20px;
+            background: #eef4ff;
+            color: #3b5bdb;
+            border: 1px solid #d0dcf7;
+            white-space: nowrap;
+        }
+
+        .icon-preview-swatch {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 30px;
+            height: 30px;
+            border-radius: 6px;
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .type-badge {
+            background: #e3f2fd;
+            color: #1565c0;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 3px 10px;
+            border-radius: 20px;
+        }
+
+        .required-badge {
+            background: #fce4ec;
+            color: #c62828;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 3px 10px;
+            border-radius: 20px;
+        }
+
+        .optional-badge {
+            background: #f1f1f1;
+            color: #666;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 3px 10px;
+            border-radius: 20px;
+        }
+
+        .icon-radio-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 6px;
+        }
+
+        .icon-radio-grid label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 36px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .icon-radio-grid input:checked+label {
+            border-color: #45b84d;
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .icon-radio-grid input {
+            display: none;
+        }
+
+        .preview-form-card {
+            background: #fff;
+            border-radius: 10px;
+        }
     </style>
 </head>
 
@@ -575,7 +691,7 @@ $activeLink = 'AdminConfiguration';
     <!-- Main Content -->
     <div class="main-content">
         <h4 class="fw-bold mb-1">Configuration</h4>
-        <p class="text-muted mb-2" style="font-size: 13px;">Manage system settings, activity logs, and audit logs.</p>
+        <p class="text-muted mb-2" style="font-size: 13px;">Manage system settings, program settings, and application forms.</p>
 
         <?php if ($pageSuccess): ?><div class="alert alert-success py-2"><?php echo e($pageSuccess); ?></div><?php endif; ?>
         <?php if ($pageError): ?><div class="alert alert-danger py-2"><?php echo e($pageError); ?></div><?php endif; ?>
@@ -585,8 +701,6 @@ $activeLink = 'AdminConfiguration';
             <button class="content-tab-btn active" data-tab="settingsTab"><i class="bi bi-gear-fill"></i> Settings</button>
             <button class="content-tab-btn" data-tab="programSettingsTab"><i class="bi bi-ui-checks-grid"></i> Application / Program Settings</button>
             <button class="content-tab-btn" data-tab="formsTab"><i class="bi bi-file-earmark-text"></i> Forms</button>
-            <button class="content-tab-btn" data-tab="activityLogsTab"><i class="bi bi-activity"></i> Activity Logs</button>
-            <button class="content-tab-btn" data-tab="auditLogsTab"><i class="bi bi-journal-text"></i> Audit Logs</button>
         </div>
 
         <!-- ==============================
@@ -801,173 +915,212 @@ $activeLink = 'AdminConfiguration';
         </div><!-- /programSettingsTab -->
 
         <!-- ==============================
-             SECTION 1.7: FORMS (jump to a program's field editor)
+             SECTION 1.7: FORMS (select a committee, then a program, to manage its fields inline)
         ============================== -->
         <div class="tab-pane-custom" id="formsTab">
             <div class="config-card">
                 <div class="card-section-title"><i class="bi bi-file-earmark-text"></i> Forms</div>
-                <div class="card-section-sub">Pick a committee and a program to jump straight to that program's application-form field editor — no need to dig through the sidebar's nested menus.</div>
+                <div class="card-section-sub">Pick a committee, then a program, to add, edit, reorder, or remove its application-form fields right here — changes take effect immediately.</div>
 
-                <div class="row g-3" style="max-width:640px;">
-                    <div class="col-md-6">
-                        <label class="form-label">Committee</label>
-                        <select class="form-select" id="formsCommitteeSelect">
-                            <option value="" disabled selected>Select a committee</option>
-                            <?php foreach ($allCommittees as $c): ?>
-                                <option value="<?php echo (int)$c['committee_id']; ?>"><?php echo e($c['name']); ?></option>
-                            <?php endforeach; ?>
-                        </select>
+                <?php if (empty($formPanels)): ?>
+                    <p class="text-muted py-3 mb-0">No programs yet.</p>
+                <?php else: ?>
+                    <div class="row g-3 mb-4" style="max-width:640px;">
+                        <div class="col-md-6">
+                            <label class="form-label">Committee</label>
+                            <select class="form-select" id="formsCommitteeSelect">
+                                <option value="" disabled selected>Select a committee</option>
+                                <?php foreach ($formCommitteeOptions as $cid => $cname): ?>
+                                    <option value="<?php echo $cid; ?>"><?php echo e($cname); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Program</label>
+                            <select class="form-select" id="formsProgramSelect" disabled>
+                                <option value="" selected>Select a committee first</option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Program / Form</label>
-                        <select class="form-select" id="formsProgramSelect" disabled>
-                            <option value="">Select a committee first</option>
-                        </select>
-                    </div>
-                    <div class="col-12">
-                        <a href="#" id="formsOpenBtn" class="btn-brand" style="pointer-events:none; opacity:0.5; display:inline-block;"><i class="bi bi-box-arrow-up-right me-1"></i> Open Form Editor</a>
-                    </div>
+                <?php endif; ?>
+
+                <p class="text-muted py-3 mb-0" id="formsEmptyState">Select a committee and a program above to manage its form.</p>
+
+                <div id="formsPanelsWrap">
+                    <?php foreach ($formPanels as $panel):
+                        $tabId = $panel['tab_id'];
+                        $fields = $panel['fields'];
+                        $programIdAttr = $panel['program_id'] !== null ? (int)$panel['program_id'] : '';
+                    ?>
+                        <div class="forms-panel" data-form-tab="<?php echo $tabId; ?>" data-committee-id="<?php echo $panel['committee_id']; ?>" style="display:none;">
+                            <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+                                <span class="committee-tag"><?php echo e($panel['committee_name']); ?></span>
+                                <h6 class="mb-0 fw-bold"><?php echo e($panel['label']); ?></h6>
+                                <span class="text-muted" style="font-size:12px; font-weight:500;">(<?php echo count($fields); ?> field<?php echo count($fields) === 1 ? '' : 's'; ?>)</span>
+                            </div>
+
+                            <div class="d-flex gap-2 align-items-center mb-3 flex-wrap">
+                                <button type="button" class="btn btn-sm btn-success" onclick="openAddField(<?php echo $tabId; ?>)" data-bs-toggle="modal" data-bs-target="#fieldModal<?php echo $tabId; ?>"><i class="bi bi-plus-lg me-1"></i> Add Field</button>
+                                <button type="button" class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#previewModal<?php echo $tabId; ?>"><i class="bi bi-eye me-1"></i> Preview Form</button>
+                            </div>
+
+                            <div class="table-card">
+                                <div class="table-responsive-wrap">
+                                    <table class="table mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>Icon</th>
+                                                <th>Field Label</th>
+                                                <th>Input Type</th>
+                                                <th>Width</th>
+                                                <th>Required</th>
+                                                <th class="text-end">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php if (empty($fields)): ?>
+                                                <tr>
+                                                    <td colspan="6" class="text-center text-muted py-4">No fields yet.</td>
+                                                </tr>
+                                            <?php endif; ?>
+                                            <?php foreach ($fields as $i => $f): ?>
+                                                <tr>
+                                                    <td><span class="icon-preview-swatch"><i class="bi <?php echo e($f['icon']); ?>"></i></span></td>
+                                                    <td><?php echo e($f['label']); ?></td>
+                                                    <td><span class="type-badge"><?php echo e($fieldTypeMapReverse[$f['input_type']] ?? $f['input_type']); ?></span></td>
+                                                    <td><?php echo e($fieldWidthMapReverse[$f['width']] ?? 'Full'); ?></td>
+                                                    <td><?php echo $f['is_required'] ? '<span class="required-badge">Required</span>' : '<span class="optional-badge">Optional</span>'; ?></td>
+                                                    <td class="text-end">
+                                                        <form method="post" class="d-inline">
+                                                            <input type="hidden" name="form_committee_id" value="<?php echo $panel['committee_id']; ?>">
+                                                            <input type="hidden" name="form_track" value="<?php echo e($panel['track']); ?>">
+                                                            <input type="hidden" name="form_program_id" value="<?php echo $programIdAttr; ?>">
+                                                            <input type="hidden" name="form_tab_id" value="<?php echo $tabId; ?>">
+                                                            <input type="hidden" name="field_id" value="<?php echo $f['field_id']; ?>">
+                                                            <input type="hidden" name="direction" value="up">
+                                                            <button type="submit" name="move_field" class="btn btn-sm btn-light py-0 px-1" <?php echo $i === 0 ? 'disabled' : ''; ?>><i class="bi bi-arrow-up"></i></button>
+                                                        </form>
+                                                        <form method="post" class="d-inline">
+                                                            <input type="hidden" name="form_committee_id" value="<?php echo $panel['committee_id']; ?>">
+                                                            <input type="hidden" name="form_track" value="<?php echo e($panel['track']); ?>">
+                                                            <input type="hidden" name="form_program_id" value="<?php echo $programIdAttr; ?>">
+                                                            <input type="hidden" name="form_tab_id" value="<?php echo $tabId; ?>">
+                                                            <input type="hidden" name="field_id" value="<?php echo $f['field_id']; ?>">
+                                                            <input type="hidden" name="direction" value="down">
+                                                            <button type="submit" name="move_field" class="btn btn-sm btn-light py-0 px-1" <?php echo $i === count($fields) - 1 ? 'disabled' : ''; ?>><i class="bi bi-arrow-down"></i></button>
+                                                        </form>
+                                                        <button type="button" class="btn btn-sm btn-light py-0 px-1" title="Edit" onclick='openEditField(<?php echo $tabId; ?>, <?php echo json_encode($f); ?>)' data-bs-toggle="modal" data-bs-target="#fieldModal<?php echo $tabId; ?>"><i class="bi bi-pencil"></i></button>
+                                                        <form method="post" class="d-inline" onsubmit="return confirm('Remove this field? Existing submitted answers stay, but it will no longer show on the form.');">
+                                                            <input type="hidden" name="form_committee_id" value="<?php echo $panel['committee_id']; ?>">
+                                                            <input type="hidden" name="form_track" value="<?php echo e($panel['track']); ?>">
+                                                            <input type="hidden" name="form_tab_id" value="<?php echo $tabId; ?>">
+                                                            <input type="hidden" name="field_id" value="<?php echo $f['field_id']; ?>">
+                                                            <button type="submit" name="archive_field" class="btn btn-sm btn-light py-0 px-1 text-danger" title="Remove"><i class="bi bi-trash"></i></button>
+                                                        </form>
+                                                    </td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ADD/EDIT FIELD MODAL -->
+                        <div class="modal fade" id="fieldModal<?php echo $tabId; ?>" tabindex="-1">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content border-0 shadow">
+                                    <form method="post">
+                                        <input type="hidden" name="form_committee_id" value="<?php echo $panel['committee_id']; ?>">
+                                        <input type="hidden" name="form_track" value="<?php echo e($panel['track']); ?>">
+                                        <input type="hidden" name="form_program_id" value="<?php echo $programIdAttr; ?>">
+                                        <input type="hidden" name="form_tab_id" value="<?php echo $tabId; ?>">
+                                        <input type="hidden" name="field_id" id="editingFieldId<?php echo $tabId; ?>" value="">
+                                        <div class="modal-header">
+                                            <h6 class="modal-title fw-bold" id="fieldModalLabel<?php echo $tabId; ?>"><i class="bi bi-plus-circle me-2"></i>Add Field</h6>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body p-4">
+                                            <div class="mb-3">
+                                                <label class="form-label" style="font-size:13px;font-weight:600;">Field Label</label>
+                                                <input type="text" class="form-control form-control-sm" name="label" id="fieldLabelInput<?php echo $tabId; ?>" required>
+                                            </div>
+                                            <div class="row g-2 mb-3">
+                                                <div class="col-md-6">
+                                                    <label class="form-label" style="font-size:13px;font-weight:600;">Input Type</label>
+                                                    <select class="form-select form-select-sm" name="input_type" id="fieldTypeSelect<?php echo $tabId; ?>" onchange="toggleOptionsField(<?php echo $tabId; ?>)">
+                                                        <option>Text</option>
+                                                        <option>Number</option>
+                                                        <option>Date</option>
+                                                        <option>Textarea</option>
+                                                        <option>Dropdown</option>
+                                                        <option>Radio Buttons</option>
+                                                        <option>File Upload</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label" style="font-size:13px;font-weight:600;">Column Width</label>
+                                                    <select class="form-select form-select-sm" name="width" id="fieldWidthSelect<?php echo $tabId; ?>">
+                                                        <option>1/3</option>
+                                                        <option>Half</option>
+                                                        <option>2/3</option>
+                                                        <option selected>Full</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="mb-3" id="optionsFieldWrap<?php echo $tabId; ?>" style="display:none;">
+                                                <label class="form-label" style="font-size:13px;font-weight:600;">Options <span class="text-muted fw-normal">(comma-separated)</span></label>
+                                                <input type="text" class="form-control form-control-sm" name="options" id="fieldOptionsInput<?php echo $tabId; ?>" placeholder="e.g. Cash Assistance, In-kind Assistance">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label" style="font-size:13px;font-weight:600;">Icon</label>
+                                                <div class="icon-radio-grid">
+                                                    <?php foreach ($iconChoices as $ic): ?>
+                                                        <input type="radio" name="icon" id="icon<?php echo $tabId; ?>-<?php echo e($ic); ?>" value="<?php echo e($ic); ?>" <?php echo $ic === 'bi-fonts' ? 'checked' : ''; ?>>
+                                                        <label for="icon<?php echo $tabId; ?>-<?php echo e($ic); ?>"><i class="bi <?php echo e($ic); ?>"></i></label>
+                                                    <?php endforeach; ?>
+                                                </div>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" name="required" id="fieldRequiredCheck<?php echo $tabId; ?>">
+                                                <label class="form-check-label" for="fieldRequiredCheck<?php echo $tabId; ?>" style="font-size:13px;">Required field</label>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer border-0">
+                                            <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                            <button type="submit" name="save_field" class="btn btn-sm btn-success"><i class="bi bi-save me-1"></i> Save Field</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- PREVIEW MODAL -->
+                        <div class="modal fade" id="previewModal<?php echo $tabId; ?>" tabindex="-1">
+                            <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title"><i class="bi bi-eye me-2"></i>Applicant Preview</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body p-4">
+                                        <div class="preview-form-card p-2">
+                                            <h5 class="text-center fw-bold mb-4" style="letter-spacing:0.5px;"><?php echo e(mb_strtoupper($panel['committee_name'] . ' - ' . $panel['label'])); ?> APPLICATION FORM</h5>
+                                            <?php renderDynamicFormFields($panel['committee_id'], [], [], $panel['track'], $panel['program_id']); ?>
+                                            <button type="button" class="btn btn-success w-100 mt-2" style="letter-spacing:1px; font-weight:700;" disabled>SUBMIT</button>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
                 </div>
             </div>
         </div><!-- /formsTab -->
 
-        <!-- ==============================
-             SECTION 2: ACTIVITY LOGS
-        ============================== -->
-        <div class="tab-pane-custom" id="activityLogsTab">
-            <div class="config-card">
-                <div class="card-section-title"><i class="bi bi-activity"></i> Activity Logs</div>
-                <div class="card-section-sub">Track user login and logout activity across the system. Showing the most recent 200 entries.</div>
-
-                <form method="get">
-                    <input type="hidden" name="section" value="activity">
-                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                        <div class="d-flex gap-2 flex-wrap align-items-center">
-                            <span style="font-size:12px; color:#666; font-weight:600;"><i class="bi bi-funnel me-1"></i>Filter:</span>
-                            <select class="filter-select" name="role" onchange="this.form.submit()">
-                                <option value="">All Roles</option>
-                                <?php foreach ($distinctRoles as $r): ?>
-                                    <option value="<?php echo e($r); ?>" <?php echo $roleFilter === $r ? 'selected' : ''; ?>><?php echo ucfirst(e($r)); ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                            <select class="filter-select" name="logdate" onchange="this.form.submit()">
-                                <option value="">All Date</option>
-                                <option value="today" <?php echo $dateFilter === 'today' ? 'selected' : ''; ?>>Today</option>
-                                <option value="week" <?php echo $dateFilter === 'week' ? 'selected' : ''; ?>>This Week</option>
-                                <option value="month" <?php echo $dateFilter === 'month' ? 'selected' : ''; ?>>This Month</option>
-                            </select>
-                        </div>
-                        <div class="search-box">
-                            <input type="text" name="logq" value="<?php echo e($logSearch); ?>" placeholder="Search...">
-                            <i class="bi bi-search"></i>
-                        </div>
-                    </div>
-                </form>
-
-                <div class="table-card log-table-card">
-                    <table class="table mb-0">
-                        <thead>
-                            <tr>
-                                <th>User ID</th>
-                                <th>Full Name</th>
-                                <th>Email</th>
-                                <th>Role</th>
-                                <th>Logged In</th>
-                                <th>Logged Out</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (empty($activityLogs)): ?>
-                                <tr>
-                                    <td colspan="6" class="text-center text-muted py-3">No activity logs found.</td>
-                                </tr>
-                            <?php endif; ?>
-                            <?php foreach ($activityLogs as $log): ?>
-                                <tr>
-                                    <td><?php echo $log['user_id'] ? str_pad($log['user_id'], 3, '0', STR_PAD_LEFT) : '—'; ?></td>
-                                    <td><?php echo e($log['full_name']); ?></td>
-                                    <td><?php echo e($log['email']); ?></td>
-                                    <td><?php echo ucfirst(e($log['role'])); ?></td>
-                                    <td><?php echo date('Y-m-d H:i:s', strtotime($log['logged_in_at'])); ?></td>
-                                    <td><?php echo $log['logged_out_at'] ? date('Y-m-d H:i:s', strtotime($log['logged_out_at'])) : '—'; ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-
-                <div class="d-flex justify-content-between align-items-center mt-3">
-                    <span style="font-size:12px; color:#888;">Showing <?php echo count($activityLogs); ?> entries</span>
-                </div>
-            </div>
-        </div><!-- /activityLogsTab -->
-
-        <!-- audit logs -->
-        <div class="tab-pane-custom" id="auditLogsTab">
-            <div class="config-card">
-                <div class="card-section-title"><i class="bi bi-journal-text"></i> Audit Logs</div>
-                <div class="card-section-sub">Track all user actions and system events across the platform. Showing the most recent 200 entries.</div>
-
-                <form method="get">
-                    <input type="hidden" name="section" value="audit">
-                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                        <div class="d-flex gap-2 flex-wrap align-items-center">
-                            <span style="font-size:12px; color:#666; font-weight:600;"><i class="bi bi-funnel me-1"></i>Filter:</span>
-                            <select class="filter-select" name="action" onchange="this.form.submit()">
-                                <option value="">All Actions</option>
-                                <?php foreach ($distinctActions as $ac): ?>
-                                    <option value="<?php echo e($ac['action']); ?>" <?php echo $actionFilter === $ac['action'] ? 'selected' : ''; ?>><?php echo e($ac['action']); ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                            <select class="filter-select" name="auditdate" onchange="this.form.submit()">
-                                <option value="">All Date</option>
-                                <option value="today" <?php echo $auditDateFilter === 'today' ? 'selected' : ''; ?>>Today</option>
-                                <option value="week" <?php echo $auditDateFilter === 'week' ? 'selected' : ''; ?>>This Week</option>
-                                <option value="month" <?php echo $auditDateFilter === 'month' ? 'selected' : ''; ?>>This Month</option>
-                            </select>
-                        </div>
-                        <div class="search-box">
-                            <input type="text" name="auditq" value="<?php echo e($auditSearch); ?>" placeholder="Search...">
-                            <i class="bi bi-search"></i>
-                        </div>
-                    </div>
-                </form>
-
-                <div class="table-card log-table-card">
-                    <table class="table mb-0">
-                        <thead>
-                            <tr>
-                                <th>User ID</th>
-                                <th>Full Name</th>
-                                <th>Email</th>
-                                <th>Action</th>
-                                <th>Date &amp; Time</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (empty($auditLogs)): ?>
-                                <tr>
-                                    <td colspan="5" class="text-center text-muted py-3">No audit logs found.</td>
-                                </tr>
-                            <?php endif; ?>
-                            <?php foreach ($auditLogs as $log): ?>
-                                <tr>
-                                    <td><?php echo $log['user_id'] ? str_pad($log['user_id'], 3, '0', STR_PAD_LEFT) : '—'; ?></td>
-                                    <td><?php echo e($log['full_name']); ?></td>
-                                    <td><?php echo e($log['email']); ?></td>
-                                    <td><?php echo e($log['action']); ?><?php echo $log['details'] ? ' — ' . e($log['details']) : ''; ?></td>
-                                    <td><?php echo date('Y-m-d H:i:s', strtotime($log['created_at'])); ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-
-                <div class="d-flex justify-content-between align-items-center mt-3">
-                    <span style="font-size:12px; color:#888;">Showing <?php echo count($auditLogs); ?> entries</span>
-                </div>
-            </div>
-        </div><!-- /auditLogsTab -->
 
     </div>
 
@@ -1140,14 +1293,87 @@ $activeLink = 'AdminConfiguration';
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Tab switching
+        function activateTab(tabName) {
+            const btn = document.querySelector('.content-tab-btn[data-tab="' + tabName + '"]');
+            const pane = document.getElementById(tabName);
+            if (!btn || !pane) return;
+            document.querySelectorAll('.content-tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-pane-custom').forEach(p => p.classList.remove('active'));
+            btn.classList.add('active');
+            pane.classList.add('active');
+        }
+
         document.querySelectorAll('.content-tab-btn').forEach(function(btn) {
             btn.addEventListener('click', function() {
-                document.querySelectorAll('.content-tab-btn').forEach(b => b.classList.remove('active'));
-                document.querySelectorAll('.tab-pane-custom').forEach(p => p.classList.remove('active'));
-                btn.classList.add('active');
-                document.getElementById(btn.dataset.tab).classList.add('active');
+                activateTab(btn.dataset.tab);
             });
         });
+
+        // Forms tab — committee -> program picker shows exactly one program's field editor at a
+        // time (every editor is already rendered in the page; this just toggles which one is visible).
+        const formPanelsByCommittee = <?php echo json_encode($formPanelsByCommittee); ?>;
+        const formsCommitteeSelect = document.getElementById('formsCommitteeSelect');
+        const formsProgramSelect = document.getElementById('formsProgramSelect');
+        const formsEmptyState = document.getElementById('formsEmptyState');
+
+        function showFormsPanel(tabId) {
+            document.querySelectorAll('.forms-panel').forEach(p => p.style.display = 'none');
+            const panel = tabId ? document.querySelector('.forms-panel[data-form-tab="' + tabId + '"]') : null;
+            if (panel) {
+                panel.style.display = 'block';
+                formsEmptyState.style.display = 'none';
+            } else {
+                formsEmptyState.style.display = 'block';
+            }
+        }
+
+        function populateFormsProgramSelect(committeeId, selectTabId) {
+            const programs = formPanelsByCommittee[committeeId] || [];
+            formsProgramSelect.innerHTML = '<option value="" disabled selected>Select a program</option>';
+            programs.forEach(function(p) {
+                const opt = document.createElement('option');
+                opt.value = p.tab_id;
+                opt.textContent = p.label;
+                if (String(p.tab_id) === String(selectTabId)) opt.selected = true;
+                formsProgramSelect.appendChild(opt);
+            });
+            formsProgramSelect.disabled = programs.length === 0;
+        }
+
+        if (formsCommitteeSelect) {
+            formsCommitteeSelect.addEventListener('change', function() {
+                populateFormsProgramSelect(this.value, null);
+                showFormsPanel(null);
+            });
+
+            formsProgramSelect.addEventListener('change', function() {
+                showFormsPanel(this.value);
+            });
+        }
+
+        // A redirect-after-POST from the Forms tab (Add/Edit/Reorder/Remove Field) carries
+        // ?tab=formsTab&ftab=<program tab id> so the admin lands back where they were instead of
+        // the default Settings tab, with the same committee/program still selected.
+        (function() {
+            const params = new URLSearchParams(location.search);
+            const tab = params.get('tab');
+            if (tab) activateTab(tab);
+
+            const ftab = params.get('ftab');
+            if (ftab && formsCommitteeSelect) {
+                const panelEl = document.querySelector('.forms-panel[data-form-tab="' + ftab + '"]');
+                if (panelEl) {
+                    const committeeId = panelEl.dataset.committeeId;
+                    formsCommitteeSelect.value = committeeId;
+                    populateFormsProgramSelect(committeeId, ftab);
+                    showFormsPanel(ftab);
+                    panelEl.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'center'
+                    });
+                }
+            }
+        })();
 
         // Application / Program Settings — filter rows by committee
         const programSettingsCommitteeFilter = document.getElementById('programSettingsCommitteeFilter');
@@ -1160,41 +1386,52 @@ $activeLink = 'AdminConfiguration';
             });
         }
 
-        // Forms tab — Committee -> Program picker that jumps to that program's field editor
-        const formsByCommittee = <?php echo json_encode($formsByCommittee); ?>;
-        const formsCommitteeSelect = document.getElementById('formsCommitteeSelect');
-        const formsProgramSelect = document.getElementById('formsProgramSelect');
-        const formsOpenBtn = document.getElementById('formsOpenBtn');
-
-        function disableFormsOpenBtn() {
-            formsOpenBtn.href = '#';
-            formsOpenBtn.style.pointerEvents = 'none';
-            formsOpenBtn.style.opacity = '0.5';
+        // Forms tab — inline field editor, one Add/Edit modal per program (ids suffixed by tab id)
+        function toggleOptionsField(tabId) {
+            const type = document.getElementById('fieldTypeSelect' + tabId).value;
+            document.getElementById('optionsFieldWrap' + tabId).style.display = (type === 'Dropdown' || type === 'Radio Buttons') ? 'block' : 'none';
         }
 
-        if (formsCommitteeSelect) {
-            formsCommitteeSelect.addEventListener('change', function() {
-                const forms = formsByCommittee[this.value] || [];
-                formsProgramSelect.innerHTML = '<option value="" disabled selected>Select a form</option>';
-                forms.forEach(function(f) {
-                    const opt = document.createElement('option');
-                    opt.value = f.url;
-                    opt.textContent = f.label;
-                    formsProgramSelect.appendChild(opt);
-                });
-                formsProgramSelect.disabled = forms.length === 0;
-                disableFormsOpenBtn();
-            });
+        function openAddField(tabId) {
+            document.getElementById('editingFieldId' + tabId).value = '';
+            document.getElementById('fieldLabelInput' + tabId).value = '';
+            document.getElementById('fieldTypeSelect' + tabId).value = 'Text';
+            document.getElementById('fieldWidthSelect' + tabId).value = 'Full';
+            document.getElementById('fieldOptionsInput' + tabId).value = '';
+            document.getElementById('fieldRequiredCheck' + tabId).checked = false;
+            document.getElementById('icon' + tabId + '-bi-fonts').checked = true;
+            document.getElementById('fieldModalLabel' + tabId).innerHTML = '<i class="bi bi-plus-circle me-2"></i>Add Field';
+            toggleOptionsField(tabId);
+        }
 
-            formsProgramSelect.addEventListener('change', function() {
-                if (this.value) {
-                    formsOpenBtn.href = this.value;
-                    formsOpenBtn.style.pointerEvents = 'auto';
-                    formsOpenBtn.style.opacity = '1';
-                } else {
-                    disableFormsOpenBtn();
-                }
-            });
+        const FORM_FIELD_TYPE_LABELS = {
+            text: 'Text',
+            number: 'Number',
+            date: 'Date',
+            textarea: 'Textarea',
+            dropdown: 'Dropdown',
+            radio: 'Radio Buttons',
+            file: 'File Upload'
+        };
+        const FORM_FIELD_WIDTH_LABELS = {
+            third: '1/3',
+            half: 'Half',
+            two_third: '2/3',
+            full: 'Full'
+        };
+
+        function openEditField(tabId, f) {
+            document.getElementById('editingFieldId' + tabId).value = f.field_id;
+            document.getElementById('fieldLabelInput' + tabId).value = f.label;
+            document.getElementById('fieldTypeSelect' + tabId).value = FORM_FIELD_TYPE_LABELS[f.input_type] || 'Text';
+            document.getElementById('fieldWidthSelect' + tabId).value = FORM_FIELD_WIDTH_LABELS[f.width] || 'Full';
+            document.getElementById('fieldRequiredCheck' + tabId).checked = !!Number(f.is_required);
+            const opts = f.options ? JSON.parse(f.options).join(', ') : '';
+            document.getElementById('fieldOptionsInput' + tabId).value = opts;
+            const iconEl = document.getElementById('icon' + tabId + '-' + f.icon);
+            if (iconEl) iconEl.checked = true;
+            document.getElementById('fieldModalLabel' + tabId).innerHTML = '<i class="bi bi-pencil me-2"></i>Edit Field';
+            toggleOptionsField(tabId);
         }
     </script>
 </body>

@@ -9,7 +9,7 @@ requireRole('admin');
 $me = currentUser();
 
 // ---- Validate report type ----
-$allowedTypes = ['consolidated', 'applicants', 'beneficiaries', 'financial', 'in-kind', 'application-status', 'scholars'];
+$allowedTypes = ['consolidated', 'applicants', 'beneficiaries', 'financial', 'in-kind', 'application-status', 'scholars', 'activity-log', 'audit-log'];
 $type = $_GET['type'] ?? '';
 if (!in_array($type, $allowedTypes, true)) {
     http_response_code(400);
@@ -83,7 +83,8 @@ if ($from > $to) {
 $toInclusive = $to . ' 23:59:59';
 $fromInclusive = $from . ' 00:00:00';
 
-$reportLabel = ucfirst(str_replace('-', ' ', $type));
+$reportLabelOverrides = ['activity-log' => 'Activity Log', 'audit-log' => 'Audit Trail'];
+$reportLabel = $reportLabelOverrides[$type] ?? ucfirst(str_replace('-', ' ', $type));
 $scopeLabel = $committeeLabel . ($programLabel !== null ? ' — ' . $programLabel : '');
 logAudit('Generated Report', $reportLabel . ' / ' . $scopeLabel . ' / ' . $from . ' to ' . $to);
 
@@ -588,6 +589,60 @@ switch ($type) {
 
             renderTable($pdf, $headers, $widths, $rows);
             renderTotalLine($pdf, 'Total Scholars: ' . count($rows) . '   |   Activity Participation: ' . $totalPresent . ' / ' . $totalHeld);
+            break;
+        }
+
+        // Activity/audit logs are system-wide (not tied to a committee or program), so the
+        // committee/program filters are locked to "all" on the modal and ignored here.
+    case 'activity-log': {
+            $headers = ['Log ID', 'Full Name', 'Email', 'Role', 'Logged In At', 'Logged Out At'];
+            $widths = [20, 55, 65, 35, 55, 47];
+
+            $stmt = $conn->prepare("SELECT log_id, full_name, email, role, logged_in_at, logged_out_at
+            FROM activity_logs WHERE logged_in_at BETWEEN ? AND ? ORDER BY logged_in_at ASC");
+            $stmt->bind_param('ss', $fromInclusive, $toInclusive);
+            $stmt->execute();
+            $rows = [];
+            foreach ($stmt->get_result() as $row) {
+                $rows[] = [
+                    $row['log_id'],
+                    $row['full_name'],
+                    $row['email'],
+                    ucfirst($row['role']),
+                    $row['logged_in_at'],
+                    $row['logged_out_at'] ?: '—',
+                ];
+            }
+            $stmt->close();
+
+            renderTable($pdf, $headers, $widths, $rows);
+            renderTotalLine($pdf, 'Total Logins: ' . count($rows));
+            break;
+        }
+
+    case 'audit-log': {
+            $headers = ['Log ID', 'Full Name', 'Email', 'Action', 'Details', 'Date/Time'];
+            $widths = [20, 50, 60, 45, 60, 42];
+
+            $stmt = $conn->prepare("SELECT log_id, full_name, email, action, details, created_at
+            FROM audit_logs WHERE created_at BETWEEN ? AND ? ORDER BY created_at ASC");
+            $stmt->bind_param('ss', $fromInclusive, $toInclusive);
+            $stmt->execute();
+            $rows = [];
+            foreach ($stmt->get_result() as $row) {
+                $rows[] = [
+                    $row['log_id'],
+                    $row['full_name'],
+                    $row['email'],
+                    $row['action'],
+                    $row['details'] ?: '—',
+                    $row['created_at'],
+                ];
+            }
+            $stmt->close();
+
+            renderTable($pdf, $headers, $widths, $rows);
+            renderTotalLine($pdf, 'Total Audit Events: ' . count($rows));
             break;
         }
 }

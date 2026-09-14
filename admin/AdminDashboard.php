@@ -239,7 +239,7 @@ $activeLink = 'AdminDashboard';
                 height: auto !important;
             }
 
-            .chart-card>div {
+            .chart-card>div:not(.chart-title) {
                 height: 220px !important;
             }
         }

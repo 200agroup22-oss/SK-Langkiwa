@@ -195,6 +195,140 @@ foreach ($committees as $c) {
     ];
 }
 
+// ---- Activity Logs tab: filter (role, date range) + search, paginated 10 rows at a time ----
+$logPerPage = 10;
+$roleFilter = $_GET['role'] ?? '';
+$dateFilter = $_GET['logdate'] ?? '';
+$logSearch = trim($_GET['logq'] ?? '');
+$logPage = max(1, (int)($_GET['logpage'] ?? 1));
+
+$distinctRoles = array_column($conn->query("SELECT DISTINCT role FROM activity_logs ORDER BY role ASC")->fetch_all(MYSQLI_ASSOC), 'role');
+
+$logWhere = [];
+if ($roleFilter !== '') {
+    $logWhere[] = "role = '" . $conn->real_escape_string($roleFilter) . "'";
+}
+if ($dateFilter === 'today') {
+    $logWhere[] = "DATE(logged_in_at) = CURDATE()";
+} elseif ($dateFilter === 'week') {
+    $logWhere[] = "YEARWEEK(logged_in_at, 1) = YEARWEEK(CURDATE(), 1)";
+} elseif ($dateFilter === 'month') {
+    $logWhere[] = "DATE_FORMAT(logged_in_at, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m')";
+}
+if ($logSearch !== '') {
+    $needle = $conn->real_escape_string($logSearch);
+    $logWhere[] = "(full_name LIKE '%$needle%' OR email LIKE '%$needle%')";
+}
+$logWhereSql = $logWhere ? ('WHERE ' . implode(' AND ', $logWhere)) : '';
+
+$totalActivityLogs = (int)$conn->query("SELECT COUNT(*) c FROM activity_logs $logWhereSql")->fetch_assoc()['c'];
+$totalActivityPages = max(1, (int)ceil($totalActivityLogs / $logPerPage));
+$logPage = min($logPage, $totalActivityPages);
+$logOffset = ($logPage - 1) * $logPerPage;
+
+$activityLogs = $conn->query("SELECT * FROM activity_logs $logWhereSql ORDER BY logged_in_at DESC LIMIT $logPerPage OFFSET $logOffset")->fetch_all(MYSQLI_ASSOC);
+
+// ---- Audit Logs tab: filter (action, date range) + search, paginated 10 rows at a time ----
+$auditPerPage = 10;
+$actionFilter = $_GET['action'] ?? '';
+$auditDateFilter = $_GET['auditdate'] ?? '';
+$auditSearch = trim($_GET['auditq'] ?? '');
+$auditPage = max(1, (int)($_GET['auditpage'] ?? 1));
+
+$distinctActions = array_column($conn->query("SELECT DISTINCT action FROM audit_logs ORDER BY action ASC")->fetch_all(MYSQLI_ASSOC), 'action');
+
+$auditWhere = [];
+if ($actionFilter !== '') {
+    $auditWhere[] = "action = '" . $conn->real_escape_string($actionFilter) . "'";
+}
+if ($auditDateFilter === 'today') {
+    $auditWhere[] = "DATE(created_at) = CURDATE()";
+} elseif ($auditDateFilter === 'week') {
+    $auditWhere[] = "YEARWEEK(created_at, 1) = YEARWEEK(CURDATE(), 1)";
+} elseif ($auditDateFilter === 'month') {
+    $auditWhere[] = "DATE_FORMAT(created_at, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m')";
+}
+if ($auditSearch !== '') {
+    $needle = $conn->real_escape_string($auditSearch);
+    $auditWhere[] = "(full_name LIKE '%$needle%' OR email LIKE '%$needle%' OR action LIKE '%$needle%')";
+}
+$auditWhereSql = $auditWhere ? ('WHERE ' . implode(' AND ', $auditWhere)) : '';
+
+$totalAuditLogs = (int)$conn->query("SELECT COUNT(*) c FROM audit_logs $auditWhereSql")->fetch_assoc()['c'];
+$totalAuditPages = max(1, (int)ceil($totalAuditLogs / $auditPerPage));
+$auditPage = min($auditPage, $totalAuditPages);
+$auditOffset = ($auditPage - 1) * $auditPerPage;
+
+$auditLogs = $conn->query("SELECT * FROM audit_logs $auditWhereSql ORDER BY created_at DESC LIMIT $auditPerPage OFFSET $auditOffset")->fetch_all(MYSQLI_ASSOC);
+
+$activityPaginationParams = ['tab' => 'activityLogsTab', 'role' => $roleFilter, 'logdate' => $dateFilter, 'logq' => $logSearch];
+$auditPaginationParams = ['tab' => 'auditLogsTab', 'action' => $actionFilter, 'auditdate' => $auditDateFilter, 'auditq' => $auditSearch];
+
+// Windowed page-number list for pagination controls (e.g. [1,2,3,4,5,'...',57]) — shows every
+// page when there are few, otherwise a block around the current page plus the first and last.
+function paginationPageList($current, $total, $window = 2)
+{
+    if ($total <= 7) {
+        return range(1, $total);
+    }
+    $pages = [1];
+    $start = max(2, $current - $window);
+    $end = min($total - 1, $current + $window);
+    if ($current <= $window + 2) {
+        $start = 2;
+        $end = min($total - 1, 2 * $window + 1);
+    }
+    if ($current >= $total - $window - 1) {
+        $end = $total - 1;
+        $start = max(2, $total - (2 * $window + 1));
+    }
+    if ($start > 2) {
+        $pages[] = '...';
+    }
+    for ($i = $start; $i <= $end; $i++) {
+        $pages[] = $i;
+    }
+    if ($end < $total - 1) {
+        $pages[] = '...';
+    }
+    $pages[] = $total;
+    return $pages;
+}
+
+// Renders a "Showing X to Y of Z entries" line + Bootstrap pagination bar for a log table.
+function renderLogPagination($current, $total, $totalRows, $perPage, $pageParam, array $extraParams)
+{
+    $from = $totalRows === 0 ? 0 : ($current - 1) * $perPage + 1;
+    $to = min($current * $perPage, $totalRows);
+    $urlFor = function ($page) use ($pageParam, $extraParams) {
+        return '?' . http_build_query(array_merge($extraParams, [$pageParam => $page]));
+    };
+?>
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
+        <span style="font-size:12px; color:#888;">Showing <?php echo $from; ?> to <?php echo $to; ?> of <?php echo $totalRows; ?> entries</span>
+        <nav>
+            <ul class="pagination pagination-sm mb-0">
+                <li class="page-item <?php echo $current <= 1 ? 'disabled' : ''; ?>">
+                    <a class="page-link" href="<?php echo $current > 1 ? e($urlFor($current - 1)) : '#'; ?>">Previous</a>
+                </li>
+                <?php foreach (paginationPageList($current, $total) as $p): ?>
+                    <?php if ($p === '...'): ?>
+                        <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
+                    <?php else: ?>
+                        <li class="page-item <?php echo $p === $current ? 'active' : ''; ?>">
+                            <a class="page-link" href="<?php echo e($urlFor($p)); ?>"><?php echo $p; ?></a>
+                        </li>
+                    <?php endif; ?>
+                <?php endforeach; ?>
+                <li class="page-item <?php echo $current >= $total ? 'disabled' : ''; ?>">
+                    <a class="page-link" href="<?php echo $current < $total ? e($urlFor($current + 1)) : '#'; ?>">Next</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+<?php
+}
+
 $activeLink = 'AdminReports';
 ?>
 <!DOCTYPE html>
@@ -219,6 +353,60 @@ $activeLink = 'AdminReports';
         .page-subtitle {
             font-size: 13px;
             color: #6b6b6b;
+        }
+
+        .content-tabs {
+            display: flex;
+            gap: 6px;
+            border-bottom: 2px solid #e0e0e0;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .content-tab-btn {
+            background: none;
+            border: none;
+            font-size: 13.5px;
+            font-weight: 600;
+            color: #666;
+            padding: 10px 16px;
+            border-bottom: 3px solid transparent;
+            margin-bottom: -2px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+        }
+
+        .content-tab-btn.active {
+            color: #2e7d32;
+            border-bottom-color: #45b84d;
+        }
+
+        .content-tab-btn:hover {
+            color: #2e7d32;
+        }
+
+        .tab-pane-custom {
+            display: none;
+        }
+
+        .tab-pane-custom.active {
+            display: block;
+        }
+
+        .pagination .page-link {
+            color: #2e7d32;
+            font-size: 12.5px;
+        }
+
+        .pagination .page-item.active .page-link {
+            background-color: #45b84d;
+            border-color: #45b84d;
+        }
+
+        .pagination .page-link:focus {
+            box-shadow: 0 0 0 2px rgba(69, 184, 77, 0.15);
         }
 
         .period-toggle {
@@ -458,144 +646,289 @@ $activeLink = 'AdminReports';
             </div>
         </div>
 
-        <!-- Period toggle + filters -->
-        <form method="get" id="filterForm">
-            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-                <div class="d-flex flex-wrap align-items-center gap-2">
-                    <input type="hidden" name="period" id="periodModeInput" value="<?php echo e($periodMode); ?>">
-                    <div class="period-toggle">
-                        <button type="button" class="<?php echo $periodMode === 'monthly' ? 'active' : ''; ?>" id="btnMonthly">Monthly</button>
-                        <button type="button" class="<?php echo $periodMode === 'yearly' ? 'active' : ''; ?>" id="btnYearly">Yearly</button>
-                    </div>
-                    <select class="filter-select" name="period_value" id="periodSelect" onchange="this.form.submit()">
-                        <?php $options = $periodMode === 'monthly' ? $monthlyOptions : $yearlyOptions; ?>
-                        <?php foreach ($options as $val => $label): ?>
-                            <option value="<?php echo e($val); ?>" <?php echo $val === $periodValue ? 'selected' : ''; ?>><?php echo e($label); ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                    <select class="filter-select" name="committee" onchange="this.form.submit()">
-                        <option value="all" <?php echo $committeeCode === 'all' ? 'selected' : ''; ?>>All Committees</option>
-                        <?php foreach ($committees as $c): ?>
-                            <option value="<?php echo e($c['code']); ?>" <?php echo $committeeCode === $c['code'] ? 'selected' : ''; ?>><?php echo e($c['name']); ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="d-flex gap-2">
-                    <button type="button" class="btn-brand" data-bs-toggle="modal" data-bs-target="#generateReportModal">
-                        <i class="bi bi-download me-1"></i> Generate Report
-                    </button>
-                </div>
-            </div>
-        </form>
-
-        <!-- Stat Cards -->
-        <div class="row g-3 mb-4">
-            <div class="col-6 col-md-3">
-                <div class="stat-card">
-                    <div class="stat-icon" style="background:#e8f5e9;"><i class="bi bi-people-fill" style="color:#45b84d;"></i></div>
-                    <div>
-                        <div class="label">Total Beneficiaries</div>
-                        <div class="value"><?php echo $totalBeneficiaries; ?></div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="stat-card">
-                    <div class="stat-icon" style="background:#fff3e0;"><i class="bi bi-file-earmark-text-fill" style="color:#f59e0b;"></i></div>
-                    <div>
-                        <div class="label">Applications Submitted</div>
-                        <div class="value"><?php echo $applicationsSubmitted; ?></div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="stat-card">
-                    <div class="stat-icon" style="background:#ede7f6;"><i class="bi bi-box-seam-fill" style="color:#7e57c2;"></i></div>
-                    <div>
-                        <div class="label">In-Kind Items Distributed</div>
-                        <div class="value"><?php echo $inKindItemsDistributed; ?></div>
-                    </div>
-                </div>
-            </div>
+        <!-- Tabs -->
+        <div class="content-tabs">
+            <button class="content-tab-btn active" data-tab="overviewTab"><i class="bi bi-bar-chart-fill"></i> Overview</button>
+            <button class="content-tab-btn" data-tab="activityLogsTab"><i class="bi bi-activity"></i> Activity Logs</button>
+            <button class="content-tab-btn" data-tab="auditLogsTab"><i class="bi bi-journal-text"></i> Audit Logs</button>
         </div>
 
-        <!-- Charts Row 1 -->
-        <div class="section-label"><i class="bi bi-bar-chart-fill me-1"></i> Committee Overview</div>
-        <div class="row g-3 mb-3">
-            <div class="col-lg-6">
-                <div class="chart-card" style="height:300px;">
-                    <div class="chart-title"><i class="bi bi-people-fill me-1" style="color:#45b84d;"></i> Beneficiaries per Committee</div>
-                    <div style="position:relative; height:230px;">
-                        <canvas id="beneficiariesChart"></canvas>
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-6">
-                <div class="chart-card" style="height:300px;">
-                    <div class="chart-title"><i class="bi bi-pie-chart-fill me-1" style="color:#45b84d;"></i> Application Status Breakdown</div>
-                    <div style="position:relative; height:230px;">
-                        <canvas id="statusChart"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <div class="tab-pane-custom active" id="overviewTab">
 
-        <!-- Charts Row 2 -->
-        <div class="section-label"><i class="bi bi-graph-up me-1"></i> Trends</div>
-        <div class="row g-3 mb-3">
-            <div class="col-lg-7">
-                <div class="chart-card" style="height:300px;">
-                    <div class="chart-title" id="fundsChartTitle"><i class="bi bi-cash-coin me-1" style="color:#45b84d;"></i> <?php echo e($fundsChartTitle); ?></div>
-                    <div style="position:relative; height:230px;">
-                        <canvas id="fundsChart"></canvas>
+            <!-- Period toggle + filters -->
+            <form method="get" id="filterForm">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                    <div class="d-flex flex-wrap align-items-center gap-2">
+                        <input type="hidden" name="period" id="periodModeInput" value="<?php echo e($periodMode); ?>">
+                        <div class="period-toggle">
+                            <button type="button" class="<?php echo $periodMode === 'monthly' ? 'active' : ''; ?>" id="btnMonthly">Monthly</button>
+                            <button type="button" class="<?php echo $periodMode === 'yearly' ? 'active' : ''; ?>" id="btnYearly">Yearly</button>
+                        </div>
+                        <select class="filter-select" name="period_value" id="periodSelect" onchange="this.form.submit()">
+                            <?php $options = $periodMode === 'monthly' ? $monthlyOptions : $yearlyOptions; ?>
+                            <?php foreach ($options as $val => $label): ?>
+                                <option value="<?php echo e($val); ?>" <?php echo $val === $periodValue ? 'selected' : ''; ?>><?php echo e($label); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <select class="filter-select" name="committee" onchange="this.form.submit()">
+                            <option value="all" <?php echo $committeeCode === 'all' ? 'selected' : ''; ?>>All Committees</option>
+                            <?php foreach ($committees as $c): ?>
+                                <option value="<?php echo e($c['code']); ?>" <?php echo $committeeCode === $c['code'] ? 'selected' : ''; ?>><?php echo e($c['name']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn-brand" data-bs-toggle="modal" data-bs-target="#generateReportModal">
+                            <i class="bi bi-download me-1"></i> Generate Report
+                        </button>
                     </div>
                 </div>
-            </div>
-            <div class="col-lg-5">
-                <div class="chart-card" style="height:300px;">
-                    <div class="chart-title"><i class="bi bi-box-seam-fill me-1" style="color:#7e57c2;"></i> In-Kind Assistance Distributed</div>
-                    <div style="position:relative; height:230px;">
-                        <canvas id="inKindChart"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
+            </form>
 
-        <!-- Consolidated Table -->
-        <div class="section-label"><i class="bi bi-table me-1"></i> Consolidated Committee Report <span class="text-muted" style="font-weight:500; text-transform:none; letter-spacing:normal;">(period-filtered, all committees)</span></div>
-        <div class="table-card">
-            <div class="table-responsive-wrap">
-                <table class="report-table">
-                    <thead>
-                        <tr>
-                            <th>Committee</th>
-                            <th>Total Programs</th>
-                            <th>Total Beneficiaries</th>
-                            <th>Funds Released</th>
-                            <th>In-Kind Assistance</th>
-                            <th>Approval Rate</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if (empty($consolidatedRows)): ?>
+            <!-- Stat Cards -->
+            <div class="row g-3 mb-4">
+                <div class="col-6 col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background:#e8f5e9;"><i class="bi bi-people-fill" style="color:#45b84d;"></i></div>
+                        <div>
+                            <div class="label">Total Beneficiaries</div>
+                            <div class="value"><?php echo $totalBeneficiaries; ?></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background:#fff3e0;"><i class="bi bi-file-earmark-text-fill" style="color:#f59e0b;"></i></div>
+                        <div>
+                            <div class="label">Applications Submitted</div>
+                            <div class="value"><?php echo $applicationsSubmitted; ?></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background:#ede7f6;"><i class="bi bi-box-seam-fill" style="color:#7e57c2;"></i></div>
+                        <div>
+                            <div class="label">In-Kind Items Distributed</div>
+                            <div class="value"><?php echo $inKindItemsDistributed; ?></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Row 1 -->
+            <div class="section-label"><i class="bi bi-bar-chart-fill me-1"></i> Committee Overview</div>
+            <div class="row g-3 mb-3">
+                <div class="col-lg-6">
+                    <div class="chart-card" style="height:300px;">
+                        <div class="chart-title"><i class="bi bi-people-fill me-1" style="color:#45b84d;"></i> Beneficiaries per Committee</div>
+                        <div style="position:relative; height:230px;">
+                            <canvas id="beneficiariesChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="chart-card" style="height:300px;">
+                        <div class="chart-title"><i class="bi bi-pie-chart-fill me-1" style="color:#45b84d;"></i> Application Status Breakdown</div>
+                        <div style="position:relative; height:230px;">
+                            <canvas id="statusChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Row 2 -->
+            <div class="section-label"><i class="bi bi-graph-up me-1"></i> Trends</div>
+            <div class="row g-3 mb-3">
+                <div class="col-lg-7">
+                    <div class="chart-card" style="height:300px;">
+                        <div class="chart-title" id="fundsChartTitle"><i class="bi bi-cash-coin me-1" style="color:#45b84d;"></i> <?php echo e($fundsChartTitle); ?></div>
+                        <div style="position:relative; height:230px;">
+                            <canvas id="fundsChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-5">
+                    <div class="chart-card" style="height:300px;">
+                        <div class="chart-title"><i class="bi bi-box-seam-fill me-1" style="color:#7e57c2;"></i> In-Kind Assistance Distributed</div>
+                        <div style="position:relative; height:230px;">
+                            <canvas id="inKindChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Consolidated Table -->
+            <div class="section-label"><i class="bi bi-table me-1"></i> Consolidated Committee Report <span class="text-muted" style="font-weight:500; text-transform:none; letter-spacing:normal;">(period-filtered, all committees)</span></div>
+            <div class="table-card">
+                <div class="table-responsive-wrap">
+                    <table class="report-table">
+                        <thead>
                             <tr>
-                                <td colspan="6" class="text-center text-muted py-3">No committee data yet.</td>
+                                <th>Committee</th>
+                                <th>Total Programs</th>
+                                <th>Total Beneficiaries</th>
+                                <th>Funds Released</th>
+                                <th>In-Kind Assistance</th>
+                                <th>Approval Rate</th>
                             </tr>
-                        <?php endif; ?>
-                        <?php foreach ($consolidatedRows as $row): ?>
-                            <tr>
-                                <td><span class="committee-tag"><?php echo e($row['name']); ?></span></td>
-                                <td><?php echo $row['programs']; ?></td>
-                                <td><?php echo $row['beneficiaries']; ?></td>
-                                <td>&#8369;<?php echo number_format($row['funds'], 0); ?></td>
-                                <td><?php echo e($row['inkind']); ?></td>
-                                <td><?php echo $row['approval'] !== null ? $row['approval'] . '%' : '—'; ?></td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($consolidatedRows)): ?>
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-3">No committee data yet.</td>
+                                </tr>
+                            <?php endif; ?>
+                            <?php foreach ($consolidatedRows as $row): ?>
+                                <tr>
+                                    <td><span class="committee-tag"><?php echo e($row['name']); ?></span></td>
+                                    <td><?php echo $row['programs']; ?></td>
+                                    <td><?php echo $row['beneficiaries']; ?></td>
+                                    <td>&#8369;<?php echo number_format($row['funds'], 0); ?></td>
+                                    <td><?php echo e($row['inkind']); ?></td>
+                                    <td><?php echo $row['approval'] !== null ? $row['approval'] . '%' : '—'; ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
             </div>
-        </div>
+
+        </div><!-- /overviewTab -->
+
+        <!-- ==============================
+             ACTIVITY LOGS TAB
+        ============================== -->
+        <div class="tab-pane-custom" id="activityLogsTab">
+            <div class="section-label"><i class="bi bi-activity me-1"></i> Activity Logs <span class="text-muted" style="font-weight:500; text-transform:none; letter-spacing:normal;">(user login/logout history, all-time)</span></div>
+
+            <form method="get">
+                <input type="hidden" name="tab" value="activityLogsTab">
+                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <div class="d-flex gap-2 flex-wrap align-items-center">
+                        <span style="font-size:12px; color:#666; font-weight:600;"><i class="bi bi-funnel me-1"></i>Filter:</span>
+                        <select class="filter-select" name="role" onchange="this.form.submit()">
+                            <option value="">All Roles</option>
+                            <?php foreach ($distinctRoles as $r): ?>
+                                <option value="<?php echo e($r); ?>" <?php echo $roleFilter === $r ? 'selected' : ''; ?>><?php echo ucfirst(e($r)); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <select class="filter-select" name="logdate" onchange="this.form.submit()">
+                            <option value="">All Date</option>
+                            <option value="today" <?php echo $dateFilter === 'today' ? 'selected' : ''; ?>>Today</option>
+                            <option value="week" <?php echo $dateFilter === 'week' ? 'selected' : ''; ?>>This Week</option>
+                            <option value="month" <?php echo $dateFilter === 'month' ? 'selected' : ''; ?>>This Month</option>
+                        </select>
+                    </div>
+                    <div class="search-box">
+                        <input type="text" name="logq" value="<?php echo e($logSearch); ?>" placeholder="Search...">
+                        <i class="bi bi-search"></i>
+                    </div>
+                </div>
+            </form>
+
+            <div class="table-card">
+                <div class="table-responsive-wrap">
+                    <table class="report-table" style="min-width:700px;">
+                        <thead>
+                            <tr>
+                                <th>User ID</th>
+                                <th>Full Name</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Logged In</th>
+                                <th>Logged Out</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($activityLogs)): ?>
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-3">No activity logs found.</td>
+                                </tr>
+                            <?php endif; ?>
+                            <?php foreach ($activityLogs as $log): ?>
+                                <tr>
+                                    <td><?php echo $log['user_id'] ? str_pad($log['user_id'], 3, '0', STR_PAD_LEFT) : '—'; ?></td>
+                                    <td><?php echo e($log['full_name']); ?></td>
+                                    <td><?php echo e($log['email']); ?></td>
+                                    <td><?php echo ucfirst(e($log['role'])); ?></td>
+                                    <td><?php echo date('Y-m-d H:i:s', strtotime($log['logged_in_at'])); ?></td>
+                                    <td><?php echo $log['logged_out_at'] ? date('Y-m-d H:i:s', strtotime($log['logged_out_at'])) : '—'; ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <?php renderLogPagination($logPage, $totalActivityPages, $totalActivityLogs, $logPerPage, 'logpage', $activityPaginationParams); ?>
+        </div><!-- /activityLogsTab -->
+
+        <!-- ==============================
+             AUDIT LOGS TAB
+        ============================== -->
+        <div class="tab-pane-custom" id="auditLogsTab">
+            <div class="section-label"><i class="bi bi-journal-text me-1"></i> Audit Logs <span class="text-muted" style="font-weight:500; text-transform:none; letter-spacing:normal;">(all user actions and system events, all-time)</span></div>
+
+            <form method="get">
+                <input type="hidden" name="tab" value="auditLogsTab">
+                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <div class="d-flex gap-2 flex-wrap align-items-center">
+                        <span style="font-size:12px; color:#666; font-weight:600;"><i class="bi bi-funnel me-1"></i>Filter:</span>
+                        <select class="filter-select" name="action" onchange="this.form.submit()">
+                            <option value="">All Actions</option>
+                            <?php foreach ($distinctActions as $ac): ?>
+                                <option value="<?php echo e($ac); ?>" <?php echo $actionFilter === $ac ? 'selected' : ''; ?>><?php echo e($ac); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <select class="filter-select" name="auditdate" onchange="this.form.submit()">
+                            <option value="">All Date</option>
+                            <option value="today" <?php echo $auditDateFilter === 'today' ? 'selected' : ''; ?>>Today</option>
+                            <option value="week" <?php echo $auditDateFilter === 'week' ? 'selected' : ''; ?>>This Week</option>
+                            <option value="month" <?php echo $auditDateFilter === 'month' ? 'selected' : ''; ?>>This Month</option>
+                        </select>
+                    </div>
+                    <div class="search-box">
+                        <input type="text" name="auditq" value="<?php echo e($auditSearch); ?>" placeholder="Search...">
+                        <i class="bi bi-search"></i>
+                    </div>
+                </div>
+            </form>
+
+            <div class="table-card">
+                <div class="table-responsive-wrap">
+                    <table class="report-table" style="min-width:700px;">
+                        <thead>
+                            <tr>
+                                <th>User ID</th>
+                                <th>Full Name</th>
+                                <th>Email</th>
+                                <th>Action</th>
+                                <th>Date &amp; Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($auditLogs)): ?>
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-3">No audit logs found.</td>
+                                </tr>
+                            <?php endif; ?>
+                            <?php foreach ($auditLogs as $log): ?>
+                                <tr>
+                                    <td><?php echo $log['user_id'] ? str_pad($log['user_id'], 3, '0', STR_PAD_LEFT) : '—'; ?></td>
+                                    <td><?php echo e($log['full_name']); ?></td>
+                                    <td><?php echo e($log['email']); ?></td>
+                                    <td><?php echo e($log['action']); ?><?php echo $log['details'] ? ' — ' . e($log['details']) : ''; ?></td>
+                                    <td><?php echo date('Y-m-d H:i:s', strtotime($log['created_at'])); ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <?php renderLogPagination($auditPage, $totalAuditPages, $totalAuditLogs, $auditPerPage, 'auditpage', $auditPaginationParams); ?>
+        </div><!-- /auditLogsTab -->
 
     </div><!-- end .main-content -->
 
@@ -620,6 +953,8 @@ $activeLink = 'AdminReports';
                                 <option value="in-kind">In-Kind Assistance Report</option>
                                 <option value="application-status">Application Status Report</option>
                                 <option value="scholars">Scholars Report (incl. Activity Participation)</option>
+                                <option value="activity-log">Activity Log Report</option>
+                                <option value="audit-log">Audit Trail Report</option>
                             </select>
                         </div>
                         <div class="mb-3">
@@ -636,7 +971,7 @@ $activeLink = 'AdminReports';
                             <select class="form-select" id="reportProgram" disabled>
                                 <option value="all" selected>All Programs</option>
                             </select>
-                            <div class="form-text" style="font-size:11.5px;">Pick a committee to filter by a specific program, or leave it on "All Programs".</div>
+                            <div class="form-text" style="font-size:11.5px;" id="reportProgramHint">Pick a committee to filter by a specific program, or leave it on "All Programs".</div>
                         </div>
                         <div class="row g-2">
                             <div class="col-6">
@@ -660,6 +995,30 @@ $activeLink = 'AdminReports';
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // Tab switching (Overview / Activity Logs / Audit Logs)
+        function activateReportsTab(tabName) {
+            const btn = document.querySelector('.content-tab-btn[data-tab="' + tabName + '"]');
+            const pane = document.getElementById(tabName);
+            if (!btn || !pane) return;
+            document.querySelectorAll('.content-tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-pane-custom').forEach(p => p.classList.remove('active'));
+            btn.classList.add('active');
+            pane.classList.add('active');
+        }
+
+        document.querySelectorAll('.content-tab-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                activateReportsTab(btn.dataset.tab);
+            });
+        });
+
+        // A filter/pagination link on the Activity Logs or Audit Logs tab reloads the page with
+        // ?tab=... so the admin lands back on the same tab instead of the default Overview.
+        (function() {
+            const tab = new URLSearchParams(location.search).get('tab');
+            if (tab) activateReportsTab(tab);
+        })();
+
         // Monthly / Yearly toggle — reloads the page via the hidden "period" field so all data is server-computed
         const btnMonthly = document.getElementById('btnMonthly');
         const btnYearly = document.getElementById('btnYearly');
@@ -861,8 +1220,11 @@ $activeLink = 'AdminReports';
         // Programs per committee code, for the Program filter below (active, non-archived only).
         const programsByCommittee = <?php echo json_encode($programsByCommitteeCode); ?>;
 
+        const reportTypeSelect = document.getElementById('reportType');
         const reportCommitteeSelect = document.getElementById('reportCommittee');
         const reportProgramSelect = document.getElementById('reportProgram');
+        const reportProgramHint = document.getElementById('reportProgramHint');
+        const logReportTypes = ['activity-log', 'audit-log'];
 
         reportCommitteeSelect.addEventListener('change', function() {
             const code = this.value;
@@ -878,11 +1240,23 @@ $activeLink = 'AdminReports';
             reportProgramSelect.disabled = code === 'all';
         });
 
+        // Activity/Audit logs aren't scoped to a committee or program, so lock those filters out when picked.
+        reportTypeSelect.addEventListener('change', function() {
+            const isLogReport = logReportTypes.includes(this.value);
+            reportCommitteeSelect.value = 'all';
+            reportCommitteeSelect.disabled = isLogReport;
+            reportProgramSelect.innerHTML = '<option value="all" selected>All Programs</option>';
+            reportProgramSelect.disabled = true;
+            reportProgramHint.textContent = isLogReport ?
+                'Not applicable to this report — activity and audit logs are system-wide.' :
+                'Pick a committee to filter by a specific program, or leave it on "All Programs".';
+        });
+
         // Generate Report -> streams a PDF from GenerateReport.php
         document.getElementById('generateReportForm').addEventListener('submit', function(e) {
             e.preventDefault();
             const reportType = document.getElementById('reportType').value;
-            const committee = document.getElementById('reportCommittee').value;
+            const committee = reportCommitteeSelect.disabled ? 'all' : document.getElementById('reportCommittee').value;
             const program = reportProgramSelect.disabled ? 'all' : reportProgramSelect.value;
             const dateFrom = document.getElementById('reportDateFrom').value;
             const dateTo = document.getElementById('reportDateTo').value;
