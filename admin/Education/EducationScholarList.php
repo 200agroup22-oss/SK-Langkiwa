@@ -101,7 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Scoped tightly to committee_id + program_track='scholarship' + input_type='file' in every
     // query below so this can only ever touch the requirement-file fields shown in that modal —
     // never the rest of the iSKolar application form (Last Name, School, etc.), which stays
-    // exclusively managed on EducationForms.php.
+    // exclusively managed inline in Configuration's Forms tab.
     if (isset($_POST['save_requirement_field'])) {
         $redirectHash = '#manageRequirementTypesModal';
         $label = trim($_POST['label'] ?? '');

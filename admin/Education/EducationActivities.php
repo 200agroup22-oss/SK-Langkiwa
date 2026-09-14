@@ -133,7 +133,8 @@ $stmt->close();
 
 $scholars = $conn->query("SELECT s.scholar_id, u.first_name, u.last_name FROM scholars s JOIN users u ON u.user_id = s.user_id WHERE s.status = 'active' ORDER BY u.last_name")->fetch_all(MYSQLI_ASSOC);
 
-function getAttendanceRows($conn, $activityId) {
+function getAttendanceRows($conn, $activityId)
+{
     $stmt = $conn->prepare("SELECT att.scholar_id, att.status, u.first_name, u.last_name
         FROM attendance att JOIN scholars s ON s.scholar_id = att.scholar_id JOIN users u ON u.user_id = s.user_id
         WHERE att.activity_id = ? ORDER BY u.last_name");

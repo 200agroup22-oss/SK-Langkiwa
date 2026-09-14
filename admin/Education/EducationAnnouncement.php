@@ -267,19 +267,27 @@ $activeLink = 'EducationAnnouncement';
                                 <div class="border rounded-2 overflow-hidden">
                                     <label class="d-flex align-items-center gap-3 px-3 py-2 border-bottom" style="cursor:pointer; margin:0;">
                                         <input type="radio" name="send_to" value="all" id="sendToAll" style="accent-color:#2e7d32; flex-shrink:0;">
-                                        <div><div style="font-size:13px; font-weight:600; color:#1b5e20;">All Users</div></div>
+                                        <div>
+                                            <div style="font-size:13px; font-weight:600; color:#1b5e20;">All Users</div>
+                                        </div>
                                     </label>
                                     <label class="d-flex align-items-center gap-3 px-3 py-2 border-bottom" style="cursor:pointer; margin:0;">
                                         <input type="radio" name="send_to" value="scholars" id="sendToScholars" style="accent-color:#2e7d32; flex-shrink:0;">
-                                        <div><div style="font-size:13px; font-weight:600; color:#1b5e20;">Scholars Only</div></div>
+                                        <div>
+                                            <div style="font-size:13px; font-weight:600; color:#1b5e20;">Scholars Only</div>
+                                        </div>
                                     </label>
                                     <label class="d-flex align-items-center gap-3 px-3 py-2 border-bottom" style="cursor:pointer; margin:0;">
                                         <input type="radio" name="send_to" value="applicants" id="sendToApplicants" style="accent-color:#2e7d32; flex-shrink:0;">
-                                        <div><div style="font-size:13px; font-weight:600; color:#1b5e20;">Applicants Only</div></div>
+                                        <div>
+                                            <div style="font-size:13px; font-weight:600; color:#1b5e20;">Applicants Only</div>
+                                        </div>
                                     </label>
                                     <label class="d-flex align-items-center gap-3 px-3 py-2" style="cursor:pointer; margin:0;">
                                         <input type="radio" name="send_to" value="specific" id="sendToSpecific" style="accent-color:#2e7d32; flex-shrink:0;">
-                                        <div><div style="font-size:13px; font-weight:600; color:#1b5e20;">Specific User</div></div>
+                                        <div>
+                                            <div style="font-size:13px; font-weight:600; color:#1b5e20;">Specific User</div>
+                                        </div>
                                     </label>
                                 </div>
                                 <div class="mt-2">
