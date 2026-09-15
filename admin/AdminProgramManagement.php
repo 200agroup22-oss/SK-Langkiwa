@@ -287,9 +287,25 @@ foreach ($announcements as $a) {
 
 $settings = $conn->query("SELECT * FROM site_settings WHERE id = 1")->fetch_assoc();
 
+// Built-in tracks (program_tabs rows with no program_id) count as programs too, matching the
+// per-committee "X programs" badge below — otherwise these stats undercount whenever a committee
+// has no catalog programs of its own yet.
+$statBuiltInTotal = 0;
+$statBuiltInActive = 0;
+foreach ($committees as $c) {
+    foreach (($tabsByCommittee[(int)$c['committee_id']] ?? []) as $t) {
+        if (empty($t['program_id'])) {
+            $statBuiltInTotal++;
+            if (!empty($t['is_visible'])) {
+                $statBuiltInActive++;
+            }
+        }
+    }
+}
+
 $statCommittees = count($committees);
-$statTotalPrograms = count($allPrograms);
-$statActivePrograms = count(array_filter($allPrograms, fn($p) => $p['status'] === 'active'));
+$statTotalPrograms = count($allPrograms) + $statBuiltInTotal;
+$statActivePrograms = count(array_filter($allPrograms, fn($p) => $p['status'] === 'active')) + $statBuiltInActive;
 $statAnnouncements = count($announcements);
 
 function assistLabel($type)
