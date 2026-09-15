@@ -376,11 +376,16 @@ switch ($type) {
             $headers = ['Application ID', 'Full Name', 'Email', 'Committee', 'Program', 'Status', 'Submitted At', 'Decided At'];
             $widths = [28, 42, 48, 33, 39, 25, 32, 30];
 
-            $stmt = $conn->prepare("SELECT a.application_id, u.first_name, u.last_name, u.email, c.name AS committee_name, p.name AS program_name, a.status, a.submitted_at, a.decided_at
+            // A blank program_id doesn't mean "no program" — it means the applicant applied through a
+            // built-in track (iSKolar ng Langkiwa / Assistance Program) rather than a specific catalog
+            // program, so program_track is what actually says which one. Fall back to that track's
+            // label whenever there's no catalog program name to show.
+            $stmt = $conn->prepare("SELECT a.application_id, u.first_name, u.last_name, u.email, c.name AS committee_name, p.name AS program_name, pt.label AS track_label, a.status, a.submitted_at, a.decided_at
             FROM applications a
             JOIN users u ON u.user_id = a.user_id
             JOIN committees c ON c.committee_id = a.committee_id
             LEFT JOIN programs p ON p.program_id = a.program_id
+            LEFT JOIN program_tabs pt ON pt.committee_id = a.committee_id AND pt.track_code = a.program_track
             WHERE a.archived_at IS NULL AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.committee_id = ?) AND (? = 0 OR a.program_id = ?) AND (? = '' OR (a.program_track = ? AND a.program_id IS NULL))
             ORDER BY a.submitted_at ASC");
             $stmt->bind_param('ssiiiiss', $fromInclusive, $toInclusive, $committeeId, $committeeId, $programId, $programId, $trackCode, $trackCode);
@@ -392,7 +397,7 @@ switch ($type) {
                     trim($row['first_name'] . ' ' . $row['last_name']),
                     $row['email'],
                     $row['committee_name'],
-                    $row['program_name'] ?: '—',
+                    $row['program_name'] ?: ($row['track_label'] ?: '—'),
                     ucfirst($row['status']),
                     $row['submitted_at'],
                     $row['decided_at'] ?: '—',

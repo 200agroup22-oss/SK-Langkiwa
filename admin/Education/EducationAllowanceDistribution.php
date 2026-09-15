@@ -4,6 +4,43 @@ requireRole('admin');
 
 $term = getCurrentTerm();
 
+// Past-term viewer: every term that ever had an allowance record, newest first, always
+// including the current term even before anyone's been paid out yet this cycle. Selecting a
+// past term switches the page to a read-only historical view instead of the live payout queue.
+$semesterOrder = ['2nd Semester' => 0, '1st Semester' => 1, '3rd Semester' => 2, 'Summer' => 2];
+$availableTerms = $conn->query("SELECT DISTINCT academic_year, semester FROM allowance_distributions")->fetch_all(MYSQLI_ASSOC);
+$hasCurrentTerm = false;
+foreach ($availableTerms as $t) {
+    if ($t['academic_year'] === $term['current_academic_year'] && $t['semester'] === $term['current_semester']) {
+        $hasCurrentTerm = true;
+        break;
+    }
+}
+if (!$hasCurrentTerm) {
+    $availableTerms[] = ['academic_year' => $term['current_academic_year'], 'semester' => $term['current_semester']];
+}
+usort($availableTerms, function ($a, $b) use ($semesterOrder) {
+    if ($a['academic_year'] !== $b['academic_year']) {
+        return strcmp($b['academic_year'], $a['academic_year']);
+    }
+    return ($semesterOrder[$a['semester']] ?? 9) <=> ($semesterOrder[$b['semester']] ?? 9);
+});
+
+$viewYear = $_GET['ay'] ?? $term['current_academic_year'];
+$viewSemester = $_GET['sem'] ?? $term['current_semester'];
+$validTerm = false;
+foreach ($availableTerms as $t) {
+    if ($t['academic_year'] === $viewYear && $t['semester'] === $viewSemester) {
+        $validTerm = true;
+        break;
+    }
+}
+if (!$validTerm) {
+    $viewYear = $term['current_academic_year'];
+    $viewSemester = $term['current_semester'];
+}
+$isCurrentTerm = ($viewYear === $term['current_academic_year'] && $viewSemester === $term['current_semester']);
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['approve_payout']) || isset($_POST['decline_payout'])) {
         $scholarId = (int)$_POST['scholar_id'];
@@ -22,18 +59,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $pageSuccess = getFlash('success');
 
-$scholars = $conn->query("SELECT s.*, u.first_name, u.last_name
-    FROM scholars s JOIN users u ON u.user_id = s.user_id
-    WHERE s.status = 'active' ORDER BY s.scholar_id ASC")->fetch_all(MYSQLI_ASSOC);
+if ($isCurrentTerm) {
+    $scholars = $conn->query("SELECT s.*, u.first_name, u.last_name
+        FROM scholars s JOIN users u ON u.user_id = s.user_id
+        WHERE s.status = 'active' ORDER BY s.scholar_id ASC")->fetch_all(MYSQLI_ASSOC);
 
-foreach ($scholars as &$sch) {
-    $sch['allowance'] = ensureAllowanceRecord($sch['scholar_id']);
+    foreach ($scholars as &$sch) {
+        $sch['allowance'] = ensureAllowanceRecord($sch['scholar_id']);
+    }
+    unset($sch);
+
+    // Only scholars who have met the activity requirement (or were manually marked eligible on the
+    // Scholars page) belong in the payout queue — everyone else stays hidden until they qualify.
+    $scholars = array_values(array_filter($scholars, fn($sch) => $sch['allowance']['eligibility'] === 'eligible'));
+} else {
+    // Past term: a pure read-only history, so it reads straight from that term's saved
+    // allowance_distributions rows instead of ensureAllowanceRecord() (which would create a new
+    // 'pending' record — wrong for a term that's already over). Every scholar with a record for
+    // this term is shown, eligible or not, since this is a record to look up, not a task queue.
+    $stmt = $conn->prepare("SELECT s.*, u.first_name, u.last_name, ad.activities_required, ad.activities_completed, ad.eligibility, ad.amount, ad.status
+        FROM allowance_distributions ad
+        JOIN scholars s ON s.scholar_id = ad.scholar_id
+        JOIN users u ON u.user_id = s.user_id
+        WHERE ad.academic_year = ? AND ad.semester = ?
+        ORDER BY s.scholar_id ASC");
+    $stmt->bind_param('ss', $viewYear, $viewSemester);
+    $stmt->execute();
+    $scholars = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+
+    foreach ($scholars as &$sch) {
+        $sch['allowance'] = [
+            'activities_required' => $sch['activities_required'],
+            'activities_completed' => $sch['activities_completed'],
+            'eligibility' => $sch['eligibility'],
+            'amount' => $sch['amount'],
+            'status' => $sch['status'],
+        ];
+    }
+    unset($sch);
 }
-unset($sch);
-
-// Only scholars who have met the activity requirement (or were manually marked eligible on the
-// Scholars page) belong in the payout queue — everyone else stays hidden until they qualify.
-$scholars = array_values(array_filter($scholars, fn($sch) => $sch['allowance']['eligibility'] === 'eligible'));
 
 $yearLevelLabel = fn($n) => $n ? $n . (['', 'st', 'nd', 'rd'][$n] ?? 'th') . ' Year' : '—';
 $eligibilityBadge = fn($e) => $e === 'eligible' ? 'badge-eligible' : ($e === 'not_eligible' ? 'badge-not-eligible' : 'badge-pending-elig');
@@ -90,28 +155,44 @@ $activeLink = 'EducationAllowanceDistribution';
 
     <div class="main-content">
         <h4 class="fw-bold mb-1">Allowance Distribution</h4>
-        <p class="text-muted mb-2" style="font-size: 13px;">Approve allowance payouts for A.Y. <?php echo e($term['current_academic_year']); ?>, <?php echo e($term['current_semester']); ?>. Only scholars who have met the activity requirement are listed.</p>
+        <?php if ($isCurrentTerm): ?>
+            <p class="text-muted mb-2" style="font-size: 13px;">Approve allowance payouts for A.Y. <?php echo e($viewYear); ?>, <?php echo e($viewSemester); ?>. Only scholars who have met the activity requirement are listed.</p>
+        <?php else: ?>
+            <p class="text-muted mb-2" style="font-size: 13px;"><span class="badge text-bg-secondary me-1"><i class="bi bi-clock-history me-1"></i>Past record</span> Viewing the saved allowance record for A.Y. <?php echo e($viewYear); ?>, <?php echo e($viewSemester); ?> — read-only, every scholar with a record for this term is shown.</p>
+        <?php endif; ?>
 
         <?php if ($pageSuccess): ?><div class="alert alert-success py-2"><?php echo e($pageSuccess); ?></div><?php endif; ?>
 
-        <div class="d-flex justify-content-end align-items-center mb-3 flex-wrap gap-2">
-            <select class="form-select form-select-sm" id="allowanceFilterSelect" style="width:auto;">
-                <option value="all">Filter: All Scholars</option>
-                <option value="payout:pending">Payout: Pending</option>
-                <option value="payout:approved">Payout: Released</option>
-                <option value="payout:declined">Payout: Declined</option>
-            </select>
-            <select class="form-select form-select-sm" id="allowanceSortSelect" style="width:auto;">
-                <option value="id_asc">Sort By: ID (Ascending)</option>
-                <option value="id_desc">Sort By: ID (Descending)</option>
-                <option value="name_asc">Sort By: Name (A-Z)</option>
-                <option value="name_desc">Sort By: Name (Z-A)</option>
-                <option value="year_asc">Sort By: Year Level (Low-High)</option>
-                <option value="year_desc">Sort By: Year Level (High-Low)</option>
-            </select>
-            <div class="search-box position-relative">
-                <i class="bi bi-search position-absolute" style="left:10px; top:50%; transform:translateY(-50%); color:#999; font-size:12px;"></i>
-                <input type="text" class="form-control form-control-sm" id="allowanceSearchInput" placeholder="Search scholar..." style="padding-left:28px;">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+            <form method="get" class="d-flex align-items-center gap-2">
+                <label class="text-muted" style="font-size:12px;">Term:</label>
+                <select class="form-select form-select-sm" name="ay_sem" style="width:auto;" onchange="const [ay, sem] = this.value.split('||'); window.location.href = '?ay=' + encodeURIComponent(ay) + '&sem=' + encodeURIComponent(sem);">
+                    <?php foreach ($availableTerms as $t): $selected = $t['academic_year'] === $viewYear && $t['semester'] === $viewSemester; ?>
+                        <option value="<?php echo e($t['academic_year'] . '||' . $t['semester']); ?>" <?php echo $selected ? 'selected' : ''; ?>>
+                            A.Y. <?php echo e($t['academic_year']); ?>, <?php echo e($t['semester']); ?><?php echo ($t['academic_year'] === $term['current_academic_year'] && $t['semester'] === $term['current_semester']) ? ' (Current)' : ''; ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </form>
+            <div class="d-flex align-items-center flex-wrap gap-2">
+                <select class="form-select form-select-sm" id="allowanceFilterSelect" style="width:auto;">
+                    <option value="all">Filter: All Scholars</option>
+                    <option value="payout:pending">Payout: Pending</option>
+                    <option value="payout:approved">Payout: Released</option>
+                    <option value="payout:declined">Payout: Declined</option>
+                </select>
+                <select class="form-select form-select-sm" id="allowanceSortSelect" style="width:auto;">
+                    <option value="id_asc">Sort By: ID (Ascending)</option>
+                    <option value="id_desc">Sort By: ID (Descending)</option>
+                    <option value="name_asc">Sort By: Name (A-Z)</option>
+                    <option value="name_desc">Sort By: Name (Z-A)</option>
+                    <option value="year_asc">Sort By: Year Level (Low-High)</option>
+                    <option value="year_desc">Sort By: Year Level (High-Low)</option>
+                </select>
+                <div class="search-box position-relative">
+                    <i class="bi bi-search position-absolute" style="left:10px; top:50%; transform:translateY(-50%); color:#999; font-size:12px;"></i>
+                    <input type="text" class="form-control form-control-sm" id="allowanceSearchInput" placeholder="Search scholar..." style="padding-left:28px;">
+                </div>
             </div>
         </div>
 
@@ -134,7 +215,7 @@ $activeLink = 'EducationAllowanceDistribution';
                     <tbody id="allowanceTableBody">
                         <?php if (empty($scholars)): ?>
                             <tr>
-                                <td colspan="9" class="text-center text-muted py-4">No eligible scholars yet.</td>
+                                <td colspan="9" class="text-center text-muted py-4"><?php echo $isCurrentTerm ? 'No eligible scholars yet.' : 'No allowance records saved for this term.'; ?></td>
                             </tr>
                         <?php endif; ?>
                         <?php foreach ($scholars as $sch): ?>
@@ -149,7 +230,7 @@ $activeLink = 'EducationAllowanceDistribution';
                                 <td><span class="badge text-bg-<?php echo $sch['allowance']['status'] === 'approved' ? 'success' : ($sch['allowance']['status'] === 'declined' ? 'danger' : 'secondary'); ?>"><?php echo ucfirst($sch['allowance']['status']); ?></span></td>
                                 <td class="d-flex gap-1">
                                     <button class="btn-view" data-bs-toggle="modal" data-bs-target="#viewModal<?php echo $sch['scholar_id']; ?>"><i class="bi bi-eye"></i> View</button>
-                                    <?php if ($sch['allowance']['status'] === 'pending'): ?>
+                                    <?php if ($isCurrentTerm && $sch['allowance']['status'] === 'pending'): ?>
                                         <button type="button" class="btn-approve" style="padding:4px 10px;font-size:12px;" data-bs-toggle="modal" data-bs-target="#approvePayoutModal<?php echo $sch['scholar_id']; ?>" <?php echo $sch['allowance']['eligibility'] !== 'eligible' ? 'disabled title="Not eligible yet"' : ''; ?>><i class="bi bi-check-circle-fill"></i> Released</button>
                                         <button type="button" class="btn-decline" style="padding:4px 10px;font-size:12px;" data-bs-toggle="modal" data-bs-target="#declinePayoutModal<?php echo $sch['scholar_id']; ?>"><i class="bi bi-x-circle"></i> Decline</button>
                                     <?php endif; ?>
@@ -206,11 +287,11 @@ $activeLink = 'EducationAllowanceDistribution';
                             </div>
                             <div class="col-6">
                                 <div class="info-label">Academic Year</div>
-                                <div class="info-value"><?php echo e($term['current_academic_year']); ?></div>
+                                <div class="info-value"><?php echo e($viewYear); ?></div>
                             </div>
                             <div class="col-6">
                                 <div class="info-label">Semester</div>
-                                <div class="info-value"><?php echo e($term['current_semester']); ?></div>
+                                <div class="info-value"><?php echo e($viewSemester); ?></div>
                             </div>
                         </div>
                     </div>
