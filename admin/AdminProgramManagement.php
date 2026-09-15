@@ -835,13 +835,14 @@ $activeLink = 'AdminProgramManagement';
                     $builtInTabs = array_filter($tabsByCommittee[$cid] ?? [], function ($t) {
                         return empty($t['program_id']);
                     });
+                    $totalProgramCount = count($cprograms) + count($builtInTabs);
                 ?>
                     <div class="committee-block" data-committee-name="<?php echo e(strtolower($c['name'])); ?>">
                         <div class="committee-block-header">
                             <div class="title">
                                 <span class="committee-icon-badge"><i class="bi <?php echo e($c['icon'] ?: 'bi-people-fill'); ?>"></i></span>
                                 <?php echo e($c['name']); ?>
-                                <span class="committee-count-badge"><?php echo count($cprograms); ?> program<?php echo count($cprograms) === 1 ? '' : 's'; ?></span>
+                                <span class="committee-count-badge"><?php echo $totalProgramCount; ?> program<?php echo $totalProgramCount === 1 ? '' : 's'; ?></span>
                                 <button type="button" class="action-btn btn-edit" data-bs-toggle="modal" data-bs-target="#editCommitteeModal<?php echo $cid; ?>"><i class="bi bi-pencil"></i> Edit</button>
                                 <?php if (!empty($tabsByCommittee[$cid])): ?>
                                     <button type="button" class="action-btn btn-edit" data-bs-toggle="modal" data-bs-target="#manageTabsModal<?php echo $cid; ?>"><i class="bi bi-layout-sidebar-inset"></i> Manage Tabs</button>
