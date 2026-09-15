@@ -834,9 +834,24 @@ $activeLink = 'AdminProgramManagement';
                             <button type="button" class="btn-outline-brand add-program-for-committee" data-committee="<?php echo $cid; ?>"><i class="bi bi-plus-lg me-1"></i> Add Program</button>
                         </div>
                         <div class="committee-block-body">
-                            <?php if (empty($cprograms)): ?>
+                            <?php $ctabs = $tabsByCommittee[$cid] ?? []; ?>
+                            <?php if (empty($cprograms) && empty($ctabs)): ?>
                                 <div class="empty-committee">No programs yet for <?php echo e($c['name']); ?>.</div>
                             <?php endif; ?>
+                            <?php foreach ($ctabs as $t): ?>
+                                <div class="program-item">
+                                    <div>
+                                        <div class="p-name"><i class="bi <?php echo e($t['icon']); ?> me-1"></i> <?php echo e($t['label']); ?></div>
+                                        <div class="p-meta">
+                                            <span class="assist-tag" style="background:#ede7f6;color:#5e35b1;border:1px solid #b39ddb;">Built-in Track</span>
+                                            <span class="status-pill <?php echo $t['is_visible'] ? 'status-active' : 'status-inactive'; ?>"><?php echo $t['is_visible'] ? 'Visible' : 'Hidden'; ?></span>
+                                        </div>
+                                    </div>
+                                    <div class="program-actions">
+                                        <button type="button" class="action-btn btn-edit" data-bs-toggle="modal" data-bs-target="#manageTabsModal<?php echo $cid; ?>"><i class="bi bi-layout-sidebar-inset"></i> Manage in Tabs</button>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
                             <?php foreach ($cprograms as $p): $pid = (int)$p['program_id'];
                                 $benCount = $beneficiaryCounts[$pid] ?? 0;
                                 $closedReason = programClosedReason($p);
