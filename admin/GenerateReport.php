@@ -38,11 +38,27 @@ if ($committeeCode !== 'all') {
     $committeeLabel = $row['name'];
 }
 
-// ---- Validate program (must be 'all' or a real, active program belonging to the selected committee) ----
+// ---- Validate program (must be 'all', "track:<code>" for a built-in track, or a real, active
+// catalog program id — either way, scoped to the selected committee) ----
 $programParam = $_GET['program'] ?? 'all';
-$programId = 0; // sentinel for "all"
+$programId = 0; // sentinel for "no catalog-program filter" (used whether scope is 'all' or a track)
+$trackCode = ''; // sentinel for "no built-in-track filter" (used whether scope is 'all' or a catalog program)
 $programLabel = null;
-if ($programParam !== 'all') {
+if ($programParam !== 'all' && strpos($programParam, 'track:') === 0) {
+    $trackCode = substr($programParam, 6);
+    $stmt = $conn->prepare("SELECT label FROM program_tabs WHERE track_code = ? AND program_id IS NULL AND (? = 0 OR committee_id = ?)");
+    $stmt->bind_param('sii', $trackCode, $committeeId, $committeeId);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$row) {
+        http_response_code(400);
+        header('Content-Type: text/plain');
+        echo 'Invalid program.';
+        exit();
+    }
+    $programLabel = $row['label'] . ' (Built-in Track)';
+} elseif ($programParam !== 'all') {
     $stmt = $conn->prepare("SELECT program_id, name FROM programs WHERE program_id = ? AND status = 'active' AND archived_at IS NULL AND (? = 0 OR committee_id = ?)");
     $stmt->bind_param('iii', $programParam, $committeeId, $committeeId);
     $stmt->execute();
@@ -274,29 +290,29 @@ switch ($type) {
                 $stmt = $conn->prepare("SELECT COUNT(*) c FROM programs WHERE committee_id = ? AND archived_at IS NULL");
                 $stmt->bind_param('i', $cid);
                 $stmt->execute();
-                $totalPrograms = $programId > 0 ? 1 : (int)($stmt->get_result()->fetch_assoc()['c'] ?? 0);
+                $totalPrograms = ($programId > 0 || $trackCode !== '') ? 1 : (int)($stmt->get_result()->fetch_assoc()['c'] ?? 0);
                 $stmt->close();
 
-                $stmt = $conn->prepare("SELECT COUNT(*) c FROM applications WHERE committee_id = ? AND status = 'approved' AND archived_at IS NULL AND submitted_at BETWEEN ? AND ? AND (? = 0 OR program_id = ?)");
-                $stmt->bind_param('issii', $cid, $fromInclusive, $toInclusive, $programId, $programId);
+                $stmt = $conn->prepare("SELECT COUNT(*) c FROM applications WHERE committee_id = ? AND status = 'approved' AND archived_at IS NULL AND submitted_at BETWEEN ? AND ? AND (? = 0 OR program_id = ?) AND (? = '' OR (program_track = ? AND program_id IS NULL))");
+                $stmt->bind_param('issiiss', $cid, $fromInclusive, $toInclusive, $programId, $programId, $trackCode, $trackCode);
                 $stmt->execute();
                 $benCount = (int)($stmt->get_result()->fetch_assoc()['c'] ?? 0);
                 $stmt->close();
 
-                $stmt = $conn->prepare("SELECT COALESCE(SUM(b.amount), 0) s FROM assistance_beneficiaries b JOIN applications a ON a.application_id = b.application_id WHERE a.committee_id = ? AND b.type = 'cash' AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.program_id = ?)");
-                $stmt->bind_param('issii', $cid, $fromInclusive, $toInclusive, $programId, $programId);
+                $stmt = $conn->prepare("SELECT COALESCE(SUM(b.amount), 0) s FROM assistance_beneficiaries b JOIN applications a ON a.application_id = b.application_id WHERE a.committee_id = ? AND b.type = 'cash' AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.program_id = ?) AND (? = '' OR (a.program_track = ? AND a.program_id IS NULL))");
+                $stmt->bind_param('issiiss', $cid, $fromInclusive, $toInclusive, $programId, $programId, $trackCode, $trackCode);
                 $stmt->execute();
                 $funds = (float)($stmt->get_result()->fetch_assoc()['s'] ?? 0);
                 $stmt->close();
 
-                $stmt = $conn->prepare("SELECT COALESCE(SUM(b.quantity), 0) q FROM assistance_beneficiaries b JOIN applications a ON a.application_id = b.application_id WHERE a.committee_id = ? AND b.type = 'in_kind' AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.program_id = ?)");
-                $stmt->bind_param('issii', $cid, $fromInclusive, $toInclusive, $programId, $programId);
+                $stmt = $conn->prepare("SELECT COALESCE(SUM(b.quantity), 0) q FROM assistance_beneficiaries b JOIN applications a ON a.application_id = b.application_id WHERE a.committee_id = ? AND b.type = 'in_kind' AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.program_id = ?) AND (? = '' OR (a.program_track = ? AND a.program_id IS NULL))");
+                $stmt->bind_param('issiiss', $cid, $fromInclusive, $toInclusive, $programId, $programId, $trackCode, $trackCode);
                 $stmt->execute();
                 $inKindQty = (int)($stmt->get_result()->fetch_assoc()['q'] ?? 0);
                 $stmt->close();
 
-                $stmt = $conn->prepare("SELECT status, COUNT(*) c FROM applications WHERE committee_id = ? AND archived_at IS NULL AND submitted_at BETWEEN ? AND ? AND (? = 0 OR program_id = ?) GROUP BY status");
-                $stmt->bind_param('issii', $cid, $fromInclusive, $toInclusive, $programId, $programId);
+                $stmt = $conn->prepare("SELECT status, COUNT(*) c FROM applications WHERE committee_id = ? AND archived_at IS NULL AND submitted_at BETWEEN ? AND ? AND (? = 0 OR program_id = ?) AND (? = '' OR (program_track = ? AND program_id IS NULL)) GROUP BY status");
+                $stmt->bind_param('issiiss', $cid, $fromInclusive, $toInclusive, $programId, $programId, $trackCode, $trackCode);
                 $stmt->execute();
                 $decided = ['approved' => 0, 'declined' => 0];
                 foreach ($stmt->get_result() as $row) {
@@ -324,9 +340,9 @@ switch ($type) {
             JOIN users u ON u.user_id = a.user_id
             JOIN committees c ON c.committee_id = a.committee_id
             LEFT JOIN assistance_beneficiaries b ON b.application_id = a.application_id
-            WHERE a.status = 'approved' AND a.archived_at IS NULL AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.committee_id = ?) AND (? = 0 OR a.program_id = ?)
+            WHERE a.status = 'approved' AND a.archived_at IS NULL AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.committee_id = ?) AND (? = 0 OR a.program_id = ?) AND (? = '' OR (a.program_track = ? AND a.program_id IS NULL))
             ORDER BY a.committee_id ASC, a.submitted_at ASC");
-            $stmt->bind_param('ssiiii', $fromInclusive, $toInclusive, $committeeId, $committeeId, $programId, $programId);
+            $stmt->bind_param('ssiiiiss', $fromInclusive, $toInclusive, $committeeId, $committeeId, $programId, $programId, $trackCode, $trackCode);
             $stmt->execute();
             $detailRows = [];
             foreach ($stmt->get_result() as $row) {
@@ -365,9 +381,9 @@ switch ($type) {
             JOIN users u ON u.user_id = a.user_id
             JOIN committees c ON c.committee_id = a.committee_id
             LEFT JOIN programs p ON p.program_id = a.program_id
-            WHERE a.archived_at IS NULL AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.committee_id = ?) AND (? = 0 OR a.program_id = ?)
+            WHERE a.archived_at IS NULL AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.committee_id = ?) AND (? = 0 OR a.program_id = ?) AND (? = '' OR (a.program_track = ? AND a.program_id IS NULL))
             ORDER BY a.submitted_at ASC");
-            $stmt->bind_param('ssiiii', $fromInclusive, $toInclusive, $committeeId, $committeeId, $programId, $programId);
+            $stmt->bind_param('ssiiiiss', $fromInclusive, $toInclusive, $committeeId, $committeeId, $programId, $programId, $trackCode, $trackCode);
             $stmt->execute();
             $rows = [];
             foreach ($stmt->get_result() as $row) {
@@ -397,9 +413,9 @@ switch ($type) {
             FROM applications a
             JOIN users u ON u.user_id = a.user_id
             JOIN committees c ON c.committee_id = a.committee_id
-            WHERE a.status = 'approved' AND a.archived_at IS NULL AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.committee_id = ?) AND (? = 0 OR a.program_id = ?)
+            WHERE a.status = 'approved' AND a.archived_at IS NULL AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.committee_id = ?) AND (? = 0 OR a.program_id = ?) AND (? = '' OR (a.program_track = ? AND a.program_id IS NULL))
             ORDER BY a.submitted_at ASC");
-            $stmt->bind_param('ssiiii', $fromInclusive, $toInclusive, $committeeId, $committeeId, $programId, $programId);
+            $stmt->bind_param('ssiiiiss', $fromInclusive, $toInclusive, $committeeId, $committeeId, $programId, $programId, $trackCode, $trackCode);
             $stmt->execute();
             $rows = [];
             foreach ($stmt->get_result() as $row) {
@@ -429,9 +445,9 @@ switch ($type) {
             JOIN applications a ON a.application_id = b.application_id
             JOIN users u ON u.user_id = a.user_id
             JOIN committees c ON c.committee_id = a.committee_id
-            WHERE b.type = 'cash' AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.committee_id = ?) AND (? = 0 OR a.program_id = ?)
+            WHERE b.type = 'cash' AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.committee_id = ?) AND (? = 0 OR a.program_id = ?) AND (? = '' OR (a.program_track = ? AND a.program_id IS NULL))
             ORDER BY b.beneficiary_id ASC");
-            $stmt->bind_param('ssiiii', $fromInclusive, $toInclusive, $committeeId, $committeeId, $programId, $programId);
+            $stmt->bind_param('ssiiiiss', $fromInclusive, $toInclusive, $committeeId, $committeeId, $programId, $programId, $trackCode, $trackCode);
             $stmt->execute();
             $rows = [];
             foreach ($stmt->get_result() as $row) {
@@ -461,9 +477,9 @@ switch ($type) {
             JOIN applications a ON a.application_id = b.application_id
             JOIN users u ON u.user_id = a.user_id
             JOIN committees c ON c.committee_id = a.committee_id
-            WHERE b.type = 'in_kind' AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.committee_id = ?) AND (? = 0 OR a.program_id = ?)
+            WHERE b.type = 'in_kind' AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.committee_id = ?) AND (? = 0 OR a.program_id = ?) AND (? = '' OR (a.program_track = ? AND a.program_id IS NULL))
             ORDER BY b.beneficiary_id ASC");
-            $stmt->bind_param('ssiiii', $fromInclusive, $toInclusive, $committeeId, $committeeId, $programId, $programId);
+            $stmt->bind_param('ssiiiiss', $fromInclusive, $toInclusive, $committeeId, $committeeId, $programId, $programId, $trackCode, $trackCode);
             $stmt->execute();
             $rows = [];
             foreach ($stmt->get_result() as $row) {
@@ -498,8 +514,8 @@ switch ($type) {
             $grandApproved = 0;
             foreach ($committeeRows as $c) {
                 $cid = (int)$c['committee_id'];
-                $stmt = $conn->prepare("SELECT status, COUNT(*) c FROM applications WHERE committee_id = ? AND archived_at IS NULL AND submitted_at BETWEEN ? AND ? AND (? = 0 OR program_id = ?) GROUP BY status");
-                $stmt->bind_param('issii', $cid, $fromInclusive, $toInclusive, $programId, $programId);
+                $stmt = $conn->prepare("SELECT status, COUNT(*) c FROM applications WHERE committee_id = ? AND archived_at IS NULL AND submitted_at BETWEEN ? AND ? AND (? = 0 OR program_id = ?) AND (? = '' OR (program_track = ? AND program_id IS NULL)) GROUP BY status");
+                $stmt->bind_param('issiiss', $cid, $fromInclusive, $toInclusive, $programId, $programId, $trackCode, $trackCode);
                 $stmt->execute();
                 $counts = ['pending' => 0, 'approved' => 0, 'declined' => 0];
                 foreach ($stmt->get_result() as $row) {
@@ -523,9 +539,9 @@ switch ($type) {
             FROM applications a
             JOIN users u ON u.user_id = a.user_id
             JOIN committees c ON c.committee_id = a.committee_id
-            WHERE a.archived_at IS NULL AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.committee_id = ?) AND (? = 0 OR a.program_id = ?)
+            WHERE a.archived_at IS NULL AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.committee_id = ?) AND (? = 0 OR a.program_id = ?) AND (? = '' OR (a.program_track = ? AND a.program_id IS NULL))
             ORDER BY a.committee_id ASC, a.submitted_at ASC");
-            $stmt->bind_param('ssiiii', $fromInclusive, $toInclusive, $committeeId, $committeeId, $programId, $programId);
+            $stmt->bind_param('ssiiiiss', $fromInclusive, $toInclusive, $committeeId, $committeeId, $programId, $programId, $trackCode, $trackCode);
             $stmt->execute();
             $detailRows = [];
             foreach ($stmt->get_result() as $row) {

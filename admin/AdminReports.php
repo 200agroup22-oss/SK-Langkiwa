@@ -6,15 +6,22 @@ $me = currentUser();
 
 $committees = $conn->query("SELECT * FROM committees ORDER BY committee_id ASC")->fetch_all(MYSQLI_ASSOC);
 
-// Active, non-archived programs grouped by committee, for the Generate Report modal's
-// Program filter (populated client-side once a specific committee is chosen).
+// Built-in tracks (iSKolar ng Langkiwa / Assistance Program) plus active, non-archived catalog
+// programs, grouped by committee, for the Generate Report modal's Program filter (populated
+// client-side once a specific committee is chosen). A built-in track's option value is
+// "track:<track_code>" instead of a numeric program_id, since it has no row of its own in the
+// programs table — GenerateReport.php tells the two apart by that prefix.
 $programsByCommitteeCode = [];
 foreach ($committees as $c) {
     $programsByCommitteeCode[$c['code']] = [];
 }
+$builtInTracksResult = $conn->query("SELECT pt.track_code, pt.label, c.code AS committee_code FROM program_tabs pt JOIN committees c ON c.committee_id = pt.committee_id WHERE pt.program_id IS NULL AND pt.is_visible = 1 ORDER BY pt.sort_order ASC");
+foreach ($builtInTracksResult as $t) {
+    $programsByCommitteeCode[$t['committee_code']][] = ['id' => 'track:' . $t['track_code'], 'name' => $t['label'] . ' (Built-in Track)'];
+}
 $allProgramsResult = $conn->query("SELECT p.program_id, p.name, c.code AS committee_code FROM programs p JOIN committees c ON c.committee_id = p.committee_id WHERE p.archived_at IS NULL AND p.status = 'active' ORDER BY p.name ASC");
 foreach ($allProgramsResult as $p) {
-    $programsByCommitteeCode[$p['committee_code']][] = ['id' => (int)$p['program_id'], 'name' => $p['name']];
+    $programsByCommitteeCode[$p['committee_code']][] = ['id' => (string)(int)$p['program_id'], 'name' => $p['name']];
 }
 
 // ---- Period + committee filters (GET, drive the whole dashboard view) ----
@@ -1217,7 +1224,7 @@ $activeLink = 'AdminReports';
             }
         });
 
-        // Programs per committee code, for the Program filter below (active, non-archived only).
+        // Built-in tracks + catalog programs per committee code, for the Program filter below.
         const programsByCommittee = <?php echo json_encode($programsByCommitteeCode); ?>;
 
         const reportTypeSelect = document.getElementById('reportType');
