@@ -1336,7 +1336,7 @@ $activeLink = 'AdminProgramManagement';
         </div>
     </div>
 
-    <?php foreach ($allPrograms as $p): $pid = (int)$p['program_tabs'];
+    <?php foreach ($allPrograms as $p): $pid = (int)$p['program_id'];
         $benCount = $beneficiaryCounts[$pid] ?? 0;
         $reqLines = $p['eligibility_requirements'] ? explode("\n", $p['eligibility_requirements']) : [];
     ?>
