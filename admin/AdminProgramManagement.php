@@ -619,6 +619,22 @@ $activeLink = 'AdminProgramManagement';
             background: #fafcfa;
         }
 
+        .builtin-tab-item {
+            border-color: #d8cdf2;
+            background: #faf8ff;
+        }
+
+        .builtin-tag {
+            font-size: 11.5px;
+            font-weight: 600;
+            padding: 3px 10px;
+            border-radius: 20px;
+            white-space: nowrap;
+            background: #ede7f6;
+            color: #5e35b1;
+            border: 1px solid #b39ddb;
+        }
+
         .announcement-card {
             border: 1px solid #ededed;
             border-radius: 8px;
@@ -815,7 +831,11 @@ $activeLink = 'AdminProgramManagement';
             <!-- Committee Sections -->
             <div id="committeeSectionsContainer">
                 <?php foreach ($committees as $c): $cid = (int)$c['committee_id'];
-                    $cprograms = $programsByCommittee[$cid] ?? []; ?>
+                    $cprograms = $programsByCommittee[$cid] ?? [];
+                    $builtInTabs = array_filter($tabsByCommittee[$cid] ?? [], function ($t) {
+                        return empty($t['program_id']);
+                    });
+                ?>
                     <div class="committee-block" data-committee-name="<?php echo e(strtolower($c['name'])); ?>">
                         <div class="committee-block-header">
                             <div class="title">
@@ -834,8 +854,31 @@ $activeLink = 'AdminProgramManagement';
                             <button type="button" class="btn-outline-brand add-program-for-committee" data-committee="<?php echo $cid; ?>"><i class="bi bi-plus-lg me-1"></i> Add Program</button>
                         </div>
                         <div class="committee-block-body">
+                            <?php foreach ($builtInTabs as $t): $tid = (int)$t['tab_id']; ?>
+                                <div class="program-item builtin-tab-item">
+                                    <div>
+                                        <div class="p-name"><i class="bi <?php echo e($t['icon']); ?> me-1"></i><?php echo e($t['label']); ?></div>
+                                        <div class="p-meta">
+                                            <span class="builtin-tag">Built-in Track</span>
+                                            <span class="status-pill <?php echo $t['is_visible'] ? 'status-active' : 'status-inactive'; ?>"><?php echo $t['is_visible'] ? 'Shown' : 'Hidden'; ?></span>
+                                        </div>
+                                    </div>
+                                    <div class="program-actions">
+                                        <button type="button" class="action-btn btn-edit" data-bs-toggle="modal" data-bs-target="#manageTabsModal<?php echo $cid; ?>"><i class="bi bi-pencil"></i> Manage</button>
+                                        <form method="post" class="d-inline">
+                                            <input type="hidden" name="tabs[<?php echo $tid; ?>][label]" value="<?php echo e($t['label']); ?>">
+                                            <input type="hidden" name="tabs[<?php echo $tid; ?>][icon]" value="<?php echo e($t['icon']); ?>">
+                                            <?php if (!$t['is_visible']): ?><input type="hidden" name="tabs[<?php echo $tid; ?>][visible]" value="1"><?php endif; ?>
+                                            <button type="submit" name="save_tabs" class="action-btn <?php echo $t['is_visible'] ? 'btn-toggle' : 'btn-activate'; ?>">
+                                                <i class="bi <?php echo $t['is_visible'] ? 'bi-slash-circle' : 'bi-check-circle'; ?>"></i>
+                                                <?php echo $t['is_visible'] ? 'Hide' : 'Show'; ?>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
                             <?php if (empty($cprograms)): ?>
-                                <div class="empty-committee">No programs yet for <?php echo e($c['name']); ?>.</div>
+                                <div class="empty-committee">No financial assistance programs yet for <?php echo e($c['name']); ?>.</div>
                             <?php endif; ?>
                             <?php foreach ($cprograms as $p): $pid = (int)$p['program_id'];
                                 $benCount = $beneficiaryCounts[$pid] ?? 0;
@@ -1605,7 +1648,7 @@ $activeLink = 'AdminProgramManagement';
             const [filterKey, filterArg] = filterVal.includes(':') ? filterVal.split(':') : [null, null];
 
             document.querySelectorAll('#committeeSectionsContainer .committee-block-body').forEach(function(body) {
-                const items = Array.from(body.querySelectorAll('.program-item'));
+                const items = Array.from(body.querySelectorAll('.program-item:not(.builtin-tab-item)'));
                 if (!items.length) return;
 
                 items.forEach(function(item) {
