@@ -88,7 +88,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $committeeId = (int)$_POST['committee_id'];
         $name = trim($_POST['name'] ?? '');
         $description = trim($_POST['description'] ?? '');
-        $assistanceType = ($_POST['assistance_type'] ?? 'cash') === 'in_kind' ? 'in_kind' : 'cash';
+        $selectedTypes = (array)($_POST['assistance_type'] ?? []);
+        $hasCash = in_array('cash', $selectedTypes, true);
+        $hasInKind = in_array('in_kind', $selectedTypes, true);
+        $assistanceType = ($hasCash && $hasInKind) ? 'both' : ($hasInKind ? 'in_kind' : 'cash');
         $amount = $_POST['amount'] !== '' ? (float)$_POST['amount'] : null;
         $releaseSchedule = trim($_POST['release_schedule'] ?? '');
         $appStart = $_POST['app_start_date'] !== '' ? $_POST['app_start_date'] : null;
@@ -291,12 +294,23 @@ $statAnnouncements = count($announcements);
 
 function assistLabel($type)
 {
+    if ($type === 'both') return 'Cash Assistance + In-Kind Assistance';
     return $type === 'in_kind' ? 'In-Kind Assistance' : 'Cash Assistance';
 }
 
 function assistBadgeClass($type)
 {
     return $type === 'in_kind' ? 'assist-kind' : 'assist-cash';
+}
+
+// One badge per type a program actually offers — a 'both' program gets two badges
+// (Cash + In-Kind) side by side instead of a single combined label.
+function assistBadges($type)
+{
+    if ($type === 'both') {
+        return [['cash', 'Cash Assistance'], ['in_kind', 'In-Kind Assistance']];
+    }
+    return $type === 'in_kind' ? [['in_kind', 'In-Kind Assistance']] : [['cash', 'Cash Assistance']];
 }
 
 $committeeIconChoices = ['bi-people-fill', 'bi-mortarboard-fill', 'bi-heart-pulse-fill', 'bi-trophy-fill', 'bi-flag-fill', 'bi-tree-fill', 'bi-palette-fill', 'bi-shield-fill-check', 'bi-music-note-beamed', 'bi-globe2', 'bi-star-fill', 'bi-bank', 'bi-briefcase-fill', 'bi-currency-exchange'];
@@ -855,13 +869,20 @@ $activeLink = 'AdminProgramManagement';
                             <button type="button" class="btn-outline-brand add-program-for-committee" data-committee="<?php echo $cid; ?>"><i class="bi bi-plus-lg me-1"></i> Add Program</button>
                         </div>
                         <div class="committee-block-body">
-                            <?php foreach ($builtInTabs as $t): $tid = (int)$t['tab_id']; ?>
+                            <?php foreach ($builtInTabs as $t): $tid = (int)$t['tab_id'];
+                                $trackBenCount = getApprovedCount($cid, $t['track_code']); ?>
                                 <div class="program-item builtin-tab-item">
                                     <div>
                                         <div class="p-name"><i class="bi <?php echo e($t['icon']); ?> me-1"></i><?php echo e($t['label']); ?></div>
                                         <div class="p-meta">
                                             <span class="builtin-tag">Built-in Track</span>
                                             <span class="status-pill <?php echo $t['is_visible'] ? 'status-active' : 'status-inactive'; ?>"><?php echo $t['is_visible'] ? 'Shown' : 'Hidden'; ?></span>
+                                            <span><i class="bi bi-people me-1"></i><?php echo $trackBenCount; ?> beneficiar<?php echo $trackBenCount === 1 ? 'y' : 'ies'; ?></span>
+                                            <?php if (!empty($t['max_slots'])): ?>
+                                                <span title="Slot limit"><i class="bi bi-clipboard-check me-1"></i><?php echo $trackBenCount; ?> / <?php echo (int)$t['max_slots']; ?> slots</span>
+                                            <?php else: ?>
+                                                <span class="text-muted" style="font-size:12px;"><i class="bi bi-infinity me-1"></i>Unlimited slots</span>
+                                            <?php endif; ?>
                                         </div>
                                     </div>
                                     <div class="program-actions">
@@ -887,11 +908,13 @@ $activeLink = 'AdminProgramManagement';
                                 $closedState = programClosedState($p);
                                 $hasWindow = !empty($p['app_start_date']) || !empty($p['app_end_date']);
                             ?>
-                                <div class="program-item" data-program-id="<?php echo $pid; ?>" data-program-name="<?php echo e(strtolower($p['name'])); ?>" data-status="<?php echo e(ucfirst($p['status'])); ?>" data-assist="<?php echo e(assistLabel($p['assistance_type'])); ?>" data-created="<?php echo $p['created_at'] ? strtotime($p['created_at']) : 0; ?>">
+                                <div class="program-item" data-program-id="<?php echo $pid; ?>" data-program-name="<?php echo e(strtolower($p['name'])); ?>" data-status="<?php echo e(ucfirst($p['status'])); ?>" data-assist="<?php echo e(implode(',', array_column(assistBadges($p['assistance_type']), 1))); ?>" data-created="<?php echo $p['created_at'] ? strtotime($p['created_at']) : 0; ?>">
                                     <div>
                                         <div class="p-name">#<?php echo $pid; ?> — <?php echo e($p['name']); ?></div>
                                         <div class="p-meta">
-                                            <span class="assist-tag <?php echo assistBadgeClass($p['assistance_type']); ?>"><?php echo assistLabel($p['assistance_type']); ?></span>
+                                            <?php foreach (assistBadges($p['assistance_type']) as [$badgeType, $badgeLabel]): ?>
+                                                <span class="assist-tag <?php echo assistBadgeClass($badgeType); ?>"><?php echo e($badgeLabel); ?></span>
+                                            <?php endforeach; ?>
                                             <span><i class="bi bi-people me-1"></i><?php echo $benCount; ?> beneficiaries</span>
                                             <?php if ($hasWindow): ?>
                                                 <span title="Application period"><i class="bi bi-calendar-range me-1"></i><?php
@@ -1256,11 +1279,15 @@ $activeLink = 'AdminProgramManagement';
                                 <textarea class="form-control" name="description" rows="3" placeholder="Briefly describe the purpose and coverage of this program"></textarea>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label">Assistance Type</label>
-                                <select class="form-select" name="assistance_type" required>
-                                    <option value="cash">Cash Assistance</option>
-                                    <option value="in_kind">In-Kind Assistance</option>
-                                </select>
+                                <label class="form-label d-block">Assistance Type <span class="text-muted fw-normal">(select one or both)</span></label>
+                                <div class="form-check">
+                                    <input class="form-check-input assistance-type-check" type="checkbox" name="assistance_type[]" value="cash" id="newAtCash" checked>
+                                    <label class="form-check-label" for="newAtCash">Cash Assistance</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input assistance-type-check" type="checkbox" name="assistance_type[]" value="in_kind" id="newAtKind">
+                                    <label class="form-check-label" for="newAtKind">In-Kind Assistance</label>
+                                </div>
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">Amount / Value</label>
@@ -1403,11 +1430,15 @@ $activeLink = 'AdminProgramManagement';
                                     <textarea class="form-control" name="description" rows="3"><?php echo e($p['description']); ?></textarea>
                                 </div>
                                 <div class="col-md-4">
-                                    <label class="form-label">Assistance Type</label>
-                                    <select class="form-select" name="assistance_type" required>
-                                        <option value="cash" <?php echo $p['assistance_type'] === 'cash' ? 'selected' : ''; ?>>Cash Assistance</option>
-                                        <option value="in_kind" <?php echo $p['assistance_type'] === 'in_kind' ? 'selected' : ''; ?>>In-Kind Assistance</option>
-                                    </select>
+                                    <label class="form-label d-block">Assistance Type <span class="text-muted fw-normal">(select one or both)</span></label>
+                                    <div class="form-check">
+                                        <input class="form-check-input assistance-type-check" type="checkbox" name="assistance_type[]" value="cash" id="editAtCash<?php echo $pid; ?>" <?php echo in_array($p['assistance_type'], ['cash', 'both'], true) ? 'checked' : ''; ?>>
+                                        <label class="form-check-label" for="editAtCash<?php echo $pid; ?>">Cash Assistance</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input assistance-type-check" type="checkbox" name="assistance_type[]" value="in_kind" id="editAtKind<?php echo $pid; ?>" <?php echo in_array($p['assistance_type'], ['in_kind', 'both'], true) ? 'checked' : ''; ?>>
+                                        <label class="form-check-label" for="editAtKind<?php echo $pid; ?>">In-Kind Assistance</label>
+                                    </div>
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">Amount / Value</label>
@@ -1656,7 +1687,7 @@ $activeLink = 'AdminProgramManagement';
                     const matchesSearch = !q || (item.dataset.programName || '').includes(q);
                     const matchesFilter = !filterKey ||
                         (filterKey === 'status' && (item.dataset.status || '').toLowerCase() === filterArg) ||
-                        (filterKey === 'assist' && (item.dataset.assist || '') === filterArg);
+                        (filterKey === 'assist' && (item.dataset.assist || '').split(',').includes(filterArg));
                     item.style.display = (matchesSearch && matchesFilter) ? '' : 'none';
                 });
 
@@ -1685,6 +1716,17 @@ $activeLink = 'AdminProgramManagement';
         if (programFilterSelect) programFilterSelect.addEventListener('change', applyProgramFilters);
         if (programSortSelect) programSortSelect.addEventListener('change', applyProgramFilters);
         applyProgramFilters();
+
+        // Assistance Type is now two checkboxes (Cash / In-Kind) instead of one required select —
+        // require at least one checked per form so a program is never saved with neither.
+        document.querySelectorAll('.assistance-type-check').forEach(function(box) {
+            box.addEventListener('change', function() {
+                const form = box.closest('form');
+                const boxesInForm = form.querySelectorAll('.assistance-type-check');
+                const anyChecked = Array.from(boxesInForm).some(b => b.checked);
+                boxesInForm.forEach(b => b.setCustomValidity(anyChecked ? '' : 'Select at least one assistance type.'));
+            });
+        });
         const announcementSearchInput = document.getElementById('announcementSearchInput');
         if (announcementSearchInput) {
             announcementSearchInput.addEventListener('input', function() {

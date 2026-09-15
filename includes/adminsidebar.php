@@ -71,9 +71,8 @@ $programSubmenuPages = [
 // Applications / Assistance Requests / Form submenu shape as the built-in tracks, using $pages
 // (one of the per-committee sets above) to know where each item points. Appends `ptab=<tab id>`
 // (which submenu should stay expanded/highlighted) and `program_id=<program id>` (which program's
-// data the destination page should actually filter to) to a page URL. Assistance Requests only
-// ever shows the ONE type (Cash or In-Kind) the program was actually created as — not both — since
-// a program has a single assistance_type in the catalog.
+// data the destination page should actually filter to) to a page URL. Assistance Requests shows
+// Cash, In-Kind, or both, matching whichever type(s) the program was created as in the catalog.
 function withProgramParams($urlPath, $ptab, $programId)
 {
     $sep = strpos($urlPath, '?') !== false ? '&' : '?';
@@ -91,9 +90,9 @@ function renderExtraProgramTabLinks($committeeId, $tabs, $pages)
         $counter++;
         $menuId = 'programTab' . $counter . 'Menu';
         $reqMenuId = 'programTab' . $counter . 'ReqMenu';
-        $type = ($t['program_assistance_type'] ?? 'cash') === 'in_kind' ? 'in_kind' : 'cash';
-        $showCash = $type === 'cash' && !empty($pages['cash']);
-        $showInKind = $type === 'in_kind' && !empty($pages['inkind']);
+        $type = $t['program_assistance_type'] ?? 'cash';
+        $showCash = in_array($type, ['cash', 'both'], true) && !empty($pages['cash']);
+        $showInKind = in_array($type, ['in_kind', 'both'], true) && !empty($pages['inkind']);
         $hasReq = $showCash || $showInKind;
         $ptab = (int)$t['tab_id'];
         $programId = (int)$t['program_id'];
