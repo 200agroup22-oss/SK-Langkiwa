@@ -138,16 +138,30 @@ if (!$existing && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <?php include(__DIR__ . '/../includes/applicantnav.php') ?>
 
+    <?php require_once __DIR__ . '/../includes/applicantformsidebar.php'; ?>
+
     <div class="container-fluid" style="margin-top: 55px;">
+        <!-- Mobile: compact committee/program switcher, reachable without scrolling past the form -->
+        <div class="d-md-none mb-3">
+            <a class="btn btn-outline-success w-100 d-flex justify-content-between align-items-center" href="#mobileCommitteeMenu" data-bs-toggle="collapse" role="button" aria-expanded="false" aria-controls="mobileCommitteeMenu">
+                <span><i class="bi bi-list-ul me-2"></i>Switch Committee / Program</span>
+                <i class="bi bi-chevron-down"></i>
+            </a>
+            <div class="collapse mt-2" id="mobileCommitteeMenu">
+                <div class="sidebar sidebar-mobile border rounded p-2">
+                    <?php renderApplicantCommitteeSidebar('m-'); ?>
+                </div>
+            </div>
+        </div>
+
         <div class="row">
-            <!-- Sidebar -->
-            <div class="col-12 col-md-3 col-lg-2 sidebar order-2 order-md-1">
-                <?php $activeLink = 'EducationScholarship';
-                include(__DIR__ . '/../includes/applicantformsidebar.php'); ?>
+            <!-- Sidebar (desktop only) -->
+            <div class="d-none d-md-block col-md-3 col-lg-2 sidebar">
+                <?php renderApplicantCommitteeSidebar(); ?>
             </div>
 
             <!-- Main Content -->
-            <div class="col-12 col-md-9 col-lg-10 order-1 order-md-2">
+            <div class="col-12 col-md-9 col-lg-10">
                 <div class="form-card mx-auto" style="max-width: 850px;">
                     <h4 class="text-center mb-4">SCHOLAR APPLICATION FORM</h4>
 
