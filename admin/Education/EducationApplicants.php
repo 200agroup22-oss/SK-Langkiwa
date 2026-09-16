@@ -3,7 +3,7 @@ require_once __DIR__ . '/../../config/forms.php';
 requireRole('admin');
 
 $committeeId = getCommitteeIdByCode('education');
-$track = 'assistance';
+$track = 'scholarship'; // NOTE: confirm this matches the track code used in config/forms.php
 $me = currentUser();
 
 // Scope the whole page to one specific program tab when navigated here via a program-specific
@@ -41,7 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->close();
 
             saveDynamicSubmission($applicationId, $committeeId, $_POST, $_FILES, $track, $programId);
-            logAudit('Added Applicant', 'Education assistance applicant #' . $applicationId);
+            logAudit('Added Applicant', 'Education scholarship applicant #' . $applicationId);
             setFlash('success', 'Applicant added.');
         } else {
             setFlash('error', implode(' ', $errors));
@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors = validateDynamicSubmission($committeeId, $_POST, $_FILES, $existingFiles, $track, $appProgramId);
         if (empty($errors)) {
             saveDynamicSubmission($applicationId, $committeeId, $_POST, $_FILES, $track, $appProgramId);
-            logAudit('Updated Applicant', 'Education assistance applicant #' . $applicationId);
+            logAudit('Updated Applicant', 'Education scholarship applicant #' . $applicationId);
             setFlash('success', 'Applicant updated.');
         } else {
             setFlash('error', implode(' ', $errors));
@@ -73,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->bind_param('ii', $me['user_id'], $applicationId);
             $stmt->execute();
             $stmt->close();
-            logAudit('Approved Application', 'Education assistance applicant #' . $applicationId);
+            logAudit('Approved Application', 'Education scholarship applicant #' . $applicationId);
             setFlash('success', 'Applicant approved.');
         }
     }
@@ -85,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->bind_param('sii', $reason, $me['user_id'], $applicationId);
         $stmt->execute();
         $stmt->close();
-        logAudit('Declined Application', 'Education assistance applicant #' . $applicationId);
+        logAudit('Declined Application', 'Education scholarship applicant #' . $applicationId);
         setFlash('success', 'Applicant declined.');
     }
 
@@ -95,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->bind_param('i', $applicationId);
         $stmt->execute();
         $stmt->close();
-        logAudit('Archived Applicant', 'Education assistance applicant #' . $applicationId);
+        logAudit('Archived Applicant', 'Education scholarship applicant #' . $applicationId);
         setFlash('success', 'Applicant archived.');
     }
 
@@ -105,11 +105,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->bind_param('i', $applicationId);
         $stmt->execute();
         $stmt->close();
-        logAudit('Restored Applicant', 'Education assistance applicant #' . $applicationId);
+        logAudit('Restored Applicant', 'Education scholarship applicant #' . $applicationId);
         setFlash('success', 'Applicant restored.');
     }
 
-    header("Location: EducationAssistanceApplicants.php" . ($programId !== null ? '?program_id=' . $programId : ''));
+    header("Location: EducationApplicants.php" . ($programId !== null ? '?program_id=' . $programId : ''));
     exit();
 }
 
@@ -155,7 +155,7 @@ switch ($sortBy) {
         break;
 }
 
-$activeLink = 'EducationAssistanceApplicants';
+$activeLink = 'EducationApplicants';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -163,7 +163,7 @@ $activeLink = 'EducationAssistanceApplicants';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo e($activeProgram ? $activeProgram['name'] : 'Education Assistance'); ?> Applicants</title>
+    <title><?php echo e($activeProgram ? $activeProgram['name'] : 'Education Scholarship'); ?> Applicants</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="<?php echo APP_BASE; ?>/assets/css/admin.css" rel="stylesheet">
@@ -175,12 +175,12 @@ $activeLink = 'EducationAssistanceApplicants';
 
     <!-- Main Content -->
     <div class="main-content">
-        <h4 class="fw-bold mb-1"><?php echo e($activeProgram ? $activeProgram['name'] : 'Education Assistance'); ?> Applicants</h4>
+        <h4 class="fw-bold mb-1"><?php echo e($activeProgram ? $activeProgram['name'] : 'Education Scholarship'); ?> Applicants</h4>
         <p class="text-muted mb-2" style="font-size: 13px;">
             <?php if ($activeProgram): ?>
-                Viewing applications for the <?php echo e($activeProgram['name']); ?> program only. <a href="EducationAssistanceApplicants.php">View all Education Assistance programs</a>.
+                Viewing applications for the <?php echo e($activeProgram['name']); ?> program only. <a href="EducationApplicants.php">View all Education Scholarship programs</a>.
             <?php else: ?>
-                View applications for Education financial assistance.
+                View applications for Education scholarship.
             <?php endif; ?>
         </p>
 
@@ -253,7 +253,7 @@ $activeLink = 'EducationAssistanceApplicants';
                                 <td colspan="<?php echo !empty($committeePrograms) ? 7 : 6; ?>">
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
-                                        <p>No <?php echo e($activeProgram ? $activeProgram['name'] : 'education assistance'); ?> applications found.</p>
+                                        <p>No <?php echo e($activeProgram ? $activeProgram['name'] : 'education scholarship'); ?> applications found.</p>
                                     </div>
                                 </td>
                             </tr>
@@ -289,7 +289,7 @@ $activeLink = 'EducationAssistanceApplicants';
             <div class="modal-content border-0 shadow">
                 <form method="post" enctype="multipart/form-data">
                     <div class="modal-header">
-                        <h6 class="modal-title fw-bold"><i class="bi bi-person-plus-fill me-2"></i> Education Assistance Application Form</h6>
+                        <h6 class="modal-title fw-bold"><i class="bi bi-person-plus-fill me-2"></i> Education Scholarship Application Form</h6>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body p-4">
@@ -427,7 +427,7 @@ $activeLink = 'EducationAssistanceApplicants';
                                 <i class="bi bi-check-circle-fill" style="font-size:28px;color:#2e7d32;"></i>
                             </div>
                             <p class="fw-bold mb-1" style="font-size:14px;">Approve this applicant?</p>
-                            <p class="text-muted" style="font-size:12px; margin-bottom:0;">This applicant will be approved for Education assistance.</p>
+                            <p class="text-muted" style="font-size:12px; margin-bottom:0;">This applicant will be approved for Education scholarship.</p>
                         </div>
                         <div class="modal-footer border-0 justify-content-center gap-2">
                             <button type="button" class="btn btn-sm btn-secondary px-4" data-bs-dismiss="modal">Cancel</button>
