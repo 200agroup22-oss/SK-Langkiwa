@@ -6,7 +6,8 @@
         <!-- Logo / Brand -->
         <a class="navbar-brand d-flex align-items-center gap-2 m-0" href="<?php echo APP_BASE; ?>/scholar/Scholar.php" style="font-size: 16px; font-weight: 700; color: #fff;">
             <img src="<?php echo siteLogoUrl(); ?>" width="36" height="36" alt="Logo" class="rounded-circle border border-white border-2">
-            iSKolar ng Langkiwa
+            <span class="d-none d-sm-inline">iSKolar ng Langkiwa</span>
+            <span class="d-sm-none">iSKolar</span>
         </a>
 
         <!-- Toggle button for mobile -->

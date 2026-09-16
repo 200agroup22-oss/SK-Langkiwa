@@ -222,7 +222,7 @@ $reqError = getFlash('error');
 <body>
     <?php include(__DIR__ . '/../includes/scholarnav.php') ?>
 
-    <div class="container-fluid px-4 min-vh-100 d-flex align-items-center justify-content-center py-4">
+    <div class="container-fluid px-4 min-vh-100 d-flex flex-column align-items-center justify-content-center py-4" style="padding-top: 100px !important;">
         <div class="form-wrapper">
             <div class="form-title">REQUIREMENTS SUBMISSION</div>
             <hr class="form-divider">

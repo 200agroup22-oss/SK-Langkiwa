@@ -15,7 +15,8 @@ $roleLabel = ucfirst($me['role'] ?? 'applicant');
                 height="36"
                 alt="Logo"
                 class="rounded-circle border border-white border-2">
-            <?php echo e(siteName()); ?>
+            <span class="d-none d-sm-inline"><?php echo e(siteName()); ?></span>
+            <span class="d-sm-none">SK Langkiwa</span>
         </a>
 
         <!-- Toggle button for mobile -->
