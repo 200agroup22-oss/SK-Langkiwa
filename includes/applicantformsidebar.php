@@ -81,33 +81,32 @@ if (!function_exists('renderApplicantCommitteeSidebar')) {
         <ul class="nav flex-column">
             <?php foreach ($committeeLinks as $group): $cd = $group['def'];
                 $links = $group['links']; ?>
-                <?php if (count($links) === 1): ?>
-                    <li class="nav-item">
-                        <a class="nav-link<?php echo navLinkIsActive($links[0]['url'], $currentPath, $currentQuery) ? ' active' : ''; ?>" href="<?php echo e($links[0]['url']); ?>"><i class="bi <?php echo e($cd['icon']); ?>"></i><?php echo e($cd['label']); ?></a>
-                    </li>
-                <?php else: ?>
-                    <?php $expanded = false;
-                    foreach ($links as $l) {
-                        if (navLinkIsActive($l['url'], $currentPath, $currentQuery)) {
-                            $expanded = true;
-                        }
-                    } ?>
-                    <li class="nav-item">
-                        <a class="nav-link nav-parent-toggle<?php echo $expanded ? ' active' : ''; ?>" href="#<?php echo e($cd['menuId']); ?>" data-bs-toggle="collapse" role="button" aria-expanded="<?php echo $expanded ? 'true' : 'false'; ?>">
-                            <i class="bi <?php echo e($cd['icon']); ?>"></i><?php echo e($cd['label']); ?>
-                            <i class="bi bi-chevron-down ms-auto" style="font-size:11px;"></i>
-                        </a>
-                        <div class="collapse<?php echo $expanded ? ' show' : ''; ?>" id="<?php echo e($cd['menuId']); ?>">
-                            <ul class="nav flex-column">
-                                <?php foreach ($links as $l): ?>
-                                    <li class="nav-item">
-                                        <a class="nav-link nav-sub-link<?php echo navLinkIsActive($l['url'], $currentPath, $currentQuery) ? ' active' : ''; ?>" href="<?php echo e($l['url']); ?>"><i class="bi <?php echo e($l['icon']); ?>"></i><?php echo e($l['label']); ?></a>
-                                    </li>
-                                <?php endforeach; ?>
-                            </ul>
-                        </div>
-                    </li>
-                <?php endif; ?>
+                <?php
+                // Every committee renders as an expandable dropdown, even one with only a single
+                // program under it — kept visually consistent with Education (which always has
+                // more than one) rather than mixing direct links and dropdowns by program count.
+                $expanded = false;
+                foreach ($links as $l) {
+                    if (navLinkIsActive($l['url'], $currentPath, $currentQuery)) {
+                        $expanded = true;
+                    }
+                }
+                ?>
+                <li class="nav-item">
+                    <a class="nav-link nav-parent-toggle<?php echo $expanded ? ' active' : ''; ?>" href="#<?php echo e($cd['menuId']); ?>" data-bs-toggle="collapse" role="button" aria-expanded="<?php echo $expanded ? 'true' : 'false'; ?>">
+                        <i class="bi <?php echo e($cd['icon']); ?>"></i><?php echo e($cd['label']); ?>
+                        <i class="bi bi-chevron-down ms-auto" style="font-size:11px;"></i>
+                    </a>
+                    <div class="collapse<?php echo $expanded ? ' show' : ''; ?>" id="<?php echo e($cd['menuId']); ?>">
+                        <ul class="nav flex-column">
+                            <?php foreach ($links as $l): ?>
+                                <li class="nav-item">
+                                    <a class="nav-link nav-sub-link<?php echo navLinkIsActive($l['url'], $currentPath, $currentQuery) ? ' active' : ''; ?>" href="<?php echo e($l['url']); ?>"><i class="bi <?php echo e($l['icon']); ?>"></i><?php echo e($l['label']); ?></a>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+                </li>
             <?php endforeach; ?>
         </ul>
 <?php

@@ -180,7 +180,7 @@ if (!$existing && !$programClosed && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <?php require_once __DIR__ . '/../includes/applicantformsidebar.php'; ?>
 
-    <div class="container-fluid" style="margin-top: 55px;">
+    <div class="container-fluid" style="margin-top: 70px;">
         <!-- Mobile: compact committee/program switcher, reachable without scrolling past the form -->
         <div class="d-md-none mb-3">
             <a class="btn btn-outline-success w-100 d-flex justify-content-between align-items-center" href="#mobileCommitteeMenu" data-bs-toggle="collapse" role="button" aria-expanded="false" aria-controls="mobileCommitteeMenu">
