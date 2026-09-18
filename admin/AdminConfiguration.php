@@ -128,47 +128,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setFlash('success', 'Event deleted.');
     }
 
-    if (isset($_POST['add_announcement'])) {
-        $title = trim($_POST['title'] ?? '');
-        $message = trim($_POST['message'] ?? '');
-        if ($title === '' || $message === '') {
-            setFlash('error', 'Title and message are required.');
-        } else {
-            $stmt = $conn->prepare("INSERT INTO announcements (committee_id, title, message, sent_to, posted_by, posted_at) VALUES (NULL, ?, ?, 'all', ?, NOW())");
-            $stmt->bind_param('ssi', $title, $message, $me['user_id']);
-            $stmt->execute();
-            $newId = $stmt->insert_id;
-            $stmt->close();
-            logAudit('Posted Announcement', $title . ' (#' . $newId . ')');
-            setFlash('success', 'Announcement posted.');
-        }
-    }
-
-    if (isset($_POST['edit_announcement'])) {
-        $announcementId = (int)$_POST['announcement_id'];
-        $title = trim($_POST['title'] ?? '');
-        $message = trim($_POST['message'] ?? '');
-        if ($title === '' || $message === '') {
-            setFlash('error', 'Title and message are required.');
-        } else {
-            $stmt = $conn->prepare("UPDATE announcements SET title = ?, message = ? WHERE announcement_id = ?");
-            $stmt->bind_param('ssi', $title, $message, $announcementId);
-            $stmt->execute();
-            $stmt->close();
-            logAudit('Updated Announcement', $title . ' (#' . $announcementId . ')');
-            setFlash('success', 'Announcement updated.');
-        }
-    }
-
-    if (isset($_POST['delete_announcement'])) {
-        $announcementId = (int)$_POST['announcement_id'];
-        $stmt = $conn->prepare("UPDATE announcements SET archived_at = NOW() WHERE announcement_id = ?");
-        $stmt->bind_param('i', $announcementId);
-        $stmt->execute();
-        $stmt->close();
-        logAudit('Removed Announcement', 'Announcement #' . $announcementId);
-        setFlash('success', 'Announcement removed.');
-    }
+    // Announcement posting/editing/archiving now lives only in Content Management
+    // (AdminProgramManagement.php) — this used to be a second, more limited copy of the same
+    // feature (always General/"all", no committee, no event details).
 
     // ---- Forms tab: add/edit/reorder/remove a program's application-form fields, inline ----
     if (isset($_POST['save_field'])) {
@@ -279,7 +241,6 @@ $pageSuccess = getFlash('success');
 
 $settings = $conn->query("SELECT * FROM site_settings WHERE id = 1")->fetch_assoc();
 $importantDates = $conn->query("SELECT * FROM important_dates ORDER BY event_date ASC")->fetch_all(MYSQLI_ASSOC);
-$announcements = $conn->query("SELECT * FROM announcements WHERE archived_at IS NULL ORDER BY posted_at DESC")->fetch_all(MYSQLI_ASSOC);
 
 // ---- Application / Program Settings: slot limits per committee+track program ----
 $programTabRows = $conn->query("SELECT t.*, c.name AS committee_name FROM program_tabs t JOIN committees c ON c.committee_id = t.committee_id ORDER BY c.committee_id ASC, t.sort_order ASC")->fetch_all(MYSQLI_ASSOC);
@@ -812,38 +773,6 @@ $activeLink = 'AdminConfiguration';
                     <?php endforeach; ?>
                 </div>
 
-                <div class="divider"></div>
-
-                <!-- Announcements -->
-                <div class="mb-2 d-flex align-items-center justify-content-between flex-wrap gap-2">
-                    <div>
-                        <div class="setting-label"><i class="bi bi-bell-fill text-success me-1"></i> Announcements</div>
-                        <div class="setting-desc mt-1">Posts shown in the "Announcement" card on the applicant dashboard.</div>
-                    </div>
-                    <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addAnnouncementModal">
-                        <i class="bi bi-plus-lg me-1"></i> Add Announcement
-                    </button>
-                </div>
-
-                <div class="mt-3">
-                    <?php if (empty($announcements)): ?>
-                        <p class="text-muted text-center mb-0" style="font-size:13px;">No announcements posted yet.</p>
-                    <?php endif; ?>
-                    <?php foreach ($announcements as $a): ?>
-                        <div class="req-row" style="align-items:flex-start;">
-                            <i class="bi bi-file-earmark-text-fill mt-1"></i>
-                            <div>
-                                <div class="fw-semibold" style="font-size:13px;"><?php echo e($a['title']); ?></div>
-                                <div class="text-muted" style="font-size:12px;"><?php echo nl2br(e($a['message'])); ?></div>
-                                <div class="text-muted" style="font-size:11px;">Posted: <?php echo date('F j, Y', strtotime($a['posted_at'])); ?></div>
-                            </div>
-                            <div class="req-actions">
-                                <button class="btn-sm-icon btn-edit-req" data-bs-toggle="modal" data-bs-target="#editAnnouncementModal<?php echo $a['announcement_id']; ?>"><i class="bi bi-pencil"></i></button>
-                                <button class="btn-sm-icon btn-del-req" data-bs-toggle="modal" data-bs-target="#deleteAnnouncementModal<?php echo $a['announcement_id']; ?>"><i class="bi bi-trash"></i></button>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
             </div>
         </div><!-- /settingsTab -->
 
@@ -1200,89 +1129,6 @@ $activeLink = 'AdminConfiguration';
                         <div class="modal-footer border-0 justify-content-center">
                             <button type="button" class="btn btn-sm btn-secondary px-4" data-bs-dismiss="modal">Cancel</button>
                             <button type="submit" name="delete_date" class="btn btn-sm btn-danger px-4"><i class="bi bi-trash me-1"></i> Yes, Delete</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-    <?php endforeach; ?>
-
-    <!-- ADD ANNOUNCEMENT MODAL -->
-    <div class="modal fade" id="addAnnouncementModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered" style="max-width: 460px;">
-            <div class="modal-content border-0 shadow">
-                <form method="post">
-                    <div class="modal-header">
-                        <h6 class="modal-title fw-bold"><i class="bi bi-bell-fill me-2"></i>Add Announcement</h6>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body p-4">
-                        <div class="mb-3">
-                            <label class="form-label" style="font-size:13px; font-weight:600;">Title</label>
-                            <input type="text" class="form-control form-control-sm" name="title" placeholder="e.g. Financial Assistance Application Now Open" required>
-                        </div>
-                        <div>
-                            <label class="form-label" style="font-size:13px; font-weight:600;">Message</label>
-                            <textarea class="form-control form-control-sm" name="message" rows="3" placeholder="Write the announcement details..." required></textarea>
-                        </div>
-                    </div>
-                    <div class="modal-footer border-0">
-                        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" name="add_announcement" class="btn btn-sm btn-success"><i class="bi bi-plus-lg me-1"></i> Post</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <?php foreach ($announcements as $a): ?>
-        <!-- EDIT ANNOUNCEMENT MODAL -->
-        <div class="modal fade" id="editAnnouncementModal<?php echo $a['announcement_id']; ?>" tabindex="-1">
-            <div class="modal-dialog modal-dialog-centered" style="max-width: 460px;">
-                <div class="modal-content border-0 shadow">
-                    <form method="post">
-                        <input type="hidden" name="announcement_id" value="<?php echo $a['announcement_id']; ?>">
-                        <div class="modal-header">
-                            <h6 class="modal-title fw-bold"><i class="bi bi-pencil-square me-2"></i>Edit Announcement</h6>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                        </div>
-                        <div class="modal-body p-4">
-                            <div class="mb-3">
-                                <label class="form-label" style="font-size:13px; font-weight:600;">Title</label>
-                                <input type="text" class="form-control form-control-sm" name="title" value="<?php echo e($a['title']); ?>" required>
-                            </div>
-                            <div>
-                                <label class="form-label" style="font-size:13px; font-weight:600;">Message</label>
-                                <textarea class="form-control form-control-sm" name="message" rows="3" required><?php echo e($a['message']); ?></textarea>
-                            </div>
-                        </div>
-                        <div class="modal-footer border-0">
-                            <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                            <button type="submit" name="edit_announcement" class="btn btn-sm btn-success"><i class="bi bi-save me-1"></i> Save Changes</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-
-        <!-- DELETE ANNOUNCEMENT MODAL -->
-        <div class="modal fade" id="deleteAnnouncementModal<?php echo $a['announcement_id']; ?>" tabindex="-1">
-            <div class="modal-dialog modal-dialog-centered" style="max-width: 380px;">
-                <div class="modal-content border-0 shadow">
-                    <form method="post">
-                        <input type="hidden" name="announcement_id" value="<?php echo $a['announcement_id']; ?>">
-                        <div class="modal-header" style="background: linear-gradient(90deg, #e53935, #ef9a9a);">
-                            <h6 class="modal-title fw-bold text-white"><i class="bi bi-trash-fill me-2"></i>Delete Announcement</h6>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter: brightness(0) invert(1);"></button>
-                        </div>
-                        <div class="modal-body p-4 text-center">
-                            <i class="bi bi-exclamation-triangle-fill text-warning" style="font-size: 36px;"></i>
-                            <p class="mt-3 mb-1 fw-bold" style="font-size:14px;">Delete this announcement?</p>
-                            <p class="text-muted mb-0" style="font-size:12px;">This post will be removed from the applicant dashboard.</p>
-                        </div>
-                        <div class="modal-footer border-0 justify-content-center">
-                            <button type="button" class="btn btn-sm btn-secondary px-4" data-bs-dismiss="modal">Cancel</button>
-                            <button type="submit" name="delete_announcement" class="btn btn-sm btn-danger px-4"><i class="bi bi-trash me-1"></i> Yes, Delete</button>
                         </div>
                     </form>
                 </div>

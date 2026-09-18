@@ -157,13 +157,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setFlash('success', 'Program restored.');
     }
 
-    // -- Announcements --
-    if (isset($_POST['add_announcement'])) {
+    // -- Announcements (the only place in the admin that can post one — Configuration's old
+    // "Announcements" section was a second, more limited copy of this same feature and has been
+    // removed in favor of this single one) --
+    if (isset($_POST['save_announcement'])) {
+        $announcementId = (int)($_POST['announcement_id'] ?? 0);
         $committeeId = $_POST['committee_id'] !== '' ? (int)$_POST['committee_id'] : null;
         $title = trim($_POST['title'] ?? '');
         $message = trim($_POST['message'] ?? '');
-        $eventDate = $_POST['event_date'] !== '' ? $_POST['event_date'] : null;
-        $eventTime = $_POST['event_time'] !== '' ? $_POST['event_time'] : null;
+        $eventDate = !empty($_POST['event_date']) ? $_POST['event_date'] : null;
+        $eventTime = !empty($_POST['event_time']) ? $_POST['event_time'] : null;
         $eventWhere = trim($_POST['event_where'] ?? '');
         $notes = trim($_POST['notes'] ?? '');
         $sentTo = in_array($_POST['sent_to'] ?? 'all', ['all', 'scholars', 'applicants', 'specific'], true) ? $_POST['sent_to'] : 'all';
@@ -171,6 +174,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($title === '' || $message === '') {
             setFlash('error', 'Title and message are required.');
+        } elseif ($announcementId > 0) {
+            $stmt = $conn->prepare("UPDATE announcements SET committee_id = ?, title = ?, message = ?, event_date = ?, event_time = ?, event_where = ?, notes = ?, sent_to = ?, specific_target = ? WHERE announcement_id = ?");
+            $stmt->bind_param('i' . str_repeat('s', 8) . 'i', $committeeId, $title, $message, $eventDate, $eventTime, $eventWhere, $notes, $sentTo, $specificTarget, $announcementId);
+            $stmt->execute();
+            $stmt->close();
+            logAudit('Updated Announcement', $title . ' (#' . $announcementId . ')');
+            setFlash('success', 'Announcement updated.');
         } else {
             $stmt = $conn->prepare("INSERT INTO announcements (committee_id, title, message, event_date, event_time, event_where, notes, sent_to, specific_target, posted_by, posted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
             $stmt->bind_param('issssssssi', $committeeId, $title, $message, $eventDate, $eventTime, $eventWhere, $notes, $sentTo, $specificTarget, $me['user_id']);
@@ -188,8 +198,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->bind_param('i', $announcementId);
         $stmt->execute();
         $stmt->close();
-        logAudit('Removed Announcement', 'Announcement #' . $announcementId);
-        setFlash('success', 'Announcement removed.');
+        logAudit('Archived Announcement', 'Announcement #' . $announcementId);
+        setFlash('success', 'Announcement archived.');
+    }
+
+    if (isset($_POST['restore_announcement'])) {
+        $announcementId = (int)$_POST['announcement_id'];
+        $stmt = $conn->prepare("UPDATE announcements SET archived_at = NULL WHERE announcement_id = ?");
+        $stmt->bind_param('i', $announcementId);
+        $stmt->execute();
+        $stmt->close();
+        logAudit('Restored Announcement', 'Announcement #' . $announcementId);
+        setFlash('success', 'Announcement restored.');
     }
 
     // -- Site Settings (this tab owns: site_name, tagline, welcome_message, contact_number, email, sk_office_address, facebook_url, allow_public_applications, show_announcements, current_academic_year, current_semester, requirements_deadline, requirements_open) --
@@ -278,12 +298,14 @@ foreach ($allPrograms as $p) {
 
 $archivedPrograms = $conn->query("SELECT p.*, c.name AS committee_name FROM programs p LEFT JOIN committees c ON c.committee_id = p.committee_id WHERE p.archived_at IS NOT NULL ORDER BY p.archived_at DESC")->fetch_all(MYSQLI_ASSOC);
 
-$announcements = $conn->query("SELECT a.*, c.name AS committee_name, c.icon AS committee_icon FROM announcements a LEFT JOIN committees c ON c.committee_id = a.committee_id WHERE a.archived_at IS NULL ORDER BY a.posted_at DESC")->fetch_all(MYSQLI_ASSOC);
+$announcements = $conn->query("SELECT a.*, c.name AS committee_name, c.icon AS committee_icon FROM announcements a LEFT JOIN committees c ON c.committee_id = a.committee_id WHERE a.archived_at IS NULL ORDER BY a.announcement_id ASC")->fetch_all(MYSQLI_ASSOC);
 $announcementsByGroup = []; // key: committee_id or 'general'
 foreach ($announcements as $a) {
     $key = $a['committee_id'] !== null ? (int)$a['committee_id'] : 'general';
     $announcementsByGroup[$key][] = $a;
 }
+
+$archivedAnnouncements = $conn->query("SELECT a.*, c.name AS committee_name FROM announcements a LEFT JOIN committees c ON c.committee_id = a.committee_id WHERE a.archived_at IS NOT NULL ORDER BY a.archived_at DESC")->fetch_all(MYSQLI_ASSOC);
 
 $settings = $conn->query("SELECT * FROM site_settings WHERE id = 1")->fetch_assoc();
 
@@ -307,6 +329,8 @@ $statCommittees = count($committees);
 $statTotalPrograms = count($allPrograms) + $statBuiltInTotal;
 $statActivePrograms = count(array_filter($allPrograms, fn($p) => $p['status'] === 'active')) + $statBuiltInActive;
 $statAnnouncements = count($announcements);
+
+$sendToLabel = ['all' => 'All Users', 'scholars' => 'Scholars Only', 'applicants' => 'Applicants Only', 'specific' => 'Specific User'];
 
 function assistLabel($type)
 {
@@ -652,6 +676,38 @@ $activeLink = 'AdminProgramManagement';
         .builtin-tab-item {
             border-color: #d8cdf2;
             background: #faf8ff;
+        }
+
+        /* Announcement view-modal preview (matches EducationAnnouncement.php's own copy of this) */
+        .ann-preview {
+            background: #e8f5e9;
+            border-left: 4px solid #45b84d;
+            border-radius: 6px;
+            padding: 14px 16px;
+        }
+
+        .ann-title {
+            font-weight: 700;
+            font-size: 14px;
+            margin-bottom: 6px;
+        }
+
+        .ann-body {
+            font-size: 13px;
+            color: #444;
+            margin-bottom: 8px;
+        }
+
+        .ann-detail {
+            font-size: 12px;
+            color: #333;
+            margin-bottom: 2px;
+        }
+
+        .ann-meta {
+            font-size: 11px;
+            color: #888;
+            margin-top: 6px;
         }
 
         .builtin-tag {
@@ -1021,7 +1077,10 @@ $activeLink = 'AdminProgramManagement';
         <!-- TAB: Announcements -->
         <div class="tab-pane-custom" id="announcementsTab">
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-                <button class="btn-brand" data-bs-toggle="modal" data-bs-target="#addAnnouncementModal"><i class="bi bi-plus-lg me-1"></i> Add Announcement</button>
+                <div class="d-flex flex-wrap gap-2">
+                    <button class="btn-brand" onclick="openAddAnnouncement()" data-bs-toggle="modal" data-bs-target="#addAnnouncementModal"><i class="bi bi-plus-lg me-1"></i> Add Announcement</button>
+                    <button class="btn-outline-brand" data-bs-toggle="modal" data-bs-target="#archivesAnnouncementModal"><i class="bi bi-archive me-1"></i> Announcement Archives</button>
+                </div>
                 <div class="search-box">
                     <i class="bi bi-search"></i>
                     <input type="text" class="form-control" id="announcementSearchInput" placeholder="Search announcement...">
@@ -1029,12 +1088,17 @@ $activeLink = 'AdminProgramManagement';
             </div>
 
             <div id="announcementsContainer">
-                <?php if (empty($announcements)): ?>
-                    <div class="empty-committee">No announcements posted yet.</div>
-                <?php endif; ?>
-                <?php foreach ($committees as $c): $cid = (int)$c['committee_id'];
-                    $group = $announcementsByGroup[$cid] ?? [];
-                    if (empty($group)) continue; ?>
+                <?php
+                // Same per-committee layout as Committees & Programs — every committee gets its own
+                // section (even with zero announcements), plus a trailing General section for
+                // announcements not tied to any one committee.
+                $announcementSections = $committees;
+                $announcementSections[] = ['committee_id' => null, 'name' => 'General', 'icon' => 'bi-globe2'];
+                foreach ($announcementSections as $c):
+                    $cid = $c['committee_id'] !== null ? (int)$c['committee_id'] : null;
+                    $groupKey = $cid ?? 'general';
+                    $group = $announcementsByGroup[$groupKey] ?? [];
+                ?>
                     <div class="committee-block">
                         <div class="committee-block-header">
                             <div class="title">
@@ -1042,52 +1106,50 @@ $activeLink = 'AdminProgramManagement';
                                 <?php echo e($c['name']); ?>
                                 <span class="committee-count-badge"><?php echo count($group); ?></span>
                             </div>
+                            <button type="button" class="btn-outline-brand add-announcement-for-committee" data-committee="<?php echo e($cid ?? ''); ?>"><i class="bi bi-plus-lg me-1"></i> Add Announcement</button>
                         </div>
                         <div class="committee-block-body">
-                            <?php foreach ($group as $a): ?>
-                                <div class="announcement-card" data-title="<?php echo e(strtolower($a['title'])); ?>">
-                                    <div class="a-title"><i class="bi bi-megaphone-fill me-1" style="color:#45b84d;"></i><?php echo e($a['title']); ?></div>
-                                    <div class="a-msg"><?php echo nl2br(e($a['message'])); ?></div>
-                                    <div class="a-meta">
-                                        <i class="bi bi-calendar3"></i> <?php echo date('M j, Y', strtotime($a['posted_at'])); ?>
-                                        <span><i class="bi bi-send me-1"></i>To: <?php echo e(ucfirst($a['sent_to'])); ?></span>
-                                        <form method="post" class="ms-auto" onsubmit="return confirm('Remove this announcement?');">
-                                            <input type="hidden" name="announcement_id" value="<?php echo $a['announcement_id']; ?>">
-                                            <button type="submit" name="archive_announcement" class="action-btn btn-archive-program"><i class="bi bi-trash"></i> Remove</button>
-                                        </form>
-                                    </div>
+                            <div class="table-card">
+                                <div class="table-responsive-wrap">
+                                    <table class="table mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>ID</th>
+                                                <th>Title</th>
+                                                <th>Sent To</th>
+                                                <th>Date Posted</th>
+                                                <th>Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php if (empty($group)): ?>
+                                                <tr>
+                                                    <td colspan="5" class="text-center text-muted py-3">No announcements yet for <?php echo e($c['name']); ?>.</td>
+                                                </tr>
+                                            <?php endif; ?>
+                                            <?php foreach ($group as $a): ?>
+                                                <tr class="announcement-row" data-announcement-id="<?php echo (int)$a['announcement_id']; ?>" data-title="<?php echo e(strtolower($a['title'])); ?>" data-date="<?php echo strtotime($a['posted_at']); ?>" data-sent-to="<?php echo e($a['sent_to']); ?>">
+                                                    <td><?php echo str_pad($a['announcement_id'], 3, '0', STR_PAD_LEFT); ?></td>
+                                                    <td><?php echo e($a['title']); ?></td>
+                                                    <td><?php echo e($sendToLabel[$a['sent_to']] ?? $a['sent_to']); ?></td>
+                                                    <td><?php echo date('F j, Y', strtotime($a['posted_at'])); ?></td>
+                                                    <td class="d-flex gap-1">
+                                                        <button type="button" class="btn-view" data-bs-toggle="modal" data-bs-target="#viewAnnouncementModal<?php echo $a['announcement_id']; ?>"><i class="bi bi-eye"></i> View</button>
+                                                        <button type="button" class="btn-edit" onclick='openEditAnnouncement(<?php echo json_encode($a); ?>)' data-bs-toggle="modal" data-bs-target="#addAnnouncementModal"><i class="bi bi-pencil"></i> Edit</button>
+                                                        <form method="post" class="d-inline" onsubmit="return confirm('Archive this announcement? It will no longer be shown to applicants/scholars.');">
+                                                            <input type="hidden" name="announcement_id" value="<?php echo $a['announcement_id']; ?>">
+                                                            <button type="submit" name="archive_announcement" class="action-btn btn-archive-program"><i class="bi bi-archive"></i> Archive</button>
+                                                        </form>
+                                                    </td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
                                 </div>
-                            <?php endforeach; ?>
+                            </div>
                         </div>
                     </div>
                 <?php endforeach; ?>
-                <?php if (!empty($announcementsByGroup['general'])): ?>
-                    <div class="committee-block">
-                        <div class="committee-block-header">
-                            <div class="title">
-                                <span class="committee-icon-badge"><i class="bi bi-globe2"></i></span>
-                                General
-                                <span class="committee-count-badge"><?php echo count($announcementsByGroup['general']); ?></span>
-                            </div>
-                        </div>
-                        <div class="committee-block-body">
-                            <?php foreach ($announcementsByGroup['general'] as $a): ?>
-                                <div class="announcement-card" data-title="<?php echo e(strtolower($a['title'])); ?>">
-                                    <div class="a-title"><i class="bi bi-megaphone-fill me-1" style="color:#45b84d;"></i><?php echo e($a['title']); ?></div>
-                                    <div class="a-msg"><?php echo nl2br(e($a['message'])); ?></div>
-                                    <div class="a-meta">
-                                        <i class="bi bi-calendar3"></i> <?php echo date('M j, Y', strtotime($a['posted_at'])); ?>
-                                        <span><i class="bi bi-send me-1"></i>To: <?php echo e(ucfirst($a['sent_to'])); ?></span>
-                                        <form method="post" class="ms-auto" onsubmit="return confirm('Remove this announcement?');">
-                                            <input type="hidden" name="announcement_id" value="<?php echo $a['announcement_id']; ?>">
-                                            <button type="submit" name="archive_announcement" class="action-btn btn-archive-program"><i class="bi bi-trash"></i> Remove</button>
-                                        </form>
-                                    </div>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
-                <?php endif; ?>
             </div>
         </div>
 
@@ -1503,23 +1565,24 @@ $activeLink = 'AdminProgramManagement';
         </div>
     <?php endforeach; ?>
 
-    <!-- Add Announcement Modal -->
+    <!-- Add/Edit Announcement Modal (shared — openAddAnnouncement()/openEditAnnouncement() below swap it between the two) -->
     <div class="modal fade" id="addAnnouncementModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content" style="border-radius:12px; border:none;">
                 <form method="post">
+                    <input type="hidden" name="announcement_id" id="announcementIdInput" value="">
                     <div class="modal-header" style="background:linear-gradient(90deg,#45b84d,#aadaad); border-radius:12px 12px 0 0;">
-                        <h5 class="modal-title text-white fw-bold"><i class="bi bi-bell-fill me-2"></i> Add Announcement</h5>
+                        <h5 class="modal-title text-white fw-bold" id="announcementModalTitle"><i class="bi bi-bell-fill me-2"></i> Add Announcement</h5>
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body p-4">
                         <div class="mb-3">
                             <label class="form-label">Title</label>
-                            <input type="text" class="form-control" name="title" placeholder="e.g., Deadline Extension for Scholarship Applications" required>
+                            <input type="text" class="form-control" name="title" id="announcementTitleInput" placeholder="e.g., Deadline Extension for Scholarship Applications" required>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Committee</label>
-                            <select class="form-select" name="committee_id">
+                            <select class="form-select" name="committee_id" id="announcementCommitteeSelect">
                                 <option value="">General (All Committees)</option>
                                 <?php foreach ($committees as $c): ?>
                                     <option value="<?php echo $c['committee_id']; ?>"><?php echo e($c['name']); ?></option>
@@ -1528,20 +1591,20 @@ $activeLink = 'AdminProgramManagement';
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Message</label>
-                            <textarea class="form-control" name="message" rows="3" placeholder="Write the announcement details" required></textarea>
+                            <textarea class="form-control" name="message" id="announcementMessageInput" rows="3" placeholder="Write the announcement details" required></textarea>
                         </div>
                         <div class="row g-2 mb-3">
                             <div class="col-md-6">
                                 <label class="form-label">Event Date</label>
-                                <input type="date" class="form-control" name="event_date">
+                                <input type="date" class="form-control" name="event_date" id="announcementEventDateInput">
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Event Time</label>
-                                <input type="time" class="form-control" name="event_time">
+                                <input type="time" class="form-control" name="event_time" id="announcementEventTimeInput">
                             </div>
                             <div class="col-12">
                                 <label class="form-label">Venue</label>
-                                <input type="text" class="form-control" name="event_where" placeholder="e.g., Barangay Hall">
+                                <input type="text" class="form-control" name="event_where" id="announcementEventWhereInput" placeholder="e.g., Barangay Hall">
                             </div>
                         </div>
                         <div class="mb-3">
@@ -1555,18 +1618,115 @@ $activeLink = 'AdminProgramManagement';
                         </div>
                         <div class="mb-1">
                             <label class="form-label">Specific Target <span class="text-muted fw-normal">(if applicable)</span></label>
-                            <input type="text" class="form-control" name="specific_target" placeholder="e.g., 4th year scholars only">
+                            <input type="text" class="form-control" name="specific_target" id="announcementSpecificTargetInput" placeholder="e.g., 4th year scholars only">
                         </div>
                         <div class="mb-1 mt-2">
                             <label class="form-label">Notes</label>
-                            <input type="text" class="form-control" name="notes" placeholder="Optional internal notes">
+                            <input type="text" class="form-control" name="notes" id="announcementNotesInput" placeholder="Optional internal notes">
                         </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn-outline-brand" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" name="add_announcement" class="btn-brand">Post Announcement</button>
+                        <button type="submit" name="save_announcement" class="btn-brand">Save</button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- View Announcement Modals -->
+    <?php foreach ($announcements as $a): ?>
+        <div class="modal fade" id="viewAnnouncementModal<?php echo $a['announcement_id']; ?>" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content border-0 shadow">
+                    <div class="modal-header">
+                        <h6 class="modal-title fw-bold"><i class="bi bi-bell-fill me-2"></i>Announcement Details</h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <div class="row g-3 mb-3">
+                            <div class="col-6">
+                                <div class="info-label">Announcement ID</div>
+                                <div class="info-value"><?php echo str_pad($a['announcement_id'], 3, '0', STR_PAD_LEFT); ?></div>
+                            </div>
+                            <div class="col-6">
+                                <div class="info-label">Committee</div>
+                                <div class="info-value"><?php echo e($a['committee_name'] ?? 'General'); ?></div>
+                            </div>
+                            <div class="col-6">
+                                <div class="info-label">Date Posted</div>
+                                <div class="info-value"><?php echo date('F j, Y', strtotime($a['posted_at'])); ?></div>
+                            </div>
+                            <div class="col-6">
+                                <div class="info-label">Sent To</div>
+                                <div class="info-value"><?php echo e($sendToLabel[$a['sent_to']] ?? $a['sent_to']); ?><?php echo $a['sent_to'] === 'specific' ? ' (' . e($a['specific_target']) . ')' : ''; ?></div>
+                            </div>
+                        </div>
+                        <div class="section-divider">Preview (as seen by applicants/scholars)</div>
+                        <div class="ann-preview">
+                            <div class="ann-title"><?php echo e($a['title']); ?></div>
+                            <div class="ann-body"><?php echo nl2br(e($a['message'])); ?></div>
+                            <?php if ($a['event_date']): ?><div class="ann-detail"><strong>When:</strong> <?php echo date('F j, Y', strtotime($a['event_date'])); ?><?php echo $a['event_time'] ? ' — ' . date('g:i A', strtotime($a['event_time'])) : ''; ?></div><?php endif; ?>
+                            <?php if ($a['event_where']): ?><div class="ann-detail"><strong>Where:</strong> <?php echo e($a['event_where']); ?></div><?php endif; ?>
+                            <?php if ($a['notes']): ?><div class="ann-detail"><strong>Note:</strong> <?php echo e($a['notes']); ?></div><?php endif; ?>
+                            <div class="ann-meta">Posted: <?php echo date('F j, Y', strtotime($a['posted_at'])); ?></div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-0">
+                        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    <?php endforeach; ?>
+
+    <!-- Announcement Archives Modal -->
+    <div class="modal fade" id="archivesAnnouncementModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content" style="border-radius:12px; border:none;">
+                <div class="modal-header" style="background:linear-gradient(90deg,#45b84d,#aadaad); border-radius:12px 12px 0 0;">
+                    <h5 class="modal-title text-white fw-bold"><i class="bi bi-archive-fill me-2"></i> Archived Announcements</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="table-card">
+                        <table class="table mb-0" style="font-size:13px;">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Title</th>
+                                    <th>Committee</th>
+                                    <th>Archived On</th>
+                                    <th class="text-center">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (empty($archivedAnnouncements)): ?>
+                                    <tr>
+                                        <td colspan="5" class="text-center text-muted">No archived announcements.</td>
+                                    </tr>
+                                <?php endif; ?>
+                                <?php foreach ($archivedAnnouncements as $a): ?>
+                                    <tr>
+                                        <td><?php echo str_pad($a['announcement_id'], 3, '0', STR_PAD_LEFT); ?></td>
+                                        <td><?php echo e($a['title']); ?></td>
+                                        <td><?php echo e($a['committee_name'] ?? 'General'); ?></td>
+                                        <td><?php echo date('Y-m-d H:i', strtotime($a['archived_at'])); ?></td>
+                                        <td class="text-center">
+                                            <form method="post">
+                                                <input type="hidden" name="announcement_id" value="<?php echo $a['announcement_id']; ?>">
+                                                <button type="submit" name="restore_announcement" class="btn btn-sm btn-outline-success py-0 px-2" style="font-size:11px;"><i class="bi bi-arrow-counterclockwise"></i> Restore</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-outline-brand" data-bs-dismiss="modal">Close</button>
+                </div>
             </div>
         </div>
     </div>
@@ -1743,13 +1903,54 @@ $activeLink = 'AdminProgramManagement';
                 boxesInForm.forEach(b => b.setCustomValidity(anyChecked ? '' : 'Select at least one assistance type.'));
             });
         });
+        // Add/Edit Announcement modal — one shared modal, reset to a blank "Add" state or
+        // populated into an "Edit" state depending on which button opened it.
+        function openAddAnnouncement(committeeId) {
+            document.getElementById('announcementIdInput').value = '';
+            document.getElementById('announcementTitleInput').value = '';
+            document.getElementById('announcementCommitteeSelect').value = committeeId || '';
+            document.getElementById('announcementMessageInput').value = '';
+            document.getElementById('announcementEventDateInput').value = '';
+            document.getElementById('announcementEventTimeInput').value = '';
+            document.getElementById('announcementEventWhereInput').value = '';
+            document.getElementById('announcementSpecificTargetInput').value = '';
+            document.getElementById('announcementNotesInput').value = '';
+            document.getElementById('announcementSentTo').value = 'all';
+            document.getElementById('announcementModalTitle').innerHTML = '<i class="bi bi-bell-fill me-2"></i> Add Announcement';
+        }
+
+        function openEditAnnouncement(a) {
+            document.getElementById('announcementIdInput').value = a.announcement_id;
+            document.getElementById('announcementTitleInput').value = a.title;
+            document.getElementById('announcementCommitteeSelect').value = a.committee_id || '';
+            document.getElementById('announcementMessageInput').value = a.message || '';
+            document.getElementById('announcementEventDateInput').value = a.event_date || '';
+            document.getElementById('announcementEventTimeInput').value = a.event_time || '';
+            document.getElementById('announcementEventWhereInput').value = a.event_where || '';
+            document.getElementById('announcementSpecificTargetInput').value = a.specific_target || '';
+            document.getElementById('announcementNotesInput').value = a.notes || '';
+            document.getElementById('announcementSentTo').value = a.sent_to || 'all';
+            document.getElementById('announcementModalTitle').innerHTML = '<i class="bi bi-pencil-square me-2"></i> Edit Announcement';
+        }
+
+        // "Add Announcement" button inside a committee block preselects that committee
+        document.querySelectorAll('.add-announcement-for-committee').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                openAddAnnouncement(btn.dataset.committee);
+                const modalEl = document.getElementById('addAnnouncementModal');
+                bootstrap.Modal.getOrCreateInstance(modalEl).show();
+            });
+        });
+
+        // Client-side search (Announcements tab) — filters every committee section's table rows
+        // by title, same pattern as the Programs tab above.
         const announcementSearchInput = document.getElementById('announcementSearchInput');
         if (announcementSearchInput) {
             announcementSearchInput.addEventListener('input', function() {
                 const q = this.value.trim().toLowerCase();
-                document.querySelectorAll('#announcementsContainer .announcement-card').forEach(function(card) {
-                    const match = !q || (card.dataset.title || '').includes(q);
-                    card.style.display = match ? '' : 'none';
+                document.querySelectorAll('#announcementsContainer .announcement-row').forEach(function(row) {
+                    const match = !q || (row.dataset.title || '').includes(q);
+                    row.style.display = match ? '' : 'none';
                 });
             });
         }
