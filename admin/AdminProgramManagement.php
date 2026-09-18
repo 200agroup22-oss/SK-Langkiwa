@@ -1567,67 +1567,90 @@ $activeLink = 'AdminProgramManagement';
 
     <!-- Add/Edit Announcement Modal (shared — openAddAnnouncement()/openEditAnnouncement() below swap it between the two) -->
     <div class="modal fade" id="addAnnouncementModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content" style="border-radius:12px; border:none;">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content border-0 shadow">
                 <form method="post">
                     <input type="hidden" name="announcement_id" id="announcementIdInput" value="">
-                    <div class="modal-header" style="background:linear-gradient(90deg,#45b84d,#aadaad); border-radius:12px 12px 0 0;">
-                        <h5 class="modal-title text-white fw-bold" id="announcementModalTitle"><i class="bi bi-bell-fill me-2"></i> Add Announcement</h5>
-                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    <div class="modal-header">
+                        <h6 class="modal-title fw-bold" id="announcementModalTitle"><i class="bi bi-plus-circle-fill me-2"></i>Add Announcement</h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body p-4">
-                        <div class="mb-3">
-                            <label class="form-label">Title</label>
-                            <input type="text" class="form-control" name="title" id="announcementTitleInput" placeholder="e.g., Deadline Extension for Scholarship Applications" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Committee</label>
-                            <select class="form-select" name="committee_id" id="announcementCommitteeSelect">
-                                <option value="">General (All Committees)</option>
-                                <?php foreach ($committees as $c): ?>
-                                    <option value="<?php echo $c['committee_id']; ?>"><?php echo e($c['name']); ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Message</label>
-                            <textarea class="form-control" name="message" id="announcementMessageInput" rows="3" placeholder="Write the announcement details" required></textarea>
-                        </div>
-                        <div class="row g-2 mb-3">
-                            <div class="col-md-6">
-                                <label class="form-label">Event Date</label>
-                                <input type="date" class="form-control" name="event_date" id="announcementEventDateInput">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Event Time</label>
-                                <input type="time" class="form-control" name="event_time" id="announcementEventTimeInput">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label mb-2" style="font-size:13px; font-weight:700; color:#2e7d32;"><i class="bi bi-send-fill"></i> Send To</label>
+                                <div class="border rounded-2 overflow-hidden">
+                                    <label class="d-flex align-items-center gap-3 px-3 py-2 border-bottom" style="cursor:pointer; margin:0;">
+                                        <input type="radio" name="sent_to" value="all" id="sendToAll" style="accent-color:#2e7d32; flex-shrink:0;">
+                                        <div>
+                                            <div style="font-size:13px; font-weight:600; color:#1b5e20;">All Users</div>
+                                        </div>
+                                    </label>
+                                    <label class="d-flex align-items-center gap-3 px-3 py-2 border-bottom" style="cursor:pointer; margin:0;">
+                                        <input type="radio" name="sent_to" value="scholars" id="sendToScholars" style="accent-color:#2e7d32; flex-shrink:0;">
+                                        <div>
+                                            <div style="font-size:13px; font-weight:600; color:#1b5e20;">Scholars Only</div>
+                                        </div>
+                                    </label>
+                                    <label class="d-flex align-items-center gap-3 px-3 py-2 border-bottom" style="cursor:pointer; margin:0;">
+                                        <input type="radio" name="sent_to" value="applicants" id="sendToApplicants" style="accent-color:#2e7d32; flex-shrink:0;">
+                                        <div>
+                                            <div style="font-size:13px; font-weight:600; color:#1b5e20;">Applicants Only</div>
+                                        </div>
+                                    </label>
+                                    <label class="d-flex align-items-center gap-3 px-3 py-2" style="cursor:pointer; margin:0;">
+                                        <input type="radio" name="sent_to" value="specific" id="sendToSpecific" style="accent-color:#2e7d32; flex-shrink:0;">
+                                        <div>
+                                            <div style="font-size:13px; font-weight:600; color:#1b5e20;">Specific User</div>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="mt-2">
+                                    <label class="form-label" style="font-size:13px; font-weight:600;">User ID or Email <span class="text-muted fw-normal">(if Specific User)</span></label>
+                                    <input type="text" class="form-control form-control-sm" name="specific_target" id="announcementSpecificTargetInput" placeholder="e.g. juan@email.com">
+                                </div>
                             </div>
                             <div class="col-12">
-                                <label class="form-label">Venue</label>
-                                <input type="text" class="form-control" name="event_where" id="announcementEventWhereInput" placeholder="e.g., Barangay Hall">
+                                <hr class="my-1">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label" style="font-size:13px; font-weight:600;">Title</label>
+                                <input type="text" class="form-control form-control-sm" name="title" id="announcementTitleInput" required>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label" style="font-size:13px; font-weight:600;">Committee</label>
+                                <select class="form-select form-select-sm" name="committee_id" id="announcementCommitteeSelect">
+                                    <option value="">General (All Committees)</option>
+                                    <?php foreach ($committees as $c): ?>
+                                        <option value="<?php echo $c['committee_id']; ?>"><?php echo e($c['name']); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" style="font-size:13px; font-weight:600;">Date <span class="text-muted fw-normal">(optional)</span></label>
+                                <input type="date" class="form-control form-control-sm" name="event_date" id="announcementEventDateInput">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" style="font-size:13px; font-weight:600;">Time <span class="text-muted fw-normal">(optional)</span></label>
+                                <input type="time" class="form-control form-control-sm" name="event_time" id="announcementEventTimeInput">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label" style="font-size:13px; font-weight:600;">Where <span class="text-muted fw-normal">(optional)</span></label>
+                                <input type="text" class="form-control form-control-sm" name="event_where" id="announcementEventWhereInput">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label" style="font-size:13px; font-weight:600;">Notes / Reminder <span class="text-muted fw-normal">(optional)</span></label>
+                                <input type="text" class="form-control form-control-sm" name="notes" id="announcementNotesInput">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label" style="font-size:13px; font-weight:600;">Description</label>
+                                <textarea class="form-control form-control-sm" name="message" id="announcementMessageInput" rows="4" required></textarea>
                             </div>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label">Send To</label>
-                            <select class="form-select" name="sent_to" id="announcementSentTo">
-                                <option value="all">Everyone</option>
-                                <option value="scholars">Scholars only</option>
-                                <option value="applicants">Applicants only</option>
-                                <option value="specific">Specific target</option>
-                            </select>
-                        </div>
-                        <div class="mb-1">
-                            <label class="form-label">Specific Target <span class="text-muted fw-normal">(if applicable)</span></label>
-                            <input type="text" class="form-control" name="specific_target" id="announcementSpecificTargetInput" placeholder="e.g., 4th year scholars only">
-                        </div>
-                        <div class="mb-1 mt-2">
-                            <label class="form-label">Notes</label>
-                            <input type="text" class="form-control" name="notes" id="announcementNotesInput" placeholder="Optional internal notes">
-                        </div>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn-outline-brand" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" name="save_announcement" class="btn-brand">Save</button>
+                    <div class="modal-footer border-0">
+                        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" name="save_announcement" class="btn btn-sm btn-success"><i class="bi bi-send-fill me-1"></i> Save</button>
                     </div>
                 </form>
             </div>
@@ -1903,6 +1926,7 @@ $activeLink = 'AdminProgramManagement';
                 boxesInForm.forEach(b => b.setCustomValidity(anyChecked ? '' : 'Select at least one assistance type.'));
             });
         });
+
         // Add/Edit Announcement modal — one shared modal, reset to a blank "Add" state or
         // populated into an "Edit" state depending on which button opened it.
         function openAddAnnouncement(committeeId) {
@@ -1915,8 +1939,8 @@ $activeLink = 'AdminProgramManagement';
             document.getElementById('announcementEventWhereInput').value = '';
             document.getElementById('announcementSpecificTargetInput').value = '';
             document.getElementById('announcementNotesInput').value = '';
-            document.getElementById('announcementSentTo').value = 'all';
-            document.getElementById('announcementModalTitle').innerHTML = '<i class="bi bi-bell-fill me-2"></i> Add Announcement';
+            document.getElementById('sendToAll').checked = true;
+            document.getElementById('announcementModalTitle').innerHTML = '<i class="bi bi-plus-circle-fill me-2"></i>Add Announcement';
         }
 
         function openEditAnnouncement(a) {
@@ -1929,8 +1953,10 @@ $activeLink = 'AdminProgramManagement';
             document.getElementById('announcementEventWhereInput').value = a.event_where || '';
             document.getElementById('announcementSpecificTargetInput').value = a.specific_target || '';
             document.getElementById('announcementNotesInput').value = a.notes || '';
-            document.getElementById('announcementSentTo').value = a.sent_to || 'all';
-            document.getElementById('announcementModalTitle').innerHTML = '<i class="bi bi-pencil-square me-2"></i> Edit Announcement';
+            const sentTo = a.sent_to || 'all';
+            const radio = document.getElementById('sendTo' + sentTo.charAt(0).toUpperCase() + sentTo.slice(1));
+            if (radio) radio.checked = true;
+            document.getElementById('announcementModalTitle').innerHTML = '<i class="bi bi-pencil-square me-2"></i>Edit Announcement';
         }
 
         // "Add Announcement" button inside a committee block preselects that committee
