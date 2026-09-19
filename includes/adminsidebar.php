@@ -227,7 +227,7 @@ function collapseAttrs($expanded)
         <!-- EDUCATION COMMITTEE -->
         <?php
         $eduExpanded = groupExpanded('Education');
-        $iskolarExpanded = groupExpanded(['EducationApplicants', 'EducationScholarList', 'EducationAllowanceDistribution', 'EducationActivities', 'EducationAnnouncement']);
+        $iskolarExpanded = groupExpanded(['EducationApplicants', 'EducationScholarList', 'EducationAllowanceDistribution', 'EducationActivities']);
         $eduAssistExpanded = $isBaseProgramView && groupExpanded(['EducationAssistanceApplicants', 'EducationCashAssistance', 'EducationInKindAssistance']);
         $eduAssistReqExpanded = $isBaseProgramView && groupExpanded(['EducationCashAssistance', 'EducationInKindAssistance']);
         ?>
@@ -248,7 +248,6 @@ function collapseAttrs($expanded)
                             <a href="<?php echo APP_BASE; ?>/admin/Education/EducationScholarList.php" class="nav-link-item nav-sub-sub<?php echo navActive('EducationScholarList'); ?>"><i class="bi bi-person-check-fill"></i> Scholars</a>
                             <a href="<?php echo APP_BASE; ?>/admin/Education/EducationAllowanceDistribution.php" class="nav-link-item nav-sub-sub<?php echo navActive('EducationAllowanceDistribution'); ?>"><i class="bi bi-cash"></i> Allowance Distribution</a>
                             <a href="<?php echo APP_BASE; ?>/admin/Education/EducationActivities.php" class="nav-link-item nav-sub-sub<?php echo navActive('EducationActivities'); ?>"><i class="bi bi-calendar-event-fill"></i> Activities</a>
-                            <a href="<?php echo APP_BASE; ?>/admin/Education/EducationAnnouncement.php" class="nav-link-item nav-sub-sub<?php echo navActive('EducationAnnouncement'); ?>"><i class="bi bi-bell-fill"></i> Announcement</a>
                         </div>
                     </div>
                 <?php endif; ?>
