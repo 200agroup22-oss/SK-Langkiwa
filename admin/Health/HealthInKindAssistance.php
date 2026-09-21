@@ -1,8 +1,9 @@
 <?php
 require_once __DIR__ . '/../../config/forms.php';
-requireRole('admin');
+requireRole(['admin', 'committee_admin']);
 
 $committeeId = getCommitteeIdByCode('health');
+requireCommitteeAccess($committeeId);
 $track = 'assistance';
 $type = 'in_kind';
 $me = currentUser();

@@ -1,8 +1,42 @@
 <?php
 require_once __DIR__ . '/../config/forms.php';
-requireRole('admin');
+requireRole(['admin', 'committee_admin']);
 
 $me = currentUser();
+$isSuperAdmin = $me['role'] === 'admin';
+$myCommitteeIds = $isSuperAdmin ? [] : getUserCommitteeIds($me['user_id']);
+// Named distinctly from includes/adminsidebar.php's own committeeAllowed() (included later on this
+// same page) so the two don't collide — both do the same thing, scoped to this page's variables.
+function pmCanAccessCommittee($committeeId)
+{
+    global $isSuperAdmin, $myCommitteeIds;
+    return $isSuperAdmin || in_array((int)$committeeId, $myCommitteeIds, true);
+}
+
+function programCommitteeId($programId)
+{
+    global $conn;
+    $row = $conn->query("SELECT committee_id FROM programs WHERE program_id = " . (int)$programId)->fetch_assoc();
+    return $row ? (int)$row['committee_id'] : null;
+}
+
+function announcementCommitteeId($announcementId)
+{
+    global $conn;
+    $row = $conn->query("SELECT committee_id FROM announcements WHERE announcement_id = " . (int)$announcementId)->fetch_assoc();
+    return ($row && $row['committee_id'] !== null) ? (int)$row['committee_id'] : null;
+}
+
+// General announcements (no committee_id — sent site-wide) are super-admin only; a per-committee
+// one just needs the usual committee check.
+function pmCanAccessAnnouncementCommittee($committeeId)
+{
+    global $isSuperAdmin;
+    if ($committeeId === null) {
+        return $isSuperAdmin;
+    }
+    return pmCanAccessCommittee($committeeId);
+}
 
 function slugifyCode($name)
 {
@@ -14,8 +48,11 @@ function slugifyCode($name)
 // ---- POST handlers (redirect-after-POST) ----
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-    // -- Committees --
-    if (isset($_POST['add_committee'])) {
+    // -- Committees (super admin only — a committee_admin manages programs/announcements within
+    // their assigned committee(s), but never the committee list itself) --
+    if (isset($_POST['add_committee']) && !$isSuperAdmin) {
+        setFlash('error', 'Only a Super Admin can add committees.');
+    } elseif (isset($_POST['add_committee'])) {
         $name = trim($_POST['name'] ?? '');
         $description = trim($_POST['description'] ?? '');
         $icon = trim($_POST['icon'] ?? 'bi-people-fill');
@@ -45,7 +82,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    if (isset($_POST['edit_committee'])) {
+    if (isset($_POST['edit_committee']) && !$isSuperAdmin) {
+        setFlash('error', 'Only a Super Admin can edit committees.');
+    } elseif (isset($_POST['edit_committee'])) {
         $committeeId = (int)$_POST['committee_id'];
         $name = trim($_POST['name'] ?? '');
         $description = trim($_POST['description'] ?? '');
@@ -62,7 +101,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    if (isset($_POST['archive_committee'])) {
+    if (isset($_POST['archive_committee']) && !$isSuperAdmin) {
+        setFlash('error', 'Only a Super Admin can archive committees.');
+    } elseif (isset($_POST['archive_committee'])) {
         $committeeId = (int)$_POST['committee_id'];
         $stmt = $conn->prepare("UPDATE committees SET archived_at = NOW() WHERE committee_id = ?");
         $stmt->bind_param('i', $committeeId);
@@ -72,7 +113,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setFlash('success', 'Committee archived.');
     }
 
-    if (isset($_POST['restore_committee'])) {
+    if (isset($_POST['restore_committee']) && !$isSuperAdmin) {
+        setFlash('error', 'Only a Super Admin can restore committees.');
+    } elseif (isset($_POST['restore_committee'])) {
         $committeeId = (int)$_POST['committee_id'];
         $stmt = $conn->prepare("UPDATE committees SET archived_at = NULL WHERE committee_id = ?");
         $stmt->bind_param('i', $committeeId);
@@ -99,8 +142,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $eligibility = trim($_POST['eligibility_requirements'] ?? '');
         $status = isset($_POST['status_active']) ? 'active' : 'inactive';
 
+        $origProgramCommitteeId = null;
+        if ($isEdit) {
+            $origRow = $conn->query("SELECT committee_id FROM programs WHERE program_id = " . (int)($_POST['program_id'] ?? 0))->fetch_assoc();
+            $origProgramCommitteeId = $origRow ? (int)$origRow['committee_id'] : null;
+        }
+
         if ($name === '' || $committeeId <= 0) {
             setFlash('error', 'Program name and committee are required.');
+        } elseif (!pmCanAccessCommittee($committeeId) || ($origProgramCommitteeId !== null && !pmCanAccessCommittee($origProgramCommitteeId))) {
+            setFlash('error', 'You can only manage programs for your assigned committee(s).');
         } elseif ($isEdit) {
             $programId = (int)$_POST['program_id'];
             $stmt = $conn->prepare("UPDATE programs SET committee_id = ?, name = ?, description = ?, assistance_type = ?, amount = ?, release_schedule = ?, app_start_date = ?, app_end_date = ?, eligibility_requirements = ?, status = ? WHERE program_id = ?");
@@ -122,7 +173,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    if (isset($_POST['toggle_program_status'])) {
+    if (isset($_POST['toggle_program_status']) && !pmCanAccessCommittee(programCommitteeId((int)$_POST['program_id']))) {
+        setFlash('error', 'You can only manage programs for your assigned committee(s).');
+    } elseif (isset($_POST['toggle_program_status'])) {
         $programId = (int)$_POST['program_id'];
         $newStatus = $_POST['new_status'] === 'active' ? 'active' : 'inactive';
         $stmt = $conn->prepare("UPDATE programs SET status = ? WHERE program_id = ?");
@@ -134,7 +187,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setFlash('success', 'Program status updated.');
     }
 
-    if (isset($_POST['archive_program'])) {
+    if (isset($_POST['archive_program']) && !pmCanAccessCommittee(programCommitteeId((int)$_POST['program_id']))) {
+        setFlash('error', 'You can only manage programs for your assigned committee(s).');
+    } elseif (isset($_POST['archive_program'])) {
         $programId = (int)$_POST['program_id'];
         $stmt = $conn->prepare("UPDATE programs SET archived_at = NOW() WHERE program_id = ?");
         $stmt->bind_param('i', $programId);
@@ -145,7 +200,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setFlash('success', 'Program archived.');
     }
 
-    if (isset($_POST['restore_program'])) {
+    if (isset($_POST['restore_program']) && !pmCanAccessCommittee(programCommitteeId((int)$_POST['program_id']))) {
+        setFlash('error', 'You can only manage programs for your assigned committee(s).');
+    } elseif (isset($_POST['restore_program'])) {
         $programId = (int)$_POST['program_id'];
         $stmt = $conn->prepare("UPDATE programs SET archived_at = NULL WHERE program_id = ?");
         $stmt->bind_param('i', $programId);
@@ -172,8 +229,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $sentTo = in_array($_POST['sent_to'] ?? 'all', ['all', 'scholars', 'applicants', 'specific'], true) ? $_POST['sent_to'] : 'all';
         $specificTarget = trim($_POST['specific_target'] ?? '');
 
+        $origAnnouncementCommitteeId = $announcementId > 0 ? announcementCommitteeId($announcementId) : null;
+
         if ($title === '' || $message === '') {
             setFlash('error', 'Title and message are required.');
+        } elseif (!pmCanAccessAnnouncementCommittee($committeeId) || ($announcementId > 0 && !pmCanAccessAnnouncementCommittee($origAnnouncementCommitteeId))) {
+            setFlash('error', 'You can only manage announcements for your assigned committee(s).');
         } elseif ($announcementId > 0) {
             $stmt = $conn->prepare("UPDATE announcements SET committee_id = ?, title = ?, message = ?, event_date = ?, event_time = ?, event_where = ?, notes = ?, sent_to = ?, specific_target = ? WHERE announcement_id = ?");
             $stmt->bind_param('i' . str_repeat('s', 8) . 'i', $committeeId, $title, $message, $eventDate, $eventTime, $eventWhere, $notes, $sentTo, $specificTarget, $announcementId);
@@ -192,7 +253,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    if (isset($_POST['archive_announcement'])) {
+    if (isset($_POST['archive_announcement']) && !pmCanAccessAnnouncementCommittee(announcementCommitteeId((int)$_POST['announcement_id']))) {
+        setFlash('error', 'You can only manage announcements for your assigned committee(s).');
+    } elseif (isset($_POST['archive_announcement'])) {
         $announcementId = (int)$_POST['announcement_id'];
         $stmt = $conn->prepare("UPDATE announcements SET archived_at = NOW() WHERE announcement_id = ?");
         $stmt->bind_param('i', $announcementId);
@@ -202,7 +265,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setFlash('success', 'Announcement archived.');
     }
 
-    if (isset($_POST['restore_announcement'])) {
+    if (isset($_POST['restore_announcement']) && !pmCanAccessAnnouncementCommittee(announcementCommitteeId((int)$_POST['announcement_id']))) {
+        setFlash('error', 'You can only manage announcements for your assigned committee(s).');
+    } elseif (isset($_POST['restore_announcement'])) {
         $announcementId = (int)$_POST['announcement_id'];
         $stmt = $conn->prepare("UPDATE announcements SET archived_at = NULL WHERE announcement_id = ?");
         $stmt->bind_param('i', $announcementId);
@@ -212,8 +277,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setFlash('success', 'Announcement restored.');
     }
 
-    // -- Site Settings (this tab owns: site_name, tagline, welcome_message, contact_number, email, sk_office_address, facebook_url, allow_public_applications, show_announcements, current_academic_year, current_semester, requirements_deadline, requirements_open) --
-    if (isset($_POST['save_site_settings'])) {
+    // -- Site Settings (this tab owns: site_name, tagline, welcome_message, contact_number, email, sk_office_address, facebook_url, allow_public_applications, show_announcements, current_academic_year, current_semester, requirements_deadline, requirements_open) — super admin only, it's site-wide. --
+    if (isset($_POST['save_site_settings']) && !$isSuperAdmin) {
+        setFlash('error', 'Only a Super Admin can change Site Settings.');
+    } elseif (isset($_POST['save_site_settings'])) {
         $siteName = trim($_POST['site_name'] ?? '');
         $tagline = trim($_POST['tagline'] ?? '');
         $welcomeMessage = trim($_POST['welcome_message'] ?? '');
@@ -256,6 +323,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($label === '') {
                 continue;
             }
+            // Skip any tab that isn't under one of this admin's assigned committees — a
+            // committee_admin submitting this form only ever sees their own tabs anyway, but this
+            // guards against a tampered request touching someone else's.
+            if (!$isSuperAdmin) {
+                $tabRow = $conn->query("SELECT committee_id FROM program_tabs WHERE tab_id = " . $tabId)->fetch_assoc();
+                if (!$tabRow || !pmCanAccessCommittee($tabRow['committee_id'])) {
+                    continue;
+                }
+            }
             $stmt = $conn->prepare("UPDATE program_tabs SET label = ?, icon = ?, is_visible = ? WHERE tab_id = ?");
             $stmt->bind_param('ssii', $label, $icon, $visible, $tabId);
             $stmt->execute();
@@ -274,7 +350,10 @@ $pageSuccess = getFlash('success');
 
 // ---- Data for display ----
 $committees = $conn->query("SELECT * FROM committees WHERE archived_at IS NULL ORDER BY committee_id ASC")->fetch_all(MYSQLI_ASSOC);
-$archivedCommittees = $conn->query("SELECT * FROM committees WHERE archived_at IS NOT NULL ORDER BY archived_at DESC")->fetch_all(MYSQLI_ASSOC);
+if (!$isSuperAdmin) {
+    $committees = array_values(array_filter($committees, fn($c) => pmCanAccessCommittee($c['committee_id'])));
+}
+$archivedCommittees = $isSuperAdmin ? $conn->query("SELECT * FROM committees WHERE archived_at IS NOT NULL ORDER BY archived_at DESC")->fetch_all(MYSQLI_ASSOC) : [];
 
 $tabsByCommittee = [];
 foreach ($conn->query("SELECT * FROM program_tabs ORDER BY committee_id ASC, sort_order ASC") as $t) {
@@ -283,6 +362,9 @@ foreach ($conn->query("SELECT * FROM program_tabs ORDER BY committee_id ASC, sor
 
 $programsResult = $conn->query("SELECT * FROM programs WHERE archived_at IS NULL ORDER BY committee_id ASC, program_id ASC");
 $allPrograms = $programsResult->fetch_all(MYSQLI_ASSOC);
+if (!$isSuperAdmin) {
+    $allPrograms = array_values(array_filter($allPrograms, fn($p) => pmCanAccessCommittee($p['committee_id'])));
+}
 
 // beneficiary count per program = approved applications tied to that program
 $beneficiaryCounts = [];
@@ -297,10 +379,21 @@ foreach ($allPrograms as $p) {
 }
 
 $archivedPrograms = $conn->query("SELECT p.*, c.name AS committee_name FROM programs p LEFT JOIN committees c ON c.committee_id = p.committee_id WHERE p.archived_at IS NOT NULL ORDER BY p.archived_at DESC")->fetch_all(MYSQLI_ASSOC);
+if (!$isSuperAdmin) {
+    $archivedPrograms = array_values(array_filter($archivedPrograms, fn($p) => pmCanAccessCommittee($p['committee_id'])));
+}
 
 $announcements = $conn->query("SELECT a.*, c.name AS committee_name, c.icon AS committee_icon FROM announcements a LEFT JOIN committees c ON c.committee_id = a.committee_id WHERE a.archived_at IS NULL ORDER BY a.announcement_id ASC")->fetch_all(MYSQLI_ASSOC);
+if (!$isSuperAdmin) {
+    // Committee admins never see General (site-wide, no committee_id) announcements here — only
+    // a Super Admin posts those.
+    $announcements = array_values(array_filter($announcements, fn($a) => $a['committee_id'] !== null && pmCanAccessCommittee($a['committee_id'])));
+}
 
 $archivedAnnouncements = $conn->query("SELECT a.*, c.name AS committee_name FROM announcements a LEFT JOIN committees c ON c.committee_id = a.committee_id WHERE a.archived_at IS NOT NULL ORDER BY a.archived_at DESC")->fetch_all(MYSQLI_ASSOC);
+if (!$isSuperAdmin) {
+    $archivedAnnouncements = array_values(array_filter($archivedAnnouncements, fn($a) => $a['committee_id'] !== null && pmCanAccessCommittee($a['committee_id'])));
+}
 
 $settings = $conn->query("SELECT * FROM site_settings WHERE id = 1")->fetch_assoc();
 
@@ -873,7 +966,9 @@ $activeLink = 'AdminProgramManagement';
         <div class="content-tabs">
             <button class="content-tab-btn active" data-tab="programsTab"><i class="bi bi-diagram-3-fill"></i> Committees &amp; Programs</button>
             <button class="content-tab-btn" data-tab="announcementsTab"><i class="bi bi-bell-fill"></i> Announcements</button>
-            <button class="content-tab-btn" data-tab="settingsTab"><i class="bi bi-gear-fill"></i> Site Settings</button>
+            <?php if ($isSuperAdmin): ?>
+                <button class="content-tab-btn" data-tab="settingsTab"><i class="bi bi-gear-fill"></i> Site Settings</button>
+            <?php endif; ?>
         </div>
 
         <!-- TAB: Committees & Programs -->
@@ -881,10 +976,14 @@ $activeLink = 'AdminProgramManagement';
 
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
                 <div class="d-flex flex-wrap gap-2">
-                    <button class="btn-brand" data-bs-toggle="modal" data-bs-target="#addCommitteeModal"><i class="bi bi-plus-lg me-1"></i> Add Committee</button>
+                    <?php if ($isSuperAdmin): ?>
+                        <button class="btn-brand" data-bs-toggle="modal" data-bs-target="#addCommitteeModal"><i class="bi bi-plus-lg me-1"></i> Add Committee</button>
+                    <?php endif; ?>
                     <button class="btn-outline-brand" data-bs-toggle="modal" data-bs-target="#addProgramModal"><i class="bi bi-plus-lg me-1"></i> Add Program</button>
                     <button class="btn-outline-brand" data-bs-toggle="modal" data-bs-target="#archivesProgramModal"><i class="bi bi-archive me-1"></i> Program Archives</button>
-                    <button class="btn-outline-brand" data-bs-toggle="modal" data-bs-target="#archivesCommitteeModal"><i class="bi bi-archive me-1"></i> Committee Archives</button>
+                    <?php if ($isSuperAdmin): ?>
+                        <button class="btn-outline-brand" data-bs-toggle="modal" data-bs-target="#archivesCommitteeModal"><i class="bi bi-archive me-1"></i> Committee Archives</button>
+                    <?php endif; ?>
                 </div>
                 <div class="d-flex flex-wrap gap-2 align-items-center">
                     <select class="form-select form-select-sm" id="programFilterSelect" style="width:auto;">
@@ -924,14 +1023,18 @@ $activeLink = 'AdminProgramManagement';
                                 <span class="committee-icon-badge"><i class="bi <?php echo e($c['icon'] ?: 'bi-people-fill'); ?>"></i></span>
                                 <?php echo e($c['name']); ?>
                                 <span class="committee-count-badge"><?php echo $totalProgramCount; ?> program<?php echo $totalProgramCount === 1 ? '' : 's'; ?></span>
-                                <button type="button" class="action-btn btn-edit" data-bs-toggle="modal" data-bs-target="#editCommitteeModal<?php echo $cid; ?>"><i class="bi bi-pencil"></i> Edit</button>
+                                <?php if ($isSuperAdmin): ?>
+                                    <button type="button" class="action-btn btn-edit" data-bs-toggle="modal" data-bs-target="#editCommitteeModal<?php echo $cid; ?>"><i class="bi bi-pencil"></i> Edit</button>
+                                <?php endif; ?>
                                 <?php if (!empty($tabsByCommittee[$cid])): ?>
                                     <button type="button" class="action-btn btn-edit" data-bs-toggle="modal" data-bs-target="#manageTabsModal<?php echo $cid; ?>"><i class="bi bi-layout-sidebar-inset"></i> Manage Tabs</button>
                                 <?php endif; ?>
-                                <form method="post" class="d-inline" onsubmit="return confirm('Archive this committee? Its programs will stay as-is, but the committee will be hidden from this list.');">
-                                    <input type="hidden" name="committee_id" value="<?php echo $cid; ?>">
-                                    <button type="submit" name="archive_committee" class="action-btn btn-archive-program"><i class="bi bi-archive"></i> Archive</button>
-                                </form>
+                                <?php if ($isSuperAdmin): ?>
+                                    <form method="post" class="d-inline" onsubmit="return confirm('Archive this committee? Its programs will stay as-is, but the committee will be hidden from this list.');">
+                                        <input type="hidden" name="committee_id" value="<?php echo $cid; ?>">
+                                        <button type="submit" name="archive_committee" class="action-btn btn-archive-program"><i class="bi bi-archive"></i> Archive</button>
+                                    </form>
+                                <?php endif; ?>
                             </div>
                             <button type="button" class="btn-outline-brand add-program-for-committee" data-committee="<?php echo $cid; ?>"><i class="bi bi-plus-lg me-1"></i> Add Program</button>
                         </div>
@@ -1126,180 +1229,185 @@ $activeLink = 'AdminProgramManagement';
             </div>
         </div>
 
-        <!-- TAB: Site Settings -->
-        <div class="tab-pane-custom" id="settingsTab">
-            <div class="settings-card">
-                <form method="post" id="siteSettingsForm" data-orig-year="<?php echo e($settings['current_academic_year']); ?>" data-orig-semester="<?php echo e($settings['current_semester']); ?>">
-                    <div class="settings-section-title">General</div>
-                    <div class="row g-3">
-                        <div class="col-12">
-                            <label class="form-label">Site / Barangay Name</label>
-                            <input type="text" class="form-control" name="site_name" value="<?php echo e($settings['site_name']); ?>">
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label">Tagline</label>
-                            <input type="text" class="form-control" name="tagline" value="<?php echo e($settings['tagline']); ?>" placeholder="e.g., Serbisyo Para sa Kabataan">
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label">Welcome / About Message</label>
-                            <textarea class="form-control" name="welcome_message" rows="3" placeholder="Short message shown on the public homepage"><?php echo e($settings['welcome_message']); ?></textarea>
-                        </div>
-                    </div>
-
-                    <div class="settings-section-title">Academic Term</div>
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Current Academic Year</label>
-                            <input type="text" class="form-control" name="current_academic_year" id="settingAcademicYear" value="<?php echo e($settings['current_academic_year']); ?>" placeholder="e.g., 2026-2027" pattern="\d{4}-\d{4}" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Current Semester</label>
-                            <select class="form-select" name="current_semester" id="settingSemester" required>
-                                <option value="1st Semester" <?php echo $settings['current_semester'] === '1st Semester' ? 'selected' : ''; ?>>1st Semester</option>
-                                <option value="2nd Semester" <?php echo $settings['current_semester'] === '2nd Semester' ? 'selected' : ''; ?>>2nd Semester</option>
-                                <option value="3rd Semester" <?php echo $settings['current_semester'] === '3rd Semester' ? 'selected' : ''; ?>>3rd Semester</option>
-                                <option value="Summer" <?php echo $settings['current_semester'] === 'Summer' ? 'selected' : ''; ?>>Summer</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Requirements Deadline</label>
-                            <input type="date" class="form-control" name="requirements_deadline" value="<?php echo e($settings['requirements_deadline']); ?>">
-                            <div class="form-text" style="font-size:11.5px;">Cutoff for scholars to submit updated requirements (Barangay Indigency, Grades, etc.) for the current term. Leave blank for no deadline.</div>
-                        </div>
-                        <div class="col-12">
-                            <div class="form-check form-switch mb-0">
-                                <input class="form-check-input" type="checkbox" role="switch" name="requirements_open" id="settingRequirementsOpen" <?php echo $settings['requirements_open'] ? 'checked' : ''; ?>>
-                                <label class="form-check-label" for="settingRequirementsOpen" style="font-size:13.5px;">Scholars can submit updated requirements right now</label>
+        <!-- TAB: Site Settings (super admin only — site-wide, not scoped to a committee) -->
+        <?php if ($isSuperAdmin): ?>
+            <div class="tab-pane-custom" id="settingsTab">
+                <div class="settings-card">
+                    <form method="post" id="siteSettingsForm" data-orig-year="<?php echo e($settings['current_academic_year']); ?>" data-orig-semester="<?php echo e($settings['current_semester']); ?>">
+                        <div class="settings-section-title">General</div>
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label">Site / Barangay Name</label>
+                                <input type="text" class="form-control" name="site_name" value="<?php echo e($settings['site_name']); ?>">
                             </div>
-                            <div class="form-text" style="font-size:11.5px;">Normally turned on automatically by "End Semester" (Scholars page) and off again once the deadline passes. Use this switch to open or close the window by hand.</div>
-                        </div>
-                        <div class="col-12">
-                            <div class="alert alert-warning py-2 mb-0" style="font-size:12.5px;">
-                                <i class="bi bi-exclamation-triangle-fill me-1"></i> This is what "iSKolar ng Langkiwa" applications, activities, and allowance distribution treat as the active term. Changing it starts a fresh activity/allowance tracking period for every scholar going forward — past terms' records stay intact and remain visible in Reports.
+                            <div class="col-12">
+                                <label class="form-label">Tagline</label>
+                                <input type="text" class="form-control" name="tagline" value="<?php echo e($settings['tagline']); ?>" placeholder="e.g., Serbisyo Para sa Kabataan">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Welcome / About Message</label>
+                                <textarea class="form-control" name="welcome_message" rows="3" placeholder="Short message shown on the public homepage"><?php echo e($settings['welcome_message']); ?></textarea>
                             </div>
                         </div>
-                    </div>
 
-                    <div class="settings-section-title">Contact Information</div>
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Contact Number</label>
-                            <input type="text" class="form-control" name="contact_number" value="<?php echo e($settings['contact_number']); ?>" placeholder="e.g., 0917 123 4567">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Email Address</label>
-                            <input type="email" class="form-control" name="email" value="<?php echo e($settings['email']); ?>" placeholder="e.g., sk.langkiwa@email.com">
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label">Office Address</label>
-                            <input type="text" class="form-control" name="sk_office_address" value="<?php echo e($settings['sk_office_address']); ?>" placeholder="e.g., Barangay Hall, Langkiwa">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Facebook Page URL</label>
-                            <input type="text" class="form-control" name="facebook_url" value="<?php echo e($settings['facebook_url']); ?>" placeholder="https://facebook.com/...">
-                        </div>
-                    </div>
-
-                    <div class="settings-section-title">Preferences</div>
-                    <div class="row g-3">
-                        <div class="col-12">
-                            <div class="form-check form-switch mb-2">
-                                <input class="form-check-input" type="checkbox" role="switch" name="allow_public_applications" id="settingPublicApplications" <?php echo $settings['allow_public_applications'] ? 'checked' : ''; ?>>
-                                <label class="form-check-label" for="settingPublicApplications" style="font-size:13.5px;">Allow youth to submit applications online</label>
+                        <div class="settings-section-title">Academic Term</div>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Current Academic Year</label>
+                                <input type="text" class="form-control" name="current_academic_year" id="settingAcademicYear" value="<?php echo e($settings['current_academic_year']); ?>" placeholder="e.g., 2026-2027" pattern="\d{4}-\d{4}" required>
                             </div>
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" role="switch" name="show_announcements" id="settingShowAnnouncements" <?php echo $settings['show_announcements'] ? 'checked' : ''; ?>>
-                                <label class="form-check-label" for="settingShowAnnouncements" style="font-size:13.5px;">Show announcements on the public homepage</label>
+                            <div class="col-md-6">
+                                <label class="form-label">Current Semester</label>
+                                <select class="form-select" name="current_semester" id="settingSemester" required>
+                                    <option value="1st Semester" <?php echo $settings['current_semester'] === '1st Semester' ? 'selected' : ''; ?>>1st Semester</option>
+                                    <option value="2nd Semester" <?php echo $settings['current_semester'] === '2nd Semester' ? 'selected' : ''; ?>>2nd Semester</option>
+                                    <option value="3rd Semester" <?php echo $settings['current_semester'] === '3rd Semester' ? 'selected' : ''; ?>>3rd Semester</option>
+                                    <option value="Summer" <?php echo $settings['current_semester'] === 'Summer' ? 'selected' : ''; ?>>Summer</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Requirements Deadline</label>
+                                <input type="date" class="form-control" name="requirements_deadline" value="<?php echo e($settings['requirements_deadline']); ?>">
+                                <div class="form-text" style="font-size:11.5px;">Cutoff for scholars to submit updated requirements (Barangay Indigency, Grades, etc.) for the current term. Leave blank for no deadline.</div>
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check form-switch mb-0">
+                                    <input class="form-check-input" type="checkbox" role="switch" name="requirements_open" id="settingRequirementsOpen" <?php echo $settings['requirements_open'] ? 'checked' : ''; ?>>
+                                    <label class="form-check-label" for="settingRequirementsOpen" style="font-size:13.5px;">Scholars can submit updated requirements right now</label>
+                                </div>
+                                <div class="form-text" style="font-size:11.5px;">Normally turned on automatically by "End Semester" (Scholars page) and off again once the deadline passes. Use this switch to open or close the window by hand.</div>
+                            </div>
+                            <div class="col-12">
+                                <div class="alert alert-warning py-2 mb-0" style="font-size:12.5px;">
+                                    <i class="bi bi-exclamation-triangle-fill me-1"></i> This is what "iSKolar ng Langkiwa" applications, activities, and allowance distribution treat as the active term. Changing it starts a fresh activity/allowance tracking period for every scholar going forward — past terms' records stay intact and remain visible in Reports.
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    <div class="d-flex justify-content-end mt-4 gap-2">
-                        <button type="reset" class="btn-outline-brand">Reset</button>
-                        <button type="submit" name="save_site_settings" class="btn-brand"><i class="bi bi-check-lg me-1"></i> Save Settings</button>
-                    </div>
-                </form>
+                        <div class="settings-section-title">Contact Information</div>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Contact Number</label>
+                                <input type="text" class="form-control" name="contact_number" value="<?php echo e($settings['contact_number']); ?>" placeholder="e.g., 0917 123 4567">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Email Address</label>
+                                <input type="email" class="form-control" name="email" value="<?php echo e($settings['email']); ?>" placeholder="e.g., sk.langkiwa@email.com">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Office Address</label>
+                                <input type="text" class="form-control" name="sk_office_address" value="<?php echo e($settings['sk_office_address']); ?>" placeholder="e.g., Barangay Hall, Langkiwa">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Facebook Page URL</label>
+                                <input type="text" class="form-control" name="facebook_url" value="<?php echo e($settings['facebook_url']); ?>" placeholder="https://facebook.com/...">
+                            </div>
+                        </div>
+
+                        <div class="settings-section-title">Preferences</div>
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <div class="form-check form-switch mb-2">
+                                    <input class="form-check-input" type="checkbox" role="switch" name="allow_public_applications" id="settingPublicApplications" <?php echo $settings['allow_public_applications'] ? 'checked' : ''; ?>>
+                                    <label class="form-check-label" for="settingPublicApplications" style="font-size:13.5px;">Allow youth to submit applications online</label>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" role="switch" name="show_announcements" id="settingShowAnnouncements" <?php echo $settings['show_announcements'] ? 'checked' : ''; ?>>
+                                    <label class="form-check-label" for="settingShowAnnouncements" style="font-size:13.5px;">Show announcements on the public homepage</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-end mt-4 gap-2">
+                            <button type="reset" class="btn-outline-brand">Reset</button>
+                            <button type="submit" name="save_site_settings" class="btn-brand"><i class="bi bi-check-lg me-1"></i> Save Settings</button>
+                        </div>
+                    </form>
+                </div>
             </div>
-        </div>
+        <?php endif; ?>
 
     </div>
 
-    <!-- Add Committee Modal -->
-    <div class="modal fade" id="addCommitteeModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content" style="border-radius:12px; border:none;">
-                <form method="post">
-                    <div class="modal-header" style="background:linear-gradient(90deg,#45b84d,#aadaad); border-radius:12px 12px 0 0;">
-                        <h5 class="modal-title text-white fw-bold"><i class="bi bi-people-fill me-2"></i> Add Committee</h5>
-                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body p-4">
-                        <div class="mb-3">
-                            <label class="form-label">Committee Name</label>
-                            <input type="text" class="form-control" name="name" placeholder="e.g., Environment Committee" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Short Description</label>
-                            <textarea class="form-control" name="description" rows="2" placeholder="What this committee is responsible for"></textarea>
-                        </div>
-                        <div class="mb-1">
-                            <label class="form-label">Icon</label>
-                            <input type="hidden" name="icon" value="bi-people-fill" class="icon-hidden-input">
-                            <div class="d-flex flex-wrap gap-2 icon-picker">
-                                <?php foreach ($committeeIconChoices as $i => $ic): ?>
-                                    <span class="icon-choice<?php echo $i === 0 ? ' selected' : ''; ?>" data-icon="<?php echo e($ic); ?>"><i class="bi <?php echo e($ic); ?>"></i></span>
-                                <?php endforeach; ?>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn-outline-brand" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" name="add_committee" class="btn-brand">Save Committee</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <?php foreach ($committees as $c): $cid = (int)$c['committee_id']; ?>
-        <!-- Edit Committee Modal -->
-        <div class="modal fade" id="editCommitteeModal<?php echo $cid; ?>" tabindex="-1" aria-hidden="true">
+    <?php if ($isSuperAdmin): ?>
+        <!-- Add Committee Modal -->
+        <div class="modal fade" id="addCommitteeModal" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content" style="border-radius:12px; border:none;">
                     <form method="post">
-                        <input type="hidden" name="committee_id" value="<?php echo $cid; ?>">
                         <div class="modal-header" style="background:linear-gradient(90deg,#45b84d,#aadaad); border-radius:12px 12px 0 0;">
-                            <h5 class="modal-title text-white fw-bold"><i class="bi bi-pencil-square me-2"></i> Edit Committee</h5>
+                            <h5 class="modal-title text-white fw-bold"><i class="bi bi-people-fill me-2"></i> Add Committee</h5>
                             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body p-4">
                             <div class="mb-3">
                                 <label class="form-label">Committee Name</label>
-                                <input type="text" class="form-control" name="name" value="<?php echo e($c['name']); ?>" required>
+                                <input type="text" class="form-control" name="name" placeholder="e.g., Environment Committee" required>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Short Description</label>
-                                <textarea class="form-control" name="description" rows="2"><?php echo e($c['description']); ?></textarea>
+                                <textarea class="form-control" name="description" rows="2" placeholder="What this committee is responsible for"></textarea>
                             </div>
                             <div class="mb-1">
                                 <label class="form-label">Icon</label>
-                                <input type="hidden" name="icon" value="<?php echo e($c['icon']); ?>" class="icon-hidden-input">
+                                <input type="hidden" name="icon" value="bi-people-fill" class="icon-hidden-input">
                                 <div class="d-flex flex-wrap gap-2 icon-picker">
-                                    <?php foreach ($committeeIconChoices as $ic): ?>
-                                        <span class="icon-choice<?php echo $ic === $c['icon'] ? ' selected' : ''; ?>" data-icon="<?php echo e($ic); ?>"><i class="bi <?php echo e($ic); ?>"></i></span>
+                                    <?php foreach ($committeeIconChoices as $i => $ic): ?>
+                                        <span class="icon-choice<?php echo $i === 0 ? ' selected' : ''; ?>" data-icon="<?php echo e($ic); ?>"><i class="bi <?php echo e($ic); ?>"></i></span>
                                     <?php endforeach; ?>
                                 </div>
                             </div>
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn-outline-brand" data-bs-dismiss="modal">Cancel</button>
-                            <button type="submit" name="edit_committee" class="btn-brand">Save Changes</button>
+                            <button type="submit" name="add_committee" class="btn-brand">Save Committee</button>
                         </div>
                     </form>
                 </div>
             </div>
         </div>
-    <?php endforeach; ?>
+
+        <?php foreach ($committees as $c): $cid = (int)$c['committee_id']; ?>
+            <!-- Edit Committee Modal -->
+            <div class="modal fade" id="editCommitteeModal<?php echo $cid; ?>" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content" style="border-radius:12px; border:none;">
+                        <form method="post">
+                            <input type="hidden" name="committee_id" value="<?php echo $cid; ?>">
+                            <div class="modal-header" style="background:linear-gradient(90deg,#45b84d,#aadaad); border-radius:12px 12px 0 0;">
+                                <h5 class="modal-title text-white fw-bold"><i class="bi bi-pencil-square me-2"></i> Edit Committee</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body p-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Committee Name</label>
+                                    <input type="text" class="form-control" name="name" value="<?php echo e($c['name']); ?>" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Short Description</label>
+                                    <textarea class="form-control" name="description" rows="2"><?php echo e($c['description']); ?></textarea>
+                                </div>
+                                <div class="mb-1">
+                                    <label class="form-label">Icon</label>
+                                    <input type="hidden" name="icon" value="<?php echo e($c['icon']); ?>" class="icon-hidden-input">
+                                    <div class="d-flex flex-wrap gap-2 icon-picker">
+                                        <?php foreach ($committeeIconChoices as $ic): ?>
+                                            <span class="icon-choice<?php echo $ic === $c['icon'] ? ' selected' : ''; ?>" data-icon="<?php echo e($ic); ?>"><i class="bi <?php echo e($ic); ?>"></i></span>
+                                        <?php endforeach; ?>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn-outline-brand" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" name="edit_committee" class="btn-brand">Save Changes</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        <?php endforeach; ?>
+    <?php endif; // $isSuperAdmin (Add/Edit Committee modals) 
+    ?>
 
     <!-- Add Program Modal -->
     <div class="modal fade" id="addProgramModal" tabindex="-1" aria-hidden="true">
@@ -1589,7 +1697,7 @@ $activeLink = 'AdminProgramManagement';
                             <div class="col-12">
                                 <label class="form-label" style="font-size:13px; font-weight:600;">Committee</label>
                                 <select class="form-select form-select-sm" name="committee_id" id="announcementCommitteeSelect">
-                                    <option value="">General (All Committees)</option>
+                                    <?php if ($isSuperAdmin): ?><option value="">General (All Committees)</option><?php endif; ?>
                                     <?php foreach ($committees as $c): ?>
                                         <option value="<?php echo $c['committee_id']; ?>"><?php echo e($c['name']); ?></option>
                                     <?php endforeach; ?>
