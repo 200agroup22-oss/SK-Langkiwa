@@ -16,7 +16,7 @@ CREATE TABLE users (
     gender ENUM('Male','Female') NULL,
     email VARCHAR(150) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
-    role ENUM('applicant','scholar','admin') NOT NULL DEFAULT 'applicant',
+    role ENUM('applicant','scholar','admin','committee_admin') NOT NULL DEFAULT 'applicant',
     position_title VARCHAR(100) NULL,
     profile_photo VARCHAR(255) NULL,
     status ENUM('active','inactive','archived') NOT NULL DEFAULT 'active',
@@ -34,6 +34,16 @@ CREATE TABLE committees (
     description VARCHAR(255) NULL,
     icon VARCHAR(60) NULL,
     archived_at DATETIME NULL
+) ENGINE=InnoDB;
+
+-- Which committee(s) a 'committee_admin' user is scoped to manage. Unused for other roles.
+CREATE TABLE admin_committee_assignments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    committee_id INT NOT NULL,
+    UNIQUE KEY uniq_user_committee (user_id, committee_id),
+    FOREIGN KEY (user_id) REFERENCES users(user_id),
+    FOREIGN KEY (committee_id) REFERENCES committees(committee_id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE programs (

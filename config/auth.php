@@ -33,6 +33,7 @@ function dashboardUrlForRole($role)
 {
     switch ($role) {
         case 'admin':
+        case 'committee_admin':
             return APP_BASE . '/admin/AdminDashboard.php';
         case 'scholar':
             return APP_BASE . '/scholar/Scholar.php';

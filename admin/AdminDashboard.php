@@ -1,33 +1,52 @@
 <?php
 require_once __DIR__ . '/../config/functions.php';
 require_once __DIR__ . '/../config/forms.php';
-requireRole('admin');
+requireRole(['admin', 'committee_admin']);
 
 $me = currentUser();
+$isSuperAdmin = $me['role'] === 'admin';
+$myCommitteeIds = $isSuperAdmin ? [] : getUserCommitteeIds($me['user_id']);
+// A committee_admin assigned to nothing yet gets an "IN (0)" filter, which safely matches no rows
+// instead of throwing on an empty IN() list. $committeeIdList is built from ints only (never raw
+// user input), so interpolating it directly into the query text below is safe.
+$committeeIdList = implode(',', $myCommitteeIds ?: [0]);
+$committeeFilterApplications = $isSuperAdmin ? '' : " AND committee_id IN ($committeeIdList)";
 
 // ---- Stat cards ----
 // Total Beneficiaries: all-time approved applications across every committee (not just Education scholars).
-$totalBeneficiaries = (int)($conn->query("SELECT COUNT(*) c FROM applications WHERE status = 'approved' AND archived_at IS NULL")->fetch_assoc()['c'] ?? 0);
+$totalBeneficiaries = (int)($conn->query("SELECT COUNT(*) c FROM applications WHERE status = 'approved' AND archived_at IS NULL" . $committeeFilterApplications)->fetch_assoc()['c'] ?? 0);
 
 // Total Applicants: distinct users who have ever submitted an application (not archived).
-$totalApplicants = (int)($conn->query("SELECT COUNT(DISTINCT user_id) c FROM applications WHERE archived_at IS NULL")->fetch_assoc()['c'] ?? 0);
+$totalApplicants = (int)($conn->query("SELECT COUNT(DISTINCT user_id) c FROM applications WHERE archived_at IS NULL" . $committeeFilterApplications)->fetch_assoc()['c'] ?? 0);
 
-// Activity Attendees: total attendance rows marked present across all activities.
-$activityAttendees = (int)($conn->query("SELECT COUNT(*) c FROM attendance WHERE status = 'present'")->fetch_assoc()['c'] ?? 0);
+// Activity Attendees: total attendance rows marked present across all activities (scoped to the
+// admin's committee(s) via the activity's own committee_id).
+$activityAttendees = (int)($conn->query(
+    "SELECT COUNT(*) c FROM attendance att
+     JOIN activities act ON act.activity_id = att.activity_id
+     WHERE att.status = 'present'" . ($isSuperAdmin ? '' : " AND act.committee_id IN ($committeeIdList)")
+)->fetch_assoc()['c'] ?? 0);
 
 // ---- Application Status Breakdown ----
 $statusCounts = ['pending' => 0, 'approved' => 0, 'declined' => 0];
-$statusResult = $conn->query("SELECT status, COUNT(*) c FROM applications WHERE archived_at IS NULL GROUP BY status");
+$statusResult = $conn->query("SELECT status, COUNT(*) c FROM applications WHERE archived_at IS NULL" . $committeeFilterApplications . " GROUP BY status");
 foreach ($statusResult as $row) {
     $statusCounts[$row['status']] = (int)$row['c'];
 }
 
 // "Eligible for Payout" = scholars currently marked eligible in the allowance_distributions table.
-$eligibleForPayout = (int)($conn->query("SELECT COUNT(*) c FROM allowance_distributions WHERE eligibility = 'eligible'")->fetch_assoc()['c'] ?? 0);
+// Scholars only ever come from the Education committee, so this is scoped through the scholar's
+// original application's committee_id (naturally 0 for a committee_admin not assigned to Education).
+$eligibleForPayout = (int)($conn->query(
+    "SELECT COUNT(*) c FROM allowance_distributions ad
+     JOIN scholars s ON s.scholar_id = ad.scholar_id
+     JOIN applications a ON a.application_id = s.application_id
+     WHERE ad.eligibility = 'eligible'" . ($isSuperAdmin ? '' : " AND a.committee_id IN ($committeeIdList)")
+)->fetch_assoc()['c'] ?? 0);
 
 // ---- Submitted Applications per day-of-week (aggregated across all non-archived applications) ----
 $weeklyCounts = array_fill(0, 7, 0); // index 0=Mon .. 6=Sun, matching chart labels
-$dowResult = $conn->query("SELECT DAYOFWEEK(submitted_at) dow, COUNT(*) c FROM applications WHERE archived_at IS NULL GROUP BY dow");
+$dowResult = $conn->query("SELECT DAYOFWEEK(submitted_at) dow, COUNT(*) c FROM applications WHERE archived_at IS NULL" . $committeeFilterApplications . " GROUP BY dow");
 // MySQL DAYOFWEEK(): 1=Sunday, 2=Monday, ... 7=Saturday
 $dowToIndex = [2 => 0, 3 => 1, 4 => 2, 5 => 3, 6 => 4, 7 => 5, 1 => 6];
 foreach ($dowResult as $row) {
@@ -42,8 +61,9 @@ foreach ($dowResult as $row) {
 $programWindowRows = $conn->query(
     "SELECT p.*, c.name AS committee_name FROM programs p
      JOIN committees c ON c.committee_id = p.committee_id
-     WHERE p.archived_at IS NULL AND (p.app_start_date IS NOT NULL OR p.app_end_date IS NOT NULL)
-     ORDER BY p.app_end_date ASC"
+     WHERE p.archived_at IS NULL AND (p.app_start_date IS NOT NULL OR p.app_end_date IS NOT NULL)"
+        . ($isSuperAdmin ? '' : " AND p.committee_id IN ($committeeIdList)") .
+        " ORDER BY p.app_end_date ASC"
 )->fetch_all(MYSQLI_ASSOC);
 $closedPrograms = [];
 $closingSoonPrograms = [];

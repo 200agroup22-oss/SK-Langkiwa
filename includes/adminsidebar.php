@@ -3,6 +3,13 @@
 require_once __DIR__ . '/../config/forms.php';
 $activeLink = $activeLink ?? '';
 $adminMe = currentUser();
+$isSuperAdmin = ($adminMe['role'] ?? '') === 'admin';
+$myCommitteeIds = $isSuperAdmin ? [] : getUserCommitteeIds($adminMe['user_id']);
+function committeeAllowed($committeeId)
+{
+    global $isSuperAdmin, $myCommitteeIds;
+    return $isSuperAdmin || in_array((int)$committeeId, $myCommitteeIds, true);
+}
 
 $eduCommitteeId = getCommitteeIdByCode('education');
 $healthCommitteeId = getCommitteeIdByCode('health');
@@ -24,6 +31,9 @@ $extraCommitteesStmt->bind_param(str_repeat('i', count($builtInCommitteeIds)), .
 $extraCommitteesStmt->execute();
 $extraCommittees = $extraCommitteesStmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $extraCommitteesStmt->close();
+if (!$isSuperAdmin) {
+    $extraCommittees = array_values(array_filter($extraCommittees, fn($ec) => committeeAllowed($ec['committee_id'])));
+}
 
 // Per-committee page set that a program added via Content Management > Add Program should link
 // to for its auto-generated Applications / Assistance Requests / Form submenu. Applications
@@ -185,7 +195,7 @@ function collapseAttrs($expanded)
         <span class="brand-text d-sm-none">SK Langkiwa</span>
     </div>
     <div class="d-flex align-items-center gap-3">
-        <span class="role-badge d-none d-sm-inline-block">Admin</span>
+        <span class="role-badge d-none d-sm-inline-block"><?php echo $isSuperAdmin ? 'Super Admin' : 'Committee Admin'; ?></span>
         <div class="dropdown">
             <a href="#" class="dropdown-toggle d-flex align-items-center gap-2 text-white text-decoration-none border border-white border-opacity-50 rounded-pill px-3 py-1"
                 data-bs-toggle="dropdown" style="font-size: 14px; font-weight: 600;">
@@ -225,58 +235,60 @@ function collapseAttrs($expanded)
         ?>
 
         <!-- EDUCATION COMMITTEE -->
-        <?php
-        $eduExpanded = groupExpanded('Education');
-        $iskolarExpanded = groupExpanded(['EducationApplicants', 'EducationScholarList', 'EducationAllowanceDistribution', 'EducationActivities']);
-        $eduAssistExpanded = $isBaseProgramView && groupExpanded(['EducationAssistanceApplicants', 'EducationCashAssistance', 'EducationInKindAssistance']);
-        $eduAssistReqExpanded = $isBaseProgramView && groupExpanded(['EducationCashAssistance', 'EducationInKindAssistance']);
-        ?>
-        <a href="#educationMenu" class="nav-link-item nav-parent" data-bs-toggle="collapse" role="button" aria-expanded="<?php echo $eduExpanded ? 'true' : 'false'; ?>" aria-controls="educationMenu">
-            <i class="bi bi-mortarboard-fill"></i> Education Committee
-            <i class="bi bi-chevron-down toggle-icon"></i>
-        </a>
-        <div class="collapse<?php echo $eduExpanded ? ' show' : ''; ?>" id="educationMenu">
-            <div class="submenu">
-                <?php if (!empty($eduTabs['scholarship']['is_visible'])): ?>
-                    <a href="#iskolarMenu" class="nav-link-item nav-sub nav-sub-parent nav-program-tab" data-bs-toggle="collapse" role="button" aria-expanded="<?php echo $iskolarExpanded ? 'true' : 'false'; ?>" aria-controls="iskolarMenu">
-                        <i class="bi <?php echo e($eduTabs['scholarship']['icon']); ?>"></i> <?php echo e($eduTabs['scholarship']['label']); ?>
-                        <i class="bi bi-chevron-down toggle-icon-sub"></i>
-                    </a>
-                    <div class="collapse<?php echo $iskolarExpanded ? ' show' : ''; ?>" id="iskolarMenu">
-                        <div class="submenu-nested program-sub">
-                            <a href="<?php echo APP_BASE; ?>/admin/Education/EducationApplicants.php" class="nav-link-item nav-sub-sub<?php echo navActive('EducationApplicants'); ?>"><i class="bi bi-pencil-square"></i> Applications</a>
-                            <a href="<?php echo APP_BASE; ?>/admin/Education/EducationScholarList.php" class="nav-link-item nav-sub-sub<?php echo navActive('EducationScholarList'); ?>"><i class="bi bi-person-check-fill"></i> Scholars</a>
-                            <a href="<?php echo APP_BASE; ?>/admin/Education/EducationAllowanceDistribution.php" class="nav-link-item nav-sub-sub<?php echo navActive('EducationAllowanceDistribution'); ?>"><i class="bi bi-cash"></i> Allowance Distribution</a>
-                            <a href="<?php echo APP_BASE; ?>/admin/Education/EducationActivities.php" class="nav-link-item nav-sub-sub<?php echo navActive('EducationActivities'); ?>"><i class="bi bi-calendar-event-fill"></i> Activities</a>
+        <?php if (committeeAllowed($eduCommitteeId)): ?>
+            <?php
+            $eduExpanded = groupExpanded('Education');
+            $iskolarExpanded = groupExpanded(['EducationApplicants', 'EducationScholarList', 'EducationAllowanceDistribution', 'EducationActivities']);
+            $eduAssistExpanded = $isBaseProgramView && groupExpanded(['EducationAssistanceApplicants', 'EducationCashAssistance', 'EducationInKindAssistance']);
+            $eduAssistReqExpanded = $isBaseProgramView && groupExpanded(['EducationCashAssistance', 'EducationInKindAssistance']);
+            ?>
+            <a href="#educationMenu" class="nav-link-item nav-parent" data-bs-toggle="collapse" role="button" aria-expanded="<?php echo $eduExpanded ? 'true' : 'false'; ?>" aria-controls="educationMenu">
+                <i class="bi bi-mortarboard-fill"></i> Education Committee
+                <i class="bi bi-chevron-down toggle-icon"></i>
+            </a>
+            <div class="collapse<?php echo $eduExpanded ? ' show' : ''; ?>" id="educationMenu">
+                <div class="submenu">
+                    <?php if (!empty($eduTabs['scholarship']['is_visible'])): ?>
+                        <a href="#iskolarMenu" class="nav-link-item nav-sub nav-sub-parent nav-program-tab" data-bs-toggle="collapse" role="button" aria-expanded="<?php echo $iskolarExpanded ? 'true' : 'false'; ?>" aria-controls="iskolarMenu">
+                            <i class="bi <?php echo e($eduTabs['scholarship']['icon']); ?>"></i> <?php echo e($eduTabs['scholarship']['label']); ?>
+                            <i class="bi bi-chevron-down toggle-icon-sub"></i>
+                        </a>
+                        <div class="collapse<?php echo $iskolarExpanded ? ' show' : ''; ?>" id="iskolarMenu">
+                            <div class="submenu-nested program-sub">
+                                <a href="<?php echo APP_BASE; ?>/admin/Education/EducationApplicants.php" class="nav-link-item nav-sub-sub<?php echo navActive('EducationApplicants'); ?>"><i class="bi bi-pencil-square"></i> Applications</a>
+                                <a href="<?php echo APP_BASE; ?>/admin/Education/EducationScholarList.php" class="nav-link-item nav-sub-sub<?php echo navActive('EducationScholarList'); ?>"><i class="bi bi-person-check-fill"></i> Scholars</a>
+                                <a href="<?php echo APP_BASE; ?>/admin/Education/EducationAllowanceDistribution.php" class="nav-link-item nav-sub-sub<?php echo navActive('EducationAllowanceDistribution'); ?>"><i class="bi bi-cash"></i> Allowance Distribution</a>
+                                <a href="<?php echo APP_BASE; ?>/admin/Education/EducationActivities.php" class="nav-link-item nav-sub-sub<?php echo navActive('EducationActivities'); ?>"><i class="bi bi-calendar-event-fill"></i> Activities</a>
+                            </div>
                         </div>
-                    </div>
-                <?php endif; ?>
+                    <?php endif; ?>
 
-                <?php if (!empty($eduTabs['assistance']['is_visible'])): ?>
-                    <a href="#assistanceProgramMenu" class="nav-link-item nav-sub nav-sub-parent nav-program-tab" data-bs-toggle="collapse" role="button" aria-expanded="<?php echo $eduAssistExpanded ? 'true' : 'false'; ?>" aria-controls="assistanceProgramMenu">
-                        <i class="bi <?php echo e($eduTabs['assistance']['icon']); ?>"></i> <?php echo e($eduTabs['assistance']['label']); ?>
-                        <i class="bi bi-chevron-down toggle-icon-sub"></i>
-                    </a>
-                    <div class="collapse<?php echo $eduAssistExpanded ? ' show' : ''; ?>" id="assistanceProgramMenu">
-                        <div class="submenu-nested program-sub">
-                            <a href="<?php echo APP_BASE; ?>/admin/Education/EducationAssistanceApplicants.php" class="nav-link-item nav-sub-sub<?php echo $isBaseProgramView ? navActive('EducationAssistanceApplicants') : ''; ?>"><i class="bi bi-pencil-square"></i> Applications</a>
+                    <?php if (!empty($eduTabs['assistance']['is_visible'])): ?>
+                        <a href="#assistanceProgramMenu" class="nav-link-item nav-sub nav-sub-parent nav-program-tab" data-bs-toggle="collapse" role="button" aria-expanded="<?php echo $eduAssistExpanded ? 'true' : 'false'; ?>" aria-controls="assistanceProgramMenu">
+                            <i class="bi <?php echo e($eduTabs['assistance']['icon']); ?>"></i> <?php echo e($eduTabs['assistance']['label']); ?>
+                            <i class="bi bi-chevron-down toggle-icon-sub"></i>
+                        </a>
+                        <div class="collapse<?php echo $eduAssistExpanded ? ' show' : ''; ?>" id="assistanceProgramMenu">
+                            <div class="submenu-nested program-sub">
+                                <a href="<?php echo APP_BASE; ?>/admin/Education/EducationAssistanceApplicants.php" class="nav-link-item nav-sub-sub<?php echo $isBaseProgramView ? navActive('EducationAssistanceApplicants') : ''; ?>"><i class="bi bi-pencil-square"></i> Applications</a>
 
-                            <a href="#educationAssistanceRequestsMenu" class="nav-link-item nav-sub-sub nav-sub-sub-parent" data-bs-toggle="collapse" role="button" aria-expanded="<?php echo $eduAssistReqExpanded ? 'true' : 'false'; ?>" aria-controls="educationAssistanceRequestsMenu">
-                                <i class="bi bi-cash-coin"></i> Assistance Requests
-                                <i class="bi bi-chevron-down toggle-icon-sub-sub"></i>
-                            </a>
-                            <div class="collapse<?php echo $eduAssistReqExpanded ? ' show' : ''; ?>" id="educationAssistanceRequestsMenu">
-                                <div class="submenu-nested-2">
-                                    <a href="<?php echo APP_BASE; ?>/admin/Education/EducationCashAssistance.php" class="nav-link-item nav-sub-sub-sub<?php echo $isBaseProgramView ? navActive('EducationCashAssistance') : ''; ?>"><i class="bi bi-cash"></i> Cash Assistance</a>
-                                    <a href="<?php echo APP_BASE; ?>/admin/Education/EducationInKindAssistance.php" class="nav-link-item nav-sub-sub-sub<?php echo $isBaseProgramView ? navActive('EducationInKindAssistance') : ''; ?>"><i class="bi bi-box-seam"></i> In-Kind Assistance</a>
+                                <a href="#educationAssistanceRequestsMenu" class="nav-link-item nav-sub-sub nav-sub-sub-parent" data-bs-toggle="collapse" role="button" aria-expanded="<?php echo $eduAssistReqExpanded ? 'true' : 'false'; ?>" aria-controls="educationAssistanceRequestsMenu">
+                                    <i class="bi bi-cash-coin"></i> Assistance Requests
+                                    <i class="bi bi-chevron-down toggle-icon-sub-sub"></i>
+                                </a>
+                                <div class="collapse<?php echo $eduAssistReqExpanded ? ' show' : ''; ?>" id="educationAssistanceRequestsMenu">
+                                    <div class="submenu-nested-2">
+                                        <a href="<?php echo APP_BASE; ?>/admin/Education/EducationCashAssistance.php" class="nav-link-item nav-sub-sub-sub<?php echo $isBaseProgramView ? navActive('EducationCashAssistance') : ''; ?>"><i class="bi bi-cash"></i> Cash Assistance</a>
+                                        <a href="<?php echo APP_BASE; ?>/admin/Education/EducationInKindAssistance.php" class="nav-link-item nav-sub-sub-sub<?php echo $isBaseProgramView ? navActive('EducationInKindAssistance') : ''; ?>"><i class="bi bi-box-seam"></i> In-Kind Assistance</a>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                <?php endif; ?>
-                <?php renderExtraProgramTabLinks($eduCommitteeId, $eduTabs, $programSubmenuPages['education']); ?>
+                    <?php endif; ?>
+                    <?php renderExtraProgramTabLinks($eduCommitteeId, $eduTabs, $programSubmenuPages['education']); ?>
+                </div>
             </div>
-        </div>
+        <?php endif; ?>
 
         <!-- HEALTH COMMITTEE -->
         <?php
@@ -284,7 +296,7 @@ function collapseAttrs($expanded)
         $healthAssistExpanded = $isBaseProgramView && groupExpanded(['HealthApplicants', 'HealthCashAssistance', 'HealthInKindAssistance']);
         $healthReqExpanded = $isBaseProgramView && groupExpanded(['HealthCashAssistance', 'HealthInKindAssistance']);
         ?>
-        <?php if (!empty($healthTabs['assistance']['is_visible'])): ?>
+        <?php if (committeeAllowed($healthCommitteeId) && !empty($healthTabs['assistance']['is_visible'])): ?>
             <a href="#healthMenu" class="nav-link-item nav-parent" data-bs-toggle="collapse" role="button" aria-expanded="<?php echo $healthExpanded ? 'true' : 'false'; ?>" aria-controls="healthMenu">
                 <i class="bi bi-heart-pulse-fill"></i> Health
                 <i class="bi bi-chevron-down toggle-icon"></i>
@@ -322,7 +334,7 @@ function collapseAttrs($expanded)
         $sportsAssistExpanded = $isBaseProgramView && groupExpanded(['SportsApplicants', 'SportsCashAssistance', 'SportsInkindAssistance']);
         $sportsReqExpanded = $isBaseProgramView && groupExpanded(['SportsCashAssistance', 'SportsInkindAssistance']);
         ?>
-        <?php if (!empty($sportsTabs['assistance']['is_visible'])): ?>
+        <?php if (committeeAllowed($sportsCommitteeId) && !empty($sportsTabs['assistance']['is_visible'])): ?>
             <a href="#sportsMenu" class="nav-link-item nav-parent" data-bs-toggle="collapse" role="button" aria-expanded="<?php echo $sportsExpanded ? 'true' : 'false'; ?>" aria-controls="sportsMenu">
                 <i class="bi bi-trophy-fill"></i> Sports Committee
                 <i class="bi bi-chevron-down toggle-icon"></i>
@@ -360,7 +372,7 @@ function collapseAttrs($expanded)
         $citizenshipAssistExpanded = $isBaseProgramView && groupExpanded(['ActiveCitizenshipApplicants', 'ActiveCitizenshipCashAssistance', 'ActiveCitizenshipInKindAssistance']);
         $citizenshipReqExpanded = $isBaseProgramView && groupExpanded(['ActiveCitizenshipCashAssistance', 'ActiveCitizenshipInKindAssistance']);
         ?>
-        <?php if (!empty($citizenshipTabs['assistance']['is_visible'])): ?>
+        <?php if (committeeAllowed($citizenshipCommitteeId) && !empty($citizenshipTabs['assistance']['is_visible'])): ?>
             <a href="#citizenshipMenu" class="nav-link-item nav-parent" data-bs-toggle="collapse" role="button" aria-expanded="<?php echo $citizenshipExpanded ? 'true' : 'false'; ?>" aria-controls="citizenshipMenu">
                 <i class="bi bi-flag-fill"></i> Active Citizenship
                 <i class="bi bi-chevron-down toggle-icon"></i>
@@ -411,15 +423,19 @@ function collapseAttrs($expanded)
             </div>
         <?php endforeach; ?>
 
-        <!-- REPORTS -->
-        <a href="<?php echo APP_BASE; ?>/admin/AdminReports.php" class="nav-link-item<?php echo navActive('AdminReports'); ?>"><i class="bi bi-graph-up-arrow"></i> Reports</a>
+        <!-- REPORTS (super admin only) -->
+        <?php if ($isSuperAdmin): ?>
+            <a href="<?php echo APP_BASE; ?>/admin/AdminReports.php" class="nav-link-item<?php echo navActive('AdminReports'); ?>"><i class="bi bi-graph-up-arrow"></i> Reports</a>
+        <?php endif; ?>
     </nav>
 
     <!-- Bottom section: Program Management + User Management + Configuration -->
     <div class="config-section">
         <a href="<?php echo APP_BASE; ?>/admin/AdminProgramManagement.php" class="nav-link-item<?php echo navActive('AdminProgramManagement'); ?>"><i class="bi bi-diagram-3-fill"></i> Content Management</a>
-        <a href="<?php echo APP_BASE; ?>/admin/AdminUserManagement.php" class="nav-link-item<?php echo navActive('AdminUserManagement'); ?>"><i class="bi bi-person-fill"></i> User Management</a>
-        <a href="<?php echo APP_BASE; ?>/admin/AdminConfiguration.php" class="nav-link-item<?php echo navActive('AdminConfiguration'); ?>"><i class="bi bi-gear-fill"></i> Configuration</a>
+        <?php if ($isSuperAdmin): ?>
+            <a href="<?php echo APP_BASE; ?>/admin/AdminUserManagement.php" class="nav-link-item<?php echo navActive('AdminUserManagement'); ?>"><i class="bi bi-person-fill"></i> User Management</a>
+            <a href="<?php echo APP_BASE; ?>/admin/AdminConfiguration.php" class="nav-link-item<?php echo navActive('AdminConfiguration'); ?>"><i class="bi bi-gear-fill"></i> Configuration</a>
+        <?php endif; ?>
     </div>
 </div>
 

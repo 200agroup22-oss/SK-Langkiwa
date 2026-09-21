@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/functions.php';
+require_once __DIR__ . '/mail.php';
 
 function getCommitteeIdByCode($code)
 {
@@ -229,6 +230,62 @@ function setProgramTabVisible($programId, $isVisible)
     $stmt->close();
 }
 
+// Emails the applicant once their application has been approved or declined (called right after
+// the status UPDATE in each committee's Applicants page). Silently does nothing if the applicant
+// has no email on file or the email fails to send — approval/decline itself must never be blocked
+// by a mail delivery problem.
+function notifyApplicationDecision($applicationId, $status, $reason = null)
+{
+    global $conn;
+    $stmt = $conn->prepare("SELECT u.email, u.first_name, u.last_name, p.name AS program_name, pt.label AS track_label, c.name AS committee_name
+        FROM applications a
+        JOIN users u ON u.user_id = a.user_id
+        LEFT JOIN programs p ON p.program_id = a.program_id
+        LEFT JOIN program_tabs pt ON pt.committee_id = a.committee_id AND pt.track_code = a.program_track
+        LEFT JOIN committees c ON c.committee_id = a.committee_id
+        WHERE a.application_id = ?");
+    $stmt->bind_param('i', $applicationId);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if (!$row || empty($row['email'])) {
+        return;
+    }
+
+    $programLabel = $row['program_name'] ?: ($row['track_label'] ?: $row['committee_name']);
+    $toName = trim($row['first_name'] . ' ' . $row['last_name']);
+    sendApplicationDecisionEmail($row['email'], $toName, $programLabel, $status, $reason);
+}
+
+// Committee IDs a 'committee_admin' user is assigned to manage. Meaningless for other roles —
+// callers should check the role first (or just call requireCommitteeAccess(), which does).
+function getUserCommitteeIds($userId)
+{
+    global $conn;
+    $stmt = $conn->prepare("SELECT committee_id FROM admin_committee_assignments WHERE user_id = ?");
+    $stmt->bind_param('i', $userId);
+    $stmt->execute();
+    $ids = array_map('intval', array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'committee_id'));
+    $stmt->close();
+    return $ids;
+}
+
+// Call after requireRole(['admin', 'committee_admin']) on any committee-specific admin page, once
+// that page's $committeeId is known. A super admin ('admin') always passes; a committee_admin is
+// sent back to their dashboard if this committee isn't one they're assigned to.
+function requireCommitteeAccess($committeeId)
+{
+    $me = currentUser();
+    if ($me['role'] === 'admin') {
+        return;
+    }
+    if (!in_array((int)$committeeId, getUserCommitteeIds($me['user_id']), true)) {
+        header("Location: " . dashboardUrlForRole($me['role']));
+        exit();
+    }
+}
+
 // Counts approved, non-archived applications for a committee+track — used to enforce program_tabs.max_slots.
 function getApprovedCount($committeeId, $trackCode)
 {
@@ -307,6 +364,36 @@ function programClosedState($program)
         return 'closed';
     }
     return null;
+}
+
+// Turns a field label into a unique, DB-safe field_key within its committee+track(+program) scope
+// (e.g. "Full Name" -> "full_name", "full_name_2" if that key is already taken). Shared by every
+// place that lets an admin add a custom form field.
+function slugifyFieldKey($label, $committeeId, $track, $conn, $programId = null)
+{
+    $base = strtolower(trim(preg_replace('/[^a-zA-Z0-9]+/', '_', $label), '_'));
+    if ($base === '') {
+        $base = 'field';
+    }
+    $key = $base;
+    $i = 2;
+    while (true) {
+        $sql = "SELECT field_id FROM form_fields WHERE committee_id = ? AND program_track = ? AND field_key = ? AND " . ($programId !== null ? "program_id = ?" : "program_id IS NULL");
+        $stmt = $conn->prepare($sql);
+        if ($programId !== null) {
+            $stmt->bind_param('issi', $committeeId, $track, $key, $programId);
+        } else {
+            $stmt->bind_param('iss', $committeeId, $track, $key);
+        }
+        $stmt->execute();
+        $exists = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!$exists) {
+            return $key;
+        }
+        $key = $base . '_' . $i;
+        $i++;
+    }
 }
 
 // Returns the active (non-archived) field definitions for a committee + program track, in display order.
