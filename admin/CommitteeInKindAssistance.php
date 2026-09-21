@@ -2,7 +2,7 @@
 // Generic In-Kind Assistance page for any committee added beyond the 4 built-in ones.
 // Committee is selected via ?committee=<id> instead of being hardcoded.
 require_once __DIR__ . '/../config/forms.php';
-requireRole('admin');
+requireRole(['admin', 'committee_admin']);
 
 $committeeId = (int)($_GET['committee'] ?? 0);
 $committee = null;
@@ -17,6 +17,7 @@ if (!$committee) {
     header("Location: AdminProgramManagement.php");
     exit();
 }
+requireCommitteeAccess($committeeId);
 
 $track = 'assistance';
 $type = 'in_kind';

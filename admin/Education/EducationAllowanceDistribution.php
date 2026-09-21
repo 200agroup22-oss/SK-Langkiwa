@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../../config/scholars.php';
-requireRole('admin');
+requireRole(['admin', 'committee_admin']);
+requireCommitteeAccess(getCommitteeIdByCode('education'));
 
 $term = getCurrentTerm();
 

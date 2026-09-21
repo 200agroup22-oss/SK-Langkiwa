@@ -3,7 +3,7 @@
 // ones (Education/Health/Sports/Active Citizenship, which each keep their own dedicated pages).
 // Committee is selected via ?committee=<id> instead of being hardcoded.
 require_once __DIR__ . '/../config/forms.php';
-requireRole('admin');
+requireRole(['admin', 'committee_admin']);
 
 $committeeId = (int)($_GET['committee'] ?? 0);
 $committee = null;
@@ -18,6 +18,7 @@ if (!$committee) {
     header("Location: AdminProgramManagement.php");
     exit();
 }
+requireCommitteeAccess($committeeId);
 
 $track = 'assistance';
 $me = currentUser();
@@ -89,6 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute();
             $stmt->close();
             logAudit('Approved Application', $committee['name'] . ' applicant #' . $applicationId);
+            notifyApplicationDecision($applicationId, 'approved');
             setFlash('success', 'Applicant approved.');
         }
     }
@@ -101,6 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute();
         $stmt->close();
         logAudit('Declined Application', $committee['name'] . ' applicant #' . $applicationId);
+        notifyApplicationDecision($applicationId, 'declined', $reason);
         setFlash('success', 'Applicant declined.');
     }
 

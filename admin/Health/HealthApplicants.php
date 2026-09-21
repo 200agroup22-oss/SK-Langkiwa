@@ -1,8 +1,9 @@
 <?php
 require_once __DIR__ . '/../../config/forms.php';
-requireRole('admin');
+requireRole(['admin', 'committee_admin']);
 
 $committeeId = getCommitteeIdByCode('health');
+requireCommitteeAccess($committeeId);
 $track = 'assistance';
 $me = currentUser();
 
@@ -74,6 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute();
             $stmt->close();
             logAudit('Approved Application', 'Health applicant #' . $applicationId);
+            notifyApplicationDecision($applicationId, 'approved');
             setFlash('success', 'Applicant approved.');
         }
     }
@@ -86,6 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute();
         $stmt->close();
         logAudit('Declined Application', 'Health applicant #' . $applicationId);
+        notifyApplicationDecision($applicationId, 'declined', $reason);
         setFlash('success', 'Applicant declined.');
     }
 
