@@ -28,8 +28,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!in_array($gender, ['Male', 'Female'], true)) {
         $errors[] = 'Please select a gender.';
     }
-    if ($age === '' || !ctype_digit($age) || (int)$age < 1) {
-        $errors[] = 'Please enter a valid age.';
+    if ($age === '' || !ctype_digit($age) || (int)$age < 15 || (int)$age > 30) {
+        $errors[] = 'Age must be between 15 and 30 — this system is for the Sangguniang Kabataan (youth).';
     }
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $errors[] = 'Please enter a valid email address.';
@@ -74,8 +74,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $signupError = getFlash('error');
-$settings = $conn->query("SELECT terms_conditions FROM site_settings WHERE id = 1")->fetch_assoc();
+$settings = $conn->query("SELECT terms_conditions, privacy_policy FROM site_settings WHERE id = 1")->fetch_assoc();
 $termsText = $settings['terms_conditions'] ?? '';
+$privacyText = $settings['privacy_policy'] ?? '';
 ?>
 <!doctype html>
 <html lang="en">
@@ -99,7 +100,7 @@ $termsText = $settings['terms_conditions'] ?? '';
 <body style="background-color: #b4ebc0;">
     <div class="container-fluid d-flex justify-content-center align-items-center min-vh-100 py-4">
 
-        <div class="card" style="width: 600px;">
+        <div class="card" style="width: 600px; max-width: 92vw;">
             <div class="card-header">
                 <img src="<?php echo siteLogoUrl(); ?>" alt="logo" height="60px" style="border-radius:100%;">
                 <?php echo e(siteName()); ?>
@@ -145,7 +146,7 @@ $termsText = $settings['terms_conditions'] ?? '';
                             <label class="form-label">Age</label>
                             <div class="input-group">
                                 <span class="input-group-text"><i class="bi bi-calendar-fill"></i></span>
-                                <input type="number" name="age" class="form-control" placeholder="Enter your age" min="1" value="<?php echo e($old['age']); ?>" required>
+                                <input type="number" name="age" class="form-control" placeholder="Enter your age (15-30)" min="15" max="30" value="<?php echo e($old['age']); ?>" required>
                             </div>
                         </div>
                         <div class="col-md-6">
@@ -195,6 +196,10 @@ $termsText = $settings['terms_conditions'] ?? '';
                             <a href="#" data-bs-toggle="modal" data-bs-target="#termsModal" style="color:#409D42; font-weight:600; text-decoration:none;">
                                 Terms and Conditions
                             </a>
+                            and
+                            <a href="#" data-bs-toggle="modal" data-bs-target="#privacyModal" style="color:#409D42; font-weight:600; text-decoration:none;">
+                                Privacy Policy
+                            </a>
                         </label>
                     </div>
 
@@ -231,6 +236,22 @@ $termsText = $settings['terms_conditions'] ?? '';
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" style="filter: brightness(0) invert(1);"></button>
                 </div>
                 <div class="modal-body p-4" style="font-size: 13px; white-space: pre-wrap; line-height: 1.6;"><?php echo e($termsText); ?></div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-sm btn-success px-4" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PRIVACY POLICY MODAL -->
+    <div class="modal fade" id="privacyModal" tabindex="-1" aria-labelledby="privacyModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-scrollable modal-dialog-centered" style="max-width: 620px;">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header" style="background: linear-gradient(90deg, #409D42, #86c98a); color: #fff;">
+                    <h6 class="modal-title fw-bold" id="privacyModalLabel"><i class="bi bi-shield-lock-fill me-2"></i>Privacy Policy</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" style="filter: brightness(0) invert(1);"></button>
+                </div>
+                <div class="modal-body p-4" style="font-size: 13px; white-space: pre-wrap; line-height: 1.6;"><?php echo e($privacyText); ?></div>
                 <div class="modal-footer border-0">
                     <button type="button" class="btn btn-sm btn-success px-4" data-bs-dismiss="modal">Close</button>
                 </div>
