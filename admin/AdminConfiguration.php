@@ -62,6 +62,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    if (isset($_POST['save_privacy_policy'])) {
+        $privacyPolicy = trim($_POST['privacy_policy'] ?? '');
+        if ($privacyPolicy === '') {
+            setFlash('error', 'Privacy Policy cannot be empty — applicants must have something to agree to.');
+        } else {
+            $stmt = $conn->prepare("UPDATE site_settings SET privacy_policy = ? WHERE id = 1");
+            $stmt->bind_param('s', $privacyPolicy);
+            $stmt->execute();
+            $stmt->close();
+            logAudit('Updated Site Settings', 'Privacy Policy');
+            setFlash('success', 'Privacy Policy updated.');
+        }
+    }
+
     if (isset($_POST['save_office_info'])) {
         $address = trim($_POST['sk_office_address'] ?? '');
         $contact = trim($_POST['contact_number'] ?? '');
@@ -713,6 +727,20 @@ $activeLink = 'AdminConfiguration';
                         <textarea class="form-control form-control-sm" name="terms_conditions" rows="8" style="font-size:12.5px; font-family: 'Courier New', monospace;" required><?php echo e($settings['terms_conditions']); ?></textarea>
                         <div class="text-end mt-2">
                             <button type="submit" name="save_terms" class="btn btn-sm btn-success px-3">Save</button>
+                        </div>
+                    </div>
+                </form>
+
+                <div class="divider"></div>
+
+                <!-- Privacy Policy -->
+                <form method="post">
+                    <div class="mb-2">
+                        <div class="setting-label"><i class="bi bi-shield-lock-fill text-success me-1"></i> Privacy Policy</div>
+                        <div class="setting-desc mt-1 mb-2">Shown to applicants during registration alongside the Terms and Conditions.</div>
+                        <textarea class="form-control form-control-sm" name="privacy_policy" rows="8" style="font-size:12.5px; font-family: 'Courier New', monospace;" required><?php echo e($settings['privacy_policy']); ?></textarea>
+                        <div class="text-end mt-2">
+                            <button type="submit" name="save_privacy_policy" class="btn btn-sm btn-success px-3">Save</button>
                         </div>
                     </div>
                 </form>

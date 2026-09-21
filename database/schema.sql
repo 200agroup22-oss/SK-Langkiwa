@@ -41,7 +41,7 @@ CREATE TABLE programs (
     committee_id INT NOT NULL,
     name VARCHAR(150) NOT NULL,
     description TEXT NULL,
-    assistance_type ENUM('cash','in_kind') NOT NULL DEFAULT 'cash',
+    assistance_type ENUM('cash','in_kind','both') NOT NULL DEFAULT 'cash',
     amount DECIMAL(10,2) NULL,
     release_schedule VARCHAR(60) NULL,
     app_start_date DATE NULL,
@@ -141,8 +141,10 @@ CREATE TABLE scholars (
     school VARCHAR(150) NULL,
     course VARCHAR(150) NULL,
     year_level TINYINT NULL,
-    status ENUM('active','archived') NOT NULL DEFAULT 'active',
+    status ENUM('active','pending','archived') NOT NULL DEFAULT 'active' COMMENT "active = current term; pending = term ended, awaiting the admin's renewal decision on the Applicants page's Renewals tab (still has scholar-portal access); archived = permanently declined/removed (role reverted to applicant)",
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    finished_academic_year VARCHAR(20) NULL COMMENT 'Academic year the scholar was last archived out of (the term they finished) — set on manual Archive or End Semester',
+    finished_semester VARCHAR(20) NULL COMMENT 'Semester counterpart to finished_academic_year',
     FOREIGN KEY (user_id) REFERENCES users(user_id),
     FOREIGN KEY (application_id) REFERENCES applications(application_id)
 ) ENGINE=InnoDB;
@@ -275,6 +277,7 @@ CREATE TABLE site_settings (
     email VARCHAR(150) NULL,
     facebook_url VARCHAR(255) NULL,
     terms_conditions TEXT NULL,
+    privacy_policy TEXT NULL,
     allow_public_applications TINYINT(1) NOT NULL DEFAULT 1,
     show_announcements TINYINT(1) NOT NULL DEFAULT 1,
     current_academic_year VARCHAR(20) NOT NULL DEFAULT '2025-2026',
