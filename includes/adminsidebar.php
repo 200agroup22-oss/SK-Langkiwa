@@ -423,10 +423,8 @@ function collapseAttrs($expanded)
             </div>
         <?php endforeach; ?>
 
-        <!-- REPORTS (super admin only) -->
-        <?php if ($isSuperAdmin): ?>
-            <a href="<?php echo APP_BASE; ?>/admin/AdminReports.php" class="nav-link-item<?php echo navActive('AdminReports'); ?>"><i class="bi bi-graph-up-arrow"></i> Reports</a>
-        <?php endif; ?>
+        <!-- REPORTS (a committee_admin gets a committee-scoped view — see AdminReports.php) -->
+        <a href="<?php echo APP_BASE; ?>/admin/AdminReports.php" class="nav-link-item<?php echo navActive('AdminReports'); ?>"><i class="bi bi-graph-up-arrow"></i> Reports</a>
     </nav>
 
     <!-- Bottom section: Program Management + User Management + Configuration -->

@@ -1,10 +1,17 @@
 <?php
-require_once __DIR__ . '/../config/functions.php';
-requireRole('admin');
+require_once __DIR__ . '/../config/forms.php';
+requireRole(['admin', 'committee_admin']);
 
 $me = currentUser();
+$isSuperAdmin = $me['role'] === 'admin';
+$myCommitteeIds = $isSuperAdmin ? [] : getUserCommitteeIds($me['user_id']);
 
 $committees = $conn->query("SELECT * FROM committees ORDER BY committee_id ASC")->fetch_all(MYSQLI_ASSOC);
+if (!$isSuperAdmin) {
+    // A committee_admin's whole Reports view is locked to their own committee(s) — no "All
+    // Committees" option anywhere on this page.
+    $committees = array_values(array_filter($committees, fn($c) => in_array((int)$c['committee_id'], $myCommitteeIds, true)));
+}
 
 // Built-in tracks (iSKolar ng Langkiwa / Assistance Program) plus active, non-archived catalog
 // programs, grouped by committee, for the Generate Report modal's Program filter (populated
@@ -36,6 +43,22 @@ if ($committeeCode !== 'all') {
     $row = $stmt->get_result()->fetch_assoc();
     $stmt->close();
     $committeeId = $row ? (int)$row['committee_id'] : -1; // -1 = no such committee, matches nothing
+}
+
+if (!$isSuperAdmin) {
+    // No "all committees" view for a committee_admin, and no picking a committee they're not
+    // assigned to (whether via the dropdown or a hand-edited URL) — fall back to their first
+    // assigned committee whenever the requested one isn't allowed.
+    if (!in_array($committeeId, $myCommitteeIds, true)) {
+        $committeeId = $myCommitteeIds[0] ?? -1;
+        $committeeCode = '';
+        foreach ($committees as $c) {
+            if ((int)$c['committee_id'] === $committeeId) {
+                $committeeCode = $c['code'];
+                break;
+            }
+        }
+    }
 }
 
 $defaultPeriodValue = $periodMode === 'monthly' ? date('Y-m') : date('Y');
@@ -656,8 +679,10 @@ $activeLink = 'AdminReports';
         <!-- Tabs -->
         <div class="content-tabs">
             <button class="content-tab-btn active" data-tab="overviewTab"><i class="bi bi-bar-chart-fill"></i> Overview</button>
-            <button class="content-tab-btn" data-tab="activityLogsTab"><i class="bi bi-activity"></i> Activity Logs</button>
-            <button class="content-tab-btn" data-tab="auditLogsTab"><i class="bi bi-journal-text"></i> Audit Logs</button>
+            <?php if ($isSuperAdmin): ?>
+                <button class="content-tab-btn" data-tab="activityLogsTab"><i class="bi bi-activity"></i> Activity Logs</button>
+                <button class="content-tab-btn" data-tab="auditLogsTab"><i class="bi bi-journal-text"></i> Audit Logs</button>
+            <?php endif; ?>
         </div>
 
         <div class="tab-pane-custom active" id="overviewTab">
@@ -677,8 +702,8 @@ $activeLink = 'AdminReports';
                                 <option value="<?php echo e($val); ?>" <?php echo $val === $periodValue ? 'selected' : ''; ?>><?php echo e($label); ?></option>
                             <?php endforeach; ?>
                         </select>
-                        <select class="filter-select" name="committee" onchange="this.form.submit()">
-                            <option value="all" <?php echo $committeeCode === 'all' ? 'selected' : ''; ?>>All Committees</option>
+                        <select class="filter-select" name="committee" onchange="this.form.submit()" <?php echo (!$isSuperAdmin && count($committees) <= 1) ? 'disabled' : ''; ?>>
+                            <?php if ($isSuperAdmin): ?><option value="all" <?php echo $committeeCode === 'all' ? 'selected' : ''; ?>>All Committees</option><?php endif; ?>
                             <?php foreach ($committees as $c): ?>
                                 <option value="<?php echo e($c['code']); ?>" <?php echo $committeeCode === $c['code'] ? 'selected' : ''; ?>><?php echo e($c['name']); ?></option>
                             <?php endforeach; ?>
@@ -766,7 +791,7 @@ $activeLink = 'AdminReports';
             </div>
 
             <!-- Consolidated Table -->
-            <div class="section-label"><i class="bi bi-table me-1"></i> Consolidated Committee Report <span class="text-muted" style="font-weight:500; text-transform:none; letter-spacing:normal;">(period-filtered, all committees)</span></div>
+            <div class="section-label"><i class="bi bi-table me-1"></i> Consolidated Committee Report <span class="text-muted" style="font-weight:500; text-transform:none; letter-spacing:normal;">(<?php echo $isSuperAdmin ? 'period-filtered, all committees' : 'period-filtered, your committee(s)'; ?>)</span></div>
             <div class="table-card">
                 <div class="table-responsive-wrap">
                     <table class="report-table">
@@ -804,138 +829,144 @@ $activeLink = 'AdminReports';
         </div><!-- /overviewTab -->
 
         <!-- ==============================
-             ACTIVITY LOGS TAB
+             ACTIVITY LOGS TAB (super admin only — system-wide, not scoped to a committee)
         ============================== -->
-        <div class="tab-pane-custom" id="activityLogsTab">
-            <div class="section-label"><i class="bi bi-activity me-1"></i> Activity Logs <span class="text-muted" style="font-weight:500; text-transform:none; letter-spacing:normal;">(user login/logout history, all-time)</span></div>
+        <?php if ($isSuperAdmin): ?>
+            <div class="tab-pane-custom" id="activityLogsTab">
+                <div class="section-label"><i class="bi bi-activity me-1"></i> Activity Logs <span class="text-muted" style="font-weight:500; text-transform:none; letter-spacing:normal;">(user login/logout history, all-time)</span></div>
 
-            <form method="get">
-                <input type="hidden" name="tab" value="activityLogsTab">
-                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                    <div class="d-flex gap-2 flex-wrap align-items-center">
-                        <span style="font-size:12px; color:#666; font-weight:600;"><i class="bi bi-funnel me-1"></i>Filter:</span>
-                        <select class="filter-select" name="role" onchange="this.form.submit()">
-                            <option value="">All Roles</option>
-                            <?php foreach ($distinctRoles as $r): ?>
-                                <option value="<?php echo e($r); ?>" <?php echo $roleFilter === $r ? 'selected' : ''; ?>><?php echo ucfirst(e($r)); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                        <select class="filter-select" name="logdate" onchange="this.form.submit()">
-                            <option value="">All Date</option>
-                            <option value="today" <?php echo $dateFilter === 'today' ? 'selected' : ''; ?>>Today</option>
-                            <option value="week" <?php echo $dateFilter === 'week' ? 'selected' : ''; ?>>This Week</option>
-                            <option value="month" <?php echo $dateFilter === 'month' ? 'selected' : ''; ?>>This Month</option>
-                        </select>
+                <form method="get">
+                    <input type="hidden" name="tab" value="activityLogsTab">
+                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                        <div class="d-flex gap-2 flex-wrap align-items-center">
+                            <span style="font-size:12px; color:#666; font-weight:600;"><i class="bi bi-funnel me-1"></i>Filter:</span>
+                            <select class="filter-select" name="role" onchange="this.form.submit()">
+                                <option value="">All Roles</option>
+                                <?php foreach ($distinctRoles as $r): ?>
+                                    <option value="<?php echo e($r); ?>" <?php echo $roleFilter === $r ? 'selected' : ''; ?>><?php echo ucfirst(e($r)); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <select class="filter-select" name="logdate" onchange="this.form.submit()">
+                                <option value="">All Date</option>
+                                <option value="today" <?php echo $dateFilter === 'today' ? 'selected' : ''; ?>>Today</option>
+                                <option value="week" <?php echo $dateFilter === 'week' ? 'selected' : ''; ?>>This Week</option>
+                                <option value="month" <?php echo $dateFilter === 'month' ? 'selected' : ''; ?>>This Month</option>
+                            </select>
+                        </div>
+                        <div class="search-box">
+                            <input type="text" name="logq" value="<?php echo e($logSearch); ?>" placeholder="Search...">
+                            <i class="bi bi-search"></i>
+                        </div>
                     </div>
-                    <div class="search-box">
-                        <input type="text" name="logq" value="<?php echo e($logSearch); ?>" placeholder="Search...">
-                        <i class="bi bi-search"></i>
+                </form>
+
+                <div class="table-card">
+                    <div class="table-responsive-wrap">
+                        <table class="report-table" style="min-width:700px;">
+                            <thead>
+                                <tr>
+                                    <th>User ID</th>
+                                    <th>Full Name</th>
+                                    <th>Email</th>
+                                    <th>Role</th>
+                                    <th>Logged In</th>
+                                    <th>Logged Out</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (empty($activityLogs)): ?>
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted py-3">No activity logs found.</td>
+                                    </tr>
+                                <?php endif; ?>
+                                <?php foreach ($activityLogs as $log): ?>
+                                    <tr>
+                                        <td><?php echo $log['user_id'] ? str_pad($log['user_id'], 3, '0', STR_PAD_LEFT) : '—'; ?></td>
+                                        <td><?php echo e($log['full_name']); ?></td>
+                                        <td><?php echo e($log['email']); ?></td>
+                                        <td><?php echo ucfirst(e($log['role'])); ?></td>
+                                        <td><?php echo date('Y-m-d H:i:s', strtotime($log['logged_in_at'])); ?></td>
+                                        <td><?php echo $log['logged_out_at'] ? date('Y-m-d H:i:s', strtotime($log['logged_out_at'])) : '—'; ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
-            </form>
 
-            <div class="table-card">
-                <div class="table-responsive-wrap">
-                    <table class="report-table" style="min-width:700px;">
-                        <thead>
-                            <tr>
-                                <th>User ID</th>
-                                <th>Full Name</th>
-                                <th>Email</th>
-                                <th>Role</th>
-                                <th>Logged In</th>
-                                <th>Logged Out</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (empty($activityLogs)): ?>
-                                <tr>
-                                    <td colspan="6" class="text-center text-muted py-3">No activity logs found.</td>
-                                </tr>
-                            <?php endif; ?>
-                            <?php foreach ($activityLogs as $log): ?>
-                                <tr>
-                                    <td><?php echo $log['user_id'] ? str_pad($log['user_id'], 3, '0', STR_PAD_LEFT) : '—'; ?></td>
-                                    <td><?php echo e($log['full_name']); ?></td>
-                                    <td><?php echo e($log['email']); ?></td>
-                                    <td><?php echo ucfirst(e($log['role'])); ?></td>
-                                    <td><?php echo date('Y-m-d H:i:s', strtotime($log['logged_in_at'])); ?></td>
-                                    <td><?php echo $log['logged_out_at'] ? date('Y-m-d H:i:s', strtotime($log['logged_out_at'])) : '—'; ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <?php renderLogPagination($logPage, $totalActivityPages, $totalActivityLogs, $logPerPage, 'logpage', $activityPaginationParams); ?>
-        </div><!-- /activityLogsTab -->
+                <?php renderLogPagination($logPage, $totalActivityPages, $totalActivityLogs, $logPerPage, 'logpage', $activityPaginationParams); ?>
+            </div><!-- /activityLogsTab -->
+        <?php endif; // $isSuperAdmin (Activity Logs tab) 
+        ?>
 
         <!-- ==============================
-             AUDIT LOGS TAB
+             AUDIT LOGS TAB (super admin only — system-wide, not scoped to a committee)
         ============================== -->
-        <div class="tab-pane-custom" id="auditLogsTab">
-            <div class="section-label"><i class="bi bi-journal-text me-1"></i> Audit Logs <span class="text-muted" style="font-weight:500; text-transform:none; letter-spacing:normal;">(all user actions and system events, all-time)</span></div>
+        <?php if ($isSuperAdmin): ?>
+            <div class="tab-pane-custom" id="auditLogsTab">
+                <div class="section-label"><i class="bi bi-journal-text me-1"></i> Audit Logs <span class="text-muted" style="font-weight:500; text-transform:none; letter-spacing:normal;">(all user actions and system events, all-time)</span></div>
 
-            <form method="get">
-                <input type="hidden" name="tab" value="auditLogsTab">
-                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                    <div class="d-flex gap-2 flex-wrap align-items-center">
-                        <span style="font-size:12px; color:#666; font-weight:600;"><i class="bi bi-funnel me-1"></i>Filter:</span>
-                        <select class="filter-select" name="action" onchange="this.form.submit()">
-                            <option value="">All Actions</option>
-                            <?php foreach ($distinctActions as $ac): ?>
-                                <option value="<?php echo e($ac); ?>" <?php echo $actionFilter === $ac ? 'selected' : ''; ?>><?php echo e($ac); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                        <select class="filter-select" name="auditdate" onchange="this.form.submit()">
-                            <option value="">All Date</option>
-                            <option value="today" <?php echo $auditDateFilter === 'today' ? 'selected' : ''; ?>>Today</option>
-                            <option value="week" <?php echo $auditDateFilter === 'week' ? 'selected' : ''; ?>>This Week</option>
-                            <option value="month" <?php echo $auditDateFilter === 'month' ? 'selected' : ''; ?>>This Month</option>
-                        </select>
+                <form method="get">
+                    <input type="hidden" name="tab" value="auditLogsTab">
+                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                        <div class="d-flex gap-2 flex-wrap align-items-center">
+                            <span style="font-size:12px; color:#666; font-weight:600;"><i class="bi bi-funnel me-1"></i>Filter:</span>
+                            <select class="filter-select" name="action" onchange="this.form.submit()">
+                                <option value="">All Actions</option>
+                                <?php foreach ($distinctActions as $ac): ?>
+                                    <option value="<?php echo e($ac); ?>" <?php echo $actionFilter === $ac ? 'selected' : ''; ?>><?php echo e($ac); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <select class="filter-select" name="auditdate" onchange="this.form.submit()">
+                                <option value="">All Date</option>
+                                <option value="today" <?php echo $auditDateFilter === 'today' ? 'selected' : ''; ?>>Today</option>
+                                <option value="week" <?php echo $auditDateFilter === 'week' ? 'selected' : ''; ?>>This Week</option>
+                                <option value="month" <?php echo $auditDateFilter === 'month' ? 'selected' : ''; ?>>This Month</option>
+                            </select>
+                        </div>
+                        <div class="search-box">
+                            <input type="text" name="auditq" value="<?php echo e($auditSearch); ?>" placeholder="Search...">
+                            <i class="bi bi-search"></i>
+                        </div>
                     </div>
-                    <div class="search-box">
-                        <input type="text" name="auditq" value="<?php echo e($auditSearch); ?>" placeholder="Search...">
-                        <i class="bi bi-search"></i>
+                </form>
+
+                <div class="table-card">
+                    <div class="table-responsive-wrap">
+                        <table class="report-table" style="min-width:700px;">
+                            <thead>
+                                <tr>
+                                    <th>User ID</th>
+                                    <th>Full Name</th>
+                                    <th>Email</th>
+                                    <th>Action</th>
+                                    <th>Date &amp; Time</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (empty($auditLogs)): ?>
+                                    <tr>
+                                        <td colspan="5" class="text-center text-muted py-3">No audit logs found.</td>
+                                    </tr>
+                                <?php endif; ?>
+                                <?php foreach ($auditLogs as $log): ?>
+                                    <tr>
+                                        <td><?php echo $log['user_id'] ? str_pad($log['user_id'], 3, '0', STR_PAD_LEFT) : '—'; ?></td>
+                                        <td><?php echo e($log['full_name']); ?></td>
+                                        <td><?php echo e($log['email']); ?></td>
+                                        <td><?php echo e($log['action']); ?><?php echo $log['details'] ? ' — ' . e($log['details']) : ''; ?></td>
+                                        <td><?php echo date('Y-m-d H:i:s', strtotime($log['created_at'])); ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
-            </form>
 
-            <div class="table-card">
-                <div class="table-responsive-wrap">
-                    <table class="report-table" style="min-width:700px;">
-                        <thead>
-                            <tr>
-                                <th>User ID</th>
-                                <th>Full Name</th>
-                                <th>Email</th>
-                                <th>Action</th>
-                                <th>Date &amp; Time</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (empty($auditLogs)): ?>
-                                <tr>
-                                    <td colspan="5" class="text-center text-muted py-3">No audit logs found.</td>
-                                </tr>
-                            <?php endif; ?>
-                            <?php foreach ($auditLogs as $log): ?>
-                                <tr>
-                                    <td><?php echo $log['user_id'] ? str_pad($log['user_id'], 3, '0', STR_PAD_LEFT) : '—'; ?></td>
-                                    <td><?php echo e($log['full_name']); ?></td>
-                                    <td><?php echo e($log['email']); ?></td>
-                                    <td><?php echo e($log['action']); ?><?php echo $log['details'] ? ' — ' . e($log['details']) : ''; ?></td>
-                                    <td><?php echo date('Y-m-d H:i:s', strtotime($log['created_at'])); ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <?php renderLogPagination($auditPage, $totalAuditPages, $totalAuditLogs, $auditPerPage, 'auditpage', $auditPaginationParams); ?>
-        </div><!-- /auditLogsTab -->
+                <?php renderLogPagination($auditPage, $totalAuditPages, $totalAuditLogs, $auditPerPage, 'auditpage', $auditPaginationParams); ?>
+            </div><!-- /auditLogsTab -->
+        <?php endif; // $isSuperAdmin (Audit Logs tab) 
+        ?>
 
     </div><!-- end .main-content -->
 
@@ -961,14 +992,16 @@ $activeLink = 'AdminReports';
                                 <option value="disbursement">Disbursement Report</option>
                                 <option value="application-status">Application Status Report</option>
                                 <option value="scholars">Scholars Report (incl. Activity Participation)</option>
-                                <option value="activity-log">Activity Log Report</option>
-                                <option value="audit-log">Audit Trail Report</option>
+                                <?php if ($isSuperAdmin): ?>
+                                    <option value="activity-log">Activity Log Report</option>
+                                    <option value="audit-log">Audit Trail Report</option>
+                                <?php endif; ?>
                             </select>
                         </div>
                         <div class="mb-3">
                             <label for="reportCommittee" class="form-label">Committee</label>
                             <select class="form-select" id="reportCommittee" required>
-                                <option value="all" selected>All Committees</option>
+                                <?php if ($isSuperAdmin): ?><option value="all" selected>All Committees</option><?php endif; ?>
                                 <?php foreach ($committees as $c): ?>
                                     <option value="<?php echo e($c['code']); ?>"><?php echo e($c['name']); ?></option>
                                 <?php endforeach; ?>

@@ -5,8 +5,10 @@
 // documented exception to the redirect-after-POST convention used elsewhere in admin/).
 require_once __DIR__ . '/../config/scholars.php';
 require_once __DIR__ . '/../config/fpdf/fpdf.php';
-requireRole('admin');
+requireRole(['admin', 'committee_admin']);
 $me = currentUser();
+$isSuperAdmin = $me['role'] === 'admin';
+$myCommitteeIds = $isSuperAdmin ? [] : getUserCommitteeIds($me['user_id']);
 
 // ---- Validate report type ----
 $allowedTypes = ['consolidated', 'applicants', 'beneficiaries', 'financial', 'in-kind', 'disbursement', 'application-status', 'scholars', 'activity-log', 'audit-log'];
@@ -15,6 +17,13 @@ if (!in_array($type, $allowedTypes, true)) {
     http_response_code(400);
     header('Content-Type: text/plain');
     echo 'Invalid report type.';
+    exit();
+}
+// Activity/audit logs are system-wide, not scoped to any committee — a committee_admin never gets these.
+if (!$isSuperAdmin && in_array($type, ['activity-log', 'audit-log'], true)) {
+    http_response_code(403);
+    header('Content-Type: text/plain');
+    echo 'Not available to Committee Admins.';
     exit();
 }
 
@@ -36,6 +45,13 @@ if ($committeeCode !== 'all') {
     }
     $committeeId = (int)$row['committee_id'];
     $committeeLabel = $row['name'];
+}
+
+if (!$isSuperAdmin && (!$committeeId || !in_array($committeeId, $myCommitteeIds, true))) {
+    http_response_code(403);
+    header('Content-Type: text/plain');
+    echo 'You can only generate reports for your assigned committee(s).';
+    exit();
 }
 
 // ---- Validate program (must be 'all', "track:<code>" for a built-in track, or a real, active
