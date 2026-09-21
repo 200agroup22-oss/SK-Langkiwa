@@ -1,8 +1,32 @@
 <?php
-require_once __DIR__ . '/../config/functions.php';
+require_once __DIR__ . '/../config/forms.php';
 requireRole('admin');
 
 $me = currentUser();
+
+// Replaces a committee_admin's committee assignments wholesale with the given list. Called after
+// every add/edit so a role change away from committee_admin (or an empty selection) also clears
+// out stale assignments instead of leaving orphaned rows behind.
+function syncCommitteeAssignments($userId, $role, array $committeeIds)
+{
+    global $conn;
+    $stmt = $conn->prepare("DELETE FROM admin_committee_assignments WHERE user_id = ?");
+    $stmt->bind_param('i', $userId);
+    $stmt->execute();
+    $stmt->close();
+
+    if ($role !== 'committee_admin' || empty($committeeIds)) {
+        return;
+    }
+    $stmt = $conn->prepare("INSERT IGNORE INTO admin_committee_assignments (user_id, committee_id) VALUES (?, ?)");
+    foreach ($committeeIds as $cid) {
+        $cid = (int)$cid;
+        if ($cid <= 0) continue;
+        $stmt->bind_param('ii', $userId, $cid);
+        $stmt->execute();
+    }
+    $stmt->close();
+}
 
 // ---- POST handlers (redirect-after-POST) ----
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -14,14 +38,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $role = $_POST['role'] ?? 'applicant';
         $positionTitle = trim($_POST['position_title'] ?? '');
         $password = $_POST['password'] ?? '';
+        $committeeIds = (array)($_POST['committee_ids'] ?? []);
 
-        $allowedRoles = ['admin', 'scholar', 'applicant'];
+        $allowedRoles = ['admin', 'committee_admin', 'scholar', 'applicant'];
         if (!in_array($role, $allowedRoles, true)) {
             $role = 'applicant';
         }
 
         if ($lastName === '' || $firstName === '' || $email === '' || $password === '') {
             setFlash('error', 'Last name, first name, email, and password are required.');
+        } elseif ($role === 'committee_admin' && empty($committeeIds)) {
+            setFlash('error', 'Select at least one committee for a Committee Admin.');
         } else {
             $stmt = $conn->prepare("SELECT user_id FROM users WHERE email = ?");
             $stmt->bind_param('s', $email);
@@ -38,6 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute();
                 $newId = $stmt->insert_id;
                 $stmt->close();
+                syncCommitteeAssignments($newId, $role, $committeeIds);
                 logAudit('Added User', 'User #' . $newId . ' (' . $email . ')');
                 setFlash('success', 'User added.');
             }
@@ -53,8 +81,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $positionTitle = trim($_POST['position_title'] ?? '');
         $status = $_POST['status'] ?? 'active';
         $password = $_POST['password'] ?? '';
+        $committeeIds = (array)($_POST['committee_ids'] ?? []);
 
-        $allowedRoles = ['admin', 'scholar', 'applicant'];
+        $allowedRoles = ['admin', 'committee_admin', 'scholar', 'applicant'];
         if (!in_array($role, $allowedRoles, true)) {
             $role = 'applicant';
         }
@@ -70,6 +99,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             setFlash('error', 'You cannot change your own role away from admin.');
         } elseif ($lastName === '' || $firstName === '' || $email === '') {
             setFlash('error', 'Last name, first name, and email are required.');
+        } elseif ($role === 'committee_admin' && empty($committeeIds)) {
+            setFlash('error', 'Select at least one committee for a Committee Admin.');
         } else {
             $stmt = $conn->prepare("SELECT user_id FROM users WHERE email = ? AND user_id != ?");
             $stmt->bind_param('si', $email, $targetId);
@@ -90,6 +121,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $stmt->execute();
                 $stmt->close();
+                syncCommitteeAssignments($targetId, $role, $committeeIds);
                 logAudit('Updated User', 'User #' . $targetId . ' (' . $email . ')');
                 setFlash('success', 'User updated.');
             }
@@ -171,12 +203,30 @@ switch ($sortBy) {
 $archivedResult = $conn->query("SELECT * FROM users WHERE status = 'archived' ORDER BY archived_at DESC");
 $archivedUsers = $archivedResult->fetch_all(MYSQLI_ASSOC);
 
+$allCommittees = $conn->query("SELECT * FROM committees WHERE archived_at IS NULL ORDER BY name ASC")->fetch_all(MYSQLI_ASSOC);
+
+// Every committee_admin's assigned committee names, keyed by user_id — one query instead of one
+// per row in the user table below.
+$committeeNamesByUser = [];
+$assignResult = $conn->query("SELECT ca.user_id, c.name FROM admin_committee_assignments ca JOIN committees c ON c.committee_id = ca.committee_id ORDER BY c.name ASC");
+foreach ($assignResult as $row) {
+    $committeeNamesByUser[(int)$row['user_id']][] = $row['name'];
+}
+$committeeIdsByUser = [];
+$assignIdsResult = $conn->query("SELECT user_id, committee_id FROM admin_committee_assignments");
+foreach ($assignIdsResult as $row) {
+    $committeeIdsByUser[(int)$row['user_id']][] = (int)$row['committee_id'];
+}
+
+$roleDisplayNames = ['admin' => 'Super Admin', 'committee_admin' => 'Committee Admin', 'scholar' => 'Scholar', 'applicant' => 'Applicant'];
+
 function roleLabel($role, $positionTitle)
 {
     if ($positionTitle !== '' && $positionTitle !== null) {
         return $positionTitle;
     }
-    return ucfirst($role);
+    global $roleDisplayNames;
+    return $roleDisplayNames[$role] ?? ucfirst($role);
 }
 
 $activeLink = 'AdminUserManagement';
@@ -256,7 +306,8 @@ $activeLink = 'AdminUserManagement';
                 <span style="font-size:12px; color:#666; font-weight:600;"><i class="bi bi-funnel me-1"></i>Filter:</span>
                 <select class="filter-select" name="role" onchange="this.form.submit()">
                     <option value="">All Roles</option>
-                    <option value="admin" <?php echo $roleFilter === 'admin' ? 'selected' : ''; ?>>Admin</option>
+                    <option value="admin" <?php echo $roleFilter === 'admin' ? 'selected' : ''; ?>>Super Admin</option>
+                    <option value="committee_admin" <?php echo $roleFilter === 'committee_admin' ? 'selected' : ''; ?>>Committee Admin</option>
                     <option value="scholar" <?php echo $roleFilter === 'scholar' ? 'selected' : ''; ?>>Scholar</option>
                     <option value="applicant" <?php echo $roleFilter === 'applicant' ? 'selected' : ''; ?>>Applicant</option>
                 </select>
@@ -302,7 +353,12 @@ $activeLink = 'AdminUserManagement';
                                 <td><?php echo str_pad($u['user_id'], 3, '0', STR_PAD_LEFT); ?></td>
                                 <td><?php echo e($u['full_name']); ?></td>
                                 <td><?php echo e($u['email']); ?></td>
-                                <td><span class="badge-role"><?php echo e(roleLabel($u['role'], $u['position_title'])); ?></span></td>
+                                <td>
+                                    <span class="badge-role"><?php echo e(roleLabel($u['role'], $u['position_title'])); ?></span>
+                                    <?php if ($u['role'] === 'committee_admin'): ?>
+                                        <div class="text-muted mt-1" style="font-size:11px;"><?php echo e(implode(', ', $committeeNamesByUser[(int)$u['user_id']] ?? []) ?: 'No committees assigned yet'); ?></div>
+                                    <?php endif; ?>
+                                </td>
                                 <td><span class="<?php echo $u['status'] === 'active' ? 'badge-active' : 'badge-inactive'; ?>"><?php echo ucfirst(e($u['status'])); ?></span></td>
                                 <td class="d-flex gap-1">
                                     <button class="btn-view" data-bs-toggle="modal" data-bs-target="#viewUserModal<?php echo $u['user_id']; ?>"><i class="bi bi-eye"></i> View</button>
@@ -361,6 +417,12 @@ $activeLink = 'AdminUserManagement';
                                 <div class="info-label">Date Registered</div>
                                 <div class="info-value"><?php echo date('F j, Y', strtotime($u['created_at'])); ?></div>
                             </div>
+                            <?php if ($u['role'] === 'committee_admin'): ?>
+                                <div class="col-12">
+                                    <div class="info-label">Assigned Committees</div>
+                                    <div class="info-value"><?php echo e(implode(', ', $committeeNamesByUser[(int)$u['user_id']] ?? []) ?: 'None yet'); ?></div>
+                                </div>
+                            <?php endif; ?>
                         </div>
                     </div>
                     <div class="modal-footer border-0">
@@ -396,8 +458,9 @@ $activeLink = 'AdminUserManagement';
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label" style="font-size:13px; font-weight:600;">Role</label>
-                                    <select class="form-select form-select-sm" name="role">
-                                        <option value="admin" <?php echo $u['role'] === 'admin' ? 'selected' : ''; ?>>Admin</option>
+                                    <select class="form-select form-select-sm role-select" name="role" onchange="toggleCommitteePicker(this)">
+                                        <option value="admin" <?php echo $u['role'] === 'admin' ? 'selected' : ''; ?>>Super Admin</option>
+                                        <option value="committee_admin" <?php echo $u['role'] === 'committee_admin' ? 'selected' : ''; ?>>Committee Admin</option>
                                         <option value="scholar" <?php echo $u['role'] === 'scholar' ? 'selected' : ''; ?>>Scholar</option>
                                         <option value="applicant" <?php echo $u['role'] === 'applicant' ? 'selected' : ''; ?>>Applicant</option>
                                     </select>
@@ -408,6 +471,17 @@ $activeLink = 'AdminUserManagement';
                                         <option value="active" <?php echo $u['status'] === 'active' ? 'selected' : ''; ?>>Active</option>
                                         <option value="inactive" <?php echo $u['status'] === 'inactive' ? 'selected' : ''; ?>>Inactive</option>
                                     </select>
+                                </div>
+                                <div class="col-12 committee-picker" style="<?php echo $u['role'] === 'committee_admin' ? '' : 'display:none;'; ?>">
+                                    <label class="form-label" style="font-size:13px; font-weight:600;">Assigned Committees</label>
+                                    <div class="border rounded-2 p-2" style="max-height:150px; overflow-y:auto;">
+                                        <?php foreach ($allCommittees as $c): ?>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" name="committee_ids[]" value="<?php echo $c['committee_id']; ?>" id="editCommittee<?php echo $u['user_id']; ?>_<?php echo $c['committee_id']; ?>" <?php echo in_array((int)$c['committee_id'], $committeeIdsByUser[(int)$u['user_id']] ?? [], true) ? 'checked' : ''; ?>>
+                                                <label class="form-check-label" style="font-size:13px;" for="editCommittee<?php echo $u['user_id']; ?>_<?php echo $c['committee_id']; ?>"><?php echo e($c['name']); ?></label>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
                                 </div>
                                 <div class="col-12">
                                     <label class="form-label" style="font-size:13px; font-weight:600;">Position / Sub-role Title <span class="text-muted fw-normal">(e.g. SK Treasurer, Committee Chair on Education)</span></label>
@@ -489,12 +563,24 @@ $activeLink = 'AdminUserManagement';
                             </div>
                             <div class="col-12">
                                 <label class="form-label" style="font-size:13px; font-weight:600;">Role</label>
-                                <select class="form-select form-select-sm" name="role" required>
+                                <select class="form-select form-select-sm role-select" name="role" required onchange="toggleCommitteePicker(this)">
                                     <option value="" disabled selected>Select role</option>
-                                    <option value="admin">Admin</option>
+                                    <option value="admin">Super Admin</option>
+                                    <option value="committee_admin">Committee Admin</option>
                                     <option value="scholar">Scholar</option>
                                     <option value="applicant">Applicant</option>
                                 </select>
+                            </div>
+                            <div class="col-12 committee-picker" style="display:none;">
+                                <label class="form-label" style="font-size:13px; font-weight:600;">Assigned Committees</label>
+                                <div class="border rounded-2 p-2" style="max-height:150px; overflow-y:auto;">
+                                    <?php foreach ($allCommittees as $c): ?>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="committee_ids[]" value="<?php echo $c['committee_id']; ?>" id="addCommittee<?php echo $c['committee_id']; ?>">
+                                            <label class="form-check-label" style="font-size:13px;" for="addCommittee<?php echo $c['committee_id']; ?>"><?php echo e($c['name']); ?></label>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
                             </div>
                             <div class="col-12">
                                 <label class="form-label" style="font-size:13px; font-weight:600;">Position / Sub-role Title <span class="text-muted fw-normal">(e.g. SK Treasurer)</span></label>
@@ -577,6 +663,11 @@ $activeLink = 'AdminUserManagement';
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        function toggleCommitteePicker(select) {
+            const picker = select.closest('form').querySelector('.committee-picker');
+            if (picker) picker.style.display = select.value === 'committee_admin' ? '' : 'none';
+        }
+
         function togglePasswordVisibility(btn) {
             const input = btn.closest('.input-group').querySelector('input[type="password"], input[type="text"].pw-toggled');
             const icon = btn.querySelector('i');
