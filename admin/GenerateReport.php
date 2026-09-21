@@ -9,7 +9,7 @@ requireRole('admin');
 $me = currentUser();
 
 // ---- Validate report type ----
-$allowedTypes = ['consolidated', 'applicants', 'beneficiaries', 'financial', 'in-kind', 'application-status', 'scholars', 'activity-log', 'audit-log'];
+$allowedTypes = ['consolidated', 'applicants', 'beneficiaries', 'financial', 'in-kind', 'disbursement', 'application-status', 'scholars', 'activity-log', 'audit-log'];
 $type = $_GET['type'] ?? '';
 if (!in_array($type, $allowedTypes, true)) {
     http_response_code(400);
@@ -496,6 +496,70 @@ switch ($type) {
                     $row['quantity'],
                     ucfirst($row['status']),
                     $row['date_distributed'] ?: '—',
+                ];
+            }
+            $stmt->close();
+
+            renderTable($pdf, $headers, $widths, $rows);
+            renderTotalLine($pdf, 'Total Beneficiaries: ' . count($rows));
+            break;
+        }
+
+    case 'disbursement': {
+            // Beneficiaries whose assistance has actually been released — for a "Both" (cash + in-kind)
+            // program, that means BOTH portions must be released, not just one; for a single-type
+            // program (or a base track with no catalog program), whichever one portion they have just
+            // needs to be released. One row per application, aggregating its up-to-2 beneficiary records.
+            $headers = ['Applicant ID', 'Full Name', 'Committee', 'Type', 'Cash Amount', 'Cash Released', 'In-Kind Items (Qty)', 'In-Kind Distributed'];
+            $widths = [22, 48, 40, 30, 32, 32, 45, 28];
+
+            $stmt = $conn->prepare("SELECT a.application_id, u.first_name, u.last_name, c.name AS committee_name, p.assistance_type AS program_assistance_type,
+                MAX(CASE WHEN b.type = 'cash' THEN b.amount END) AS cash_amount,
+                MAX(CASE WHEN b.type = 'cash' THEN b.status END) AS cash_status,
+                MAX(CASE WHEN b.type = 'cash' THEN b.date_released END) AS cash_date,
+                MAX(CASE WHEN b.type = 'in_kind' THEN b.items END) AS inkind_items,
+                MAX(CASE WHEN b.type = 'in_kind' THEN b.quantity END) AS inkind_qty,
+                MAX(CASE WHEN b.type = 'in_kind' THEN b.status END) AS inkind_status,
+                MAX(CASE WHEN b.type = 'in_kind' THEN b.date_distributed END) AS inkind_date
+            FROM applications a
+            JOIN assistance_beneficiaries b ON b.application_id = a.application_id
+            JOIN users u ON u.user_id = a.user_id
+            JOIN committees c ON c.committee_id = a.committee_id
+            LEFT JOIN programs p ON p.program_id = a.program_id
+            WHERE a.status = 'approved' AND a.archived_at IS NULL AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.committee_id = ?) AND (? = 0 OR a.program_id = ?) AND (? = '' OR (a.program_track = ? AND a.program_id IS NULL))
+            GROUP BY a.application_id
+            ORDER BY a.application_id ASC");
+            $stmt->bind_param('ssiiiiss', $fromInclusive, $toInclusive, $committeeId, $committeeId, $programId, $programId, $trackCode, $trackCode);
+            $stmt->execute();
+            $releasedStatuses = ['released', 'distributed'];
+            $rows = [];
+            foreach ($stmt->get_result() as $row) {
+                $cashPresent = $row['cash_status'] !== null;
+                $inKindPresent = $row['inkind_status'] !== null;
+                $cashReleased = in_array($row['cash_status'], $releasedStatuses, true);
+                $inKindReleased = in_array($row['inkind_status'], $releasedStatuses, true);
+
+                if ($row['program_assistance_type'] === 'both') {
+                    if (!($cashPresent && $cashReleased && $inKindPresent && $inKindReleased)) {
+                        continue;
+                    }
+                } else {
+                    if (!$cashPresent && !$inKindPresent) continue;
+                    if ($cashPresent && !$cashReleased) continue;
+                    if ($inKindPresent && !$inKindReleased) continue;
+                }
+
+                $typeLabel = ($cashPresent && $inKindPresent) ? 'Cash + In-Kind' : ($cashPresent ? 'Cash' : 'In-Kind');
+
+                $rows[] = [
+                    $row['application_id'],
+                    trim($row['first_name'] . ' ' . $row['last_name']),
+                    $row['committee_name'],
+                    $typeLabel,
+                    $cashPresent ? number_format((float)$row['cash_amount'], 2) : '—',
+                    $cashPresent ? ($row['cash_date'] ?: '—') : '—',
+                    $inKindPresent ? ($row['inkind_items'] . ' (' . $row['inkind_qty'] . ')') : '—',
+                    $inKindPresent ? ($row['inkind_date'] ?: '—') : '—',
                 ];
             }
             $stmt->close();

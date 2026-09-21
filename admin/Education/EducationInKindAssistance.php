@@ -32,9 +32,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $quantity = (int)($_POST['quantity'] ?? 0);
 
         $stmt = $conn->prepare("SELECT a.application_id FROM applications a
-            LEFT JOIN assistance_beneficiaries ab ON ab.application_id = a.application_id
+            LEFT JOIN assistance_beneficiaries ab ON ab.application_id = a.application_id AND ab.type = ?
             WHERE a.application_id = ? AND a.committee_id = ? AND a.program_track = ? AND a.status = 'approved' AND a.archived_at IS NULL AND ab.beneficiary_id IS NULL");
-        $stmt->bind_param('iis', $applicationId, $committeeId, $track);
+        $stmt->bind_param('siis', $type, $applicationId, $committeeId, $track);
         $stmt->execute();
         $valid = $stmt->get_result()->fetch_assoc();
         $stmt->close();
@@ -101,7 +101,6 @@ $sql = "SELECT a.application_id, a.user_id, a.program_id, ab.beneficiary_id, ab.
         LEFT JOIN assistance_beneficiaries ab ON ab.application_id = a.application_id AND ab.type = 'in_kind'
         WHERE a.committee_id = ? AND a.program_track = ? AND a.status = 'approved' AND a.archived_at IS NULL"
     . ($programId !== null ? " AND a.program_id = ?" : "") . "
-          AND (ab.beneficiary_id IS NOT NULL OR NOT EXISTS (SELECT 1 FROM assistance_beneficiaries ab2 WHERE ab2.application_id = a.application_id))
         ORDER BY a.application_id ASC";
 $stmt = $conn->prepare($sql);
 if ($programId !== null) {
@@ -129,10 +128,10 @@ unset($row);
 
 // Applications eligible to become a NEW beneficiary (approved, no beneficiary row of any type yet)
 $eligibleStmt = $conn->prepare("SELECT a.application_id FROM applications a
-    LEFT JOIN assistance_beneficiaries ab ON ab.application_id = a.application_id
+    LEFT JOIN assistance_beneficiaries ab ON ab.application_id = a.application_id AND ab.type = ?
     WHERE a.committee_id = ? AND a.program_track = ? AND a.status = 'approved' AND a.archived_at IS NULL AND ab.beneficiary_id IS NULL
     ORDER BY a.application_id ASC");
-$eligibleStmt->bind_param('is', $committeeId, $track);
+$eligibleStmt->bind_param('sis', $type, $committeeId, $track);
 $eligibleStmt->execute();
 $eligibleIds = array_column($eligibleStmt->get_result()->fetch_all(MYSQLI_ASSOC), 'application_id');
 $eligibleStmt->close();

@@ -958,6 +958,7 @@ $activeLink = 'AdminReports';
                                 <option value="beneficiaries">Beneficiaries Report</option>
                                 <option value="financial">Financial / Funds Released Report</option>
                                 <option value="in-kind">In-Kind Assistance Report</option>
+                                <option value="disbursement">Disbursement Report</option>
                                 <option value="application-status">Application Status Report</option>
                                 <option value="scholars">Scholars Report (incl. Activity Participation)</option>
                                 <option value="activity-log">Activity Log Report</option>
