@@ -237,6 +237,13 @@ function roleLabel($role, $positionTitle)
     return $roleDisplayNames[$role] ?? ucfirst($role);
 }
 
+// ---- Pagination (10 per page, in-memory over this small filtered/sorted result set) ----
+$perPage = 10;
+$totalRows = count($users);
+$totalPages = max(1, (int)ceil($totalRows / $perPage));
+$page = max(1, min($totalPages, (int)($_GET['page'] ?? 1)));
+$pagedUsers = array_slice($users, ($page - 1) * $perPage, $perPage);
+
 $activeLink = 'AdminUserManagement';
 ?>
 <!DOCTYPE html>
@@ -351,12 +358,12 @@ $activeLink = 'AdminUserManagement';
                         </tr>
                     </thead>
                     <tbody>
-                        <?php if (empty($users)): ?>
+                        <?php if (empty($pagedUsers)): ?>
                             <tr>
                                 <td colspan="6" class="text-center text-muted py-4">No users found.</td>
                             </tr>
                         <?php endif; ?>
-                        <?php foreach ($users as $u): ?>
+                        <?php foreach ($pagedUsers as $u): ?>
                             <tr>
                                 <td><?php echo str_pad($u['user_id'], 3, '0', STR_PAD_LEFT); ?></td>
                                 <td><?php echo e($u['full_name']); ?></td>
@@ -380,12 +387,10 @@ $activeLink = 'AdminUserManagement';
             </div>
         </div>
 
-        <div class="d-flex justify-content-between align-items-center mt-3">
-            <span style="font-size:12px; color:#888;">Showing <?php echo count($users); ?> of <?php echo count($users); ?> entries</span>
-        </div>
+        <?php renderPagination($page, $totalPages, $totalRows, $perPage); ?>
     </div>
 
-    <?php foreach ($users as $u): ?>
+    <?php foreach ($pagedUsers as $u): ?>
         <!-- VIEW USER MODAL -->
         <div class="modal fade" id="viewUserModal<?php echo $u['user_id']; ?>" tabindex="-1">
             <div class="modal-dialog modal-dialog-centered">
