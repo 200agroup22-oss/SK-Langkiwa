@@ -315,13 +315,13 @@ switch ($type) {
                 $benCount = (int)($stmt->get_result()->fetch_assoc()['c'] ?? 0);
                 $stmt->close();
 
-                $stmt = $conn->prepare("SELECT COALESCE(SUM(b.amount), 0) s FROM assistance_beneficiaries b JOIN applications a ON a.application_id = b.application_id WHERE a.committee_id = ? AND b.type = 'cash' AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.program_id = ?) AND (? = '' OR (a.program_track = ? AND a.program_id IS NULL))");
+                $stmt = $conn->prepare("SELECT COALESCE(SUM(b.amount), 0) s FROM assistance_beneficiaries b JOIN applications a ON a.application_id = b.application_id WHERE a.committee_id = ? AND b.type = 'cash' AND b.status != 'pending' AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.program_id = ?) AND (? = '' OR (a.program_track = ? AND a.program_id IS NULL))");
                 $stmt->bind_param('issiiss', $cid, $fromInclusive, $toInclusive, $programId, $programId, $trackCode, $trackCode);
                 $stmt->execute();
                 $funds = (float)($stmt->get_result()->fetch_assoc()['s'] ?? 0);
                 $stmt->close();
 
-                $stmt = $conn->prepare("SELECT COALESCE(SUM(b.quantity), 0) q FROM assistance_beneficiaries b JOIN applications a ON a.application_id = b.application_id WHERE a.committee_id = ? AND b.type = 'in_kind' AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.program_id = ?) AND (? = '' OR (a.program_track = ? AND a.program_id IS NULL))");
+                $stmt = $conn->prepare("SELECT COALESCE(SUM(b.quantity), 0) q FROM assistance_beneficiaries b JOIN applications a ON a.application_id = b.application_id WHERE a.committee_id = ? AND b.type = 'in_kind' AND b.status != 'pending' AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.program_id = ?) AND (? = '' OR (a.program_track = ? AND a.program_id IS NULL))");
                 $stmt->bind_param('issiiss', $cid, $fromInclusive, $toInclusive, $programId, $programId, $trackCode, $trackCode);
                 $stmt->execute();
                 $inKindQty = (int)($stmt->get_result()->fetch_assoc()['q'] ?? 0);

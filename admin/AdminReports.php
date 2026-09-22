@@ -107,7 +107,7 @@ $stmt->execute();
 $applicationsSubmitted = (int)($stmt->get_result()->fetch_assoc()['c'] ?? 0);
 $stmt->close();
 
-$stmt = $conn->prepare("SELECT COALESCE(SUM(b.quantity), 0) q FROM assistance_beneficiaries b JOIN applications a ON a.application_id = b.application_id WHERE b.type = 'in_kind' AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.committee_id = ?)");
+$stmt = $conn->prepare("SELECT COALESCE(SUM(b.quantity), 0) q FROM assistance_beneficiaries b JOIN applications a ON a.application_id = b.application_id WHERE b.type = 'in_kind' AND b.status != 'pending' AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.committee_id = ?)");
 $stmt->bind_param('ssii', $periodStart, $periodEnd, $committeeId, $committeeId);
 $stmt->execute();
 $inKindItemsDistributed = (int)($stmt->get_result()->fetch_assoc()['q'] ?? 0);
@@ -141,7 +141,7 @@ if ($periodMode === 'monthly') {
         $bucket = date('Y-m', strtotime($periodValue . "-01 -$i months"));
         $bucketStart = $bucket . '-01';
         $bucketEnd = date('Y-m-t', strtotime($bucketStart));
-        $stmt = $conn->prepare("SELECT COALESCE(SUM(b.amount), 0) s FROM assistance_beneficiaries b JOIN applications a ON a.application_id = b.application_id WHERE b.type = 'cash' AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.committee_id = ?)");
+        $stmt = $conn->prepare("SELECT COALESCE(SUM(b.amount), 0) s FROM assistance_beneficiaries b JOIN applications a ON a.application_id = b.application_id WHERE b.type = 'cash' AND b.status != 'pending' AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.committee_id = ?)");
         $stmt->bind_param('ssii', $bucketStart, $bucketEnd, $committeeId, $committeeId);
         $stmt->execute();
         $sum = (float)($stmt->get_result()->fetch_assoc()['s'] ?? 0);
@@ -156,7 +156,7 @@ if ($periodMode === 'monthly') {
         $y = $endYear - $i;
         $bucketStart = $y . '-01-01';
         $bucketEnd = $y . '-12-31';
-        $stmt = $conn->prepare("SELECT COALESCE(SUM(b.amount), 0) s FROM assistance_beneficiaries b JOIN applications a ON a.application_id = b.application_id WHERE b.type = 'cash' AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.committee_id = ?)");
+        $stmt = $conn->prepare("SELECT COALESCE(SUM(b.amount), 0) s FROM assistance_beneficiaries b JOIN applications a ON a.application_id = b.application_id WHERE b.type = 'cash' AND b.status != 'pending' AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.committee_id = ?)");
         $stmt->bind_param('ssii', $bucketStart, $bucketEnd, $committeeId, $committeeId);
         $stmt->execute();
         $sum = (float)($stmt->get_result()->fetch_assoc()['s'] ?? 0);
@@ -168,7 +168,7 @@ if ($periodMode === 'monthly') {
 }
 
 // ---- Chart: In-Kind Assistance Distributed (top items by quantity) ----
-$stmt = $conn->prepare("SELECT b.items, COALESCE(SUM(b.quantity), 0) qty FROM assistance_beneficiaries b JOIN applications a ON a.application_id = b.application_id WHERE b.type = 'in_kind' AND b.items IS NOT NULL AND b.items != '' AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.committee_id = ?) GROUP BY b.items ORDER BY qty DESC LIMIT 8");
+$stmt = $conn->prepare("SELECT b.items, COALESCE(SUM(b.quantity), 0) qty FROM assistance_beneficiaries b JOIN applications a ON a.application_id = b.application_id WHERE b.type = 'in_kind' AND b.status != 'pending' AND b.items IS NOT NULL AND b.items != '' AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.committee_id = ?) GROUP BY b.items ORDER BY qty DESC LIMIT 8");
 $stmt->bind_param('ssii', $periodStart, $periodEnd, $committeeId, $committeeId);
 $stmt->execute();
 $inKindBreakdown = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -191,13 +191,13 @@ foreach ($committees as $c) {
     $benCount = (int)($stmt->get_result()->fetch_assoc()['c'] ?? 0);
     $stmt->close();
 
-    $stmt = $conn->prepare("SELECT COALESCE(SUM(b.amount), 0) s FROM assistance_beneficiaries b JOIN applications a ON a.application_id = b.application_id WHERE a.committee_id = ? AND b.type = 'cash' AND a.submitted_at BETWEEN ? AND ?");
+    $stmt = $conn->prepare("SELECT COALESCE(SUM(b.amount), 0) s FROM assistance_beneficiaries b JOIN applications a ON a.application_id = b.application_id WHERE a.committee_id = ? AND b.type = 'cash' AND b.status != 'pending' AND a.submitted_at BETWEEN ? AND ?");
     $stmt->bind_param('iss', $cid, $periodStart, $periodEnd);
     $stmt->execute();
     $fundsReleased = (float)($stmt->get_result()->fetch_assoc()['s'] ?? 0);
     $stmt->close();
 
-    $stmt = $conn->prepare("SELECT b.items, SUM(b.quantity) qty FROM assistance_beneficiaries b JOIN applications a ON a.application_id = b.application_id WHERE a.committee_id = ? AND b.type = 'in_kind' AND a.submitted_at BETWEEN ? AND ? GROUP BY b.items ORDER BY qty DESC LIMIT 3");
+    $stmt = $conn->prepare("SELECT b.items, SUM(b.quantity) qty FROM assistance_beneficiaries b JOIN applications a ON a.application_id = b.application_id WHERE a.committee_id = ? AND b.type = 'in_kind' AND b.status != 'pending' AND a.submitted_at BETWEEN ? AND ? GROUP BY b.items ORDER BY qty DESC LIMIT 3");
     $stmt->bind_param('iss', $cid, $periodStart, $periodEnd);
     $stmt->execute();
     $itemRows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -295,6 +295,7 @@ $activityPaginationParams = ['tab' => 'activityLogsTab', 'role' => $roleFilter, 
 $auditPaginationParams = ['tab' => 'auditLogsTab', 'action' => $actionFilter, 'auditdate' => $auditDateFilter, 'auditq' => $auditSearch];
 
 // Renders a "Showing X to Y of Z entries" line + Bootstrap pagination bar for a log table.
+// (paginationPageList(), used below, is defined once in config/functions.php and shared app-wide.)
 function renderLogPagination($current, $total, $totalRows, $perPage, $pageParam, array $extraParams)
 {
     $from = $totalRows === 0 ? 0 : ($current - 1) * $perPage + 1;
