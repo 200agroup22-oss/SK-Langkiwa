@@ -158,6 +158,13 @@ switch ($sortBy) {
         break;
 }
 
+// ---- Pagination (10 per page, in-memory over this small filtered/sorted result set) ----
+$perPage = 10;
+$totalRows = count($applications);
+$totalPages = max(1, (int)ceil($totalRows / $perPage));
+$page = max(1, min($totalPages, (int)($_GET['page'] ?? 1)));
+$pagedApplications = array_slice($applications, ($page - 1) * $perPage, $perPage);
+
 $activeLink = 'HealthApplicants';
 ?>
 <!DOCTYPE html>
@@ -251,7 +258,7 @@ $activeLink = 'HealthApplicants';
                         </tr>
                     </thead>
                     <tbody>
-                        <?php if (empty($applications)): ?>
+                        <?php if (empty($pagedApplications)): ?>
                             <tr>
                                 <td colspan="<?php echo !empty($committeePrograms) ? 7 : 6; ?>">
                                     <div class="empty-state">
@@ -261,7 +268,7 @@ $activeLink = 'HealthApplicants';
                                 </td>
                             </tr>
                         <?php endif; ?>
-                        <?php foreach ($applications as $app): ?>
+                        <?php foreach ($pagedApplications as $app): ?>
                             <tr>
                                 <td><?php echo str_pad($app['application_id'], 3, '0', STR_PAD_LEFT); ?></td>
                                 <td><?php echo e($app['full_name']); ?></td>
@@ -281,9 +288,7 @@ $activeLink = 'HealthApplicants';
             </div>
         </div>
 
-        <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
-            <span style="font-size:12px; color:#888;">Showing <?php echo count($applications); ?> of <?php echo count($applications); ?> entries</span>
-        </div>
+        <?php renderPagination($page, $totalPages, $totalRows, $perPage); ?>
     </div>
 
     <!-- ADD -->
@@ -307,7 +312,7 @@ $activeLink = 'HealthApplicants';
         </div>
     </div>
 
-    <?php foreach ($applications as $app):
+    <?php foreach ($pagedApplications as $app):
         // Render this applicant's own program's fields (shared + whatever that program added),
         // not the page's current filter — "All Programs" pools applicants from every program together.
         $appFields = getFormFields($committeeId, $track, $app['program_id']);

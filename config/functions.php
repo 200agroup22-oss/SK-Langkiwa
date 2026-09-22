@@ -180,3 +180,75 @@ function logAudit($action, $details = null)
     $stmt->execute();
     $stmt->close();
 }
+
+// Windowed page-number list for a pagination bar (e.g. [1,2,3,4,5,'...',57]) — shows every page
+// when there are few, otherwise a block around the current page plus the first and last.
+function paginationPageList($current, $total, $window = 2)
+{
+    if ($total <= 7) {
+        return range(1, $total);
+    }
+    $pages = [1];
+    $start = max(2, $current - $window);
+    $end = min($total - 1, $current + $window);
+    if ($current <= $window + 2) {
+        $start = 2;
+        $end = min($total - 1, 2 * $window + 1);
+    }
+    if ($current >= $total - $window - 1) {
+        $end = $total - 1;
+        $start = max(2, $total - (2 * $window + 1));
+    }
+    if ($start > 2) {
+        $pages[] = '...';
+    }
+    for ($i = $start; $i <= $end; $i++) {
+        $pages[] = $i;
+    }
+    if ($end < $total - 1) {
+        $pages[] = '...';
+    }
+    $pages[] = $total;
+    return $pages;
+}
+
+// Renders a "Showing X to Y of Z entries" line + a Bootstrap pagination bar for any of the admin
+// list tables (Applicants, Cash/In-Kind Assistance, etc). Page links reuse the current request's
+// own GET params (only swapping `page`), so whatever filter/sort/search is active survives moving
+// between pages without the caller having to pass them in explicitly.
+function renderPagination($current, $totalPages, $totalRows, $perPage)
+{
+    $from = $totalRows === 0 ? 0 : ($current - 1) * $perPage + 1;
+    $to = min($current * $perPage, $totalRows);
+    $urlFor = function ($page) {
+        $params = $_GET;
+        $params['page'] = $page;
+        return '?' . http_build_query($params);
+    };
+?>
+    <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
+        <span style="font-size:12px; color:#888;">Showing <?php echo $from; ?> to <?php echo $to; ?> of <?php echo $totalRows; ?> entries</span>
+        <?php if ($totalPages > 1): ?>
+            <nav>
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item <?php echo $current <= 1 ? 'disabled' : ''; ?>">
+                        <a class="page-link" href="<?php echo $current > 1 ? e($urlFor($current - 1)) : '#'; ?>">Previous</a>
+                    </li>
+                    <?php foreach (paginationPageList($current, $totalPages) as $p): ?>
+                        <?php if ($p === '...'): ?>
+                            <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
+                        <?php else: ?>
+                            <li class="page-item <?php echo $p === $current ? 'active' : ''; ?>">
+                                <a class="page-link" href="<?php echo e($urlFor($p)); ?>"><?php echo $p; ?></a>
+                            </li>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
+                    <li class="page-item <?php echo $current >= $totalPages ? 'disabled' : ''; ?>">
+                        <a class="page-link" href="<?php echo $current < $totalPages ? e($urlFor($current + 1)) : '#'; ?>">Next</a>
+                    </li>
+                </ul>
+            </nav>
+        <?php endif; ?>
+    </div>
+<?php
+}
