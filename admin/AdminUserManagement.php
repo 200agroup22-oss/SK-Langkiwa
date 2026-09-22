@@ -34,11 +34,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['add_user'])) {
         $lastName = trim($_POST['last_name'] ?? '');
         $firstName = trim($_POST['first_name'] ?? '');
+        $middleName = trim($_POST['middle_name'] ?? '');
         $email = trim($_POST['email'] ?? '');
         $role = $_POST['role'] ?? 'applicant';
         $positionTitle = trim($_POST['position_title'] ?? '');
         $password = $_POST['password'] ?? '';
         $committeeIds = (array)($_POST['committee_ids'] ?? []);
+
+        $ageRaw = trim($_POST['age'] ?? '');
+        $age = ($ageRaw !== '' && ctype_digit($ageRaw)) ? (int)$ageRaw : null;
+        $gender = $_POST['gender'] ?? '';
+        if (!in_array($gender, ['Male', 'Female'], true)) {
+            $gender = null;
+        }
 
         $allowedRoles = ['admin', 'committee_admin', 'scholar', 'applicant'];
         if (!in_array($role, $allowedRoles, true)) {
@@ -60,8 +68,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 setFlash('error', 'A user with that email already exists.');
             } else {
                 $hash = password_hash($password, PASSWORD_DEFAULT);
-                $stmt = $conn->prepare("INSERT INTO users (last_name, first_name, email, password_hash, role, position_title, status) VALUES (?, ?, ?, ?, ?, ?, 'active')");
-                $stmt->bind_param('ssssss', $lastName, $firstName, $email, $hash, $role, $positionTitle);
+                $stmt = $conn->prepare("INSERT INTO users (last_name, first_name, middle_name, age, gender, email, password_hash, role, position_title, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')");
+                $stmt->bind_param('sssisssss', $lastName, $firstName, $middleName, $age, $gender, $email, $hash, $role, $positionTitle);
                 $stmt->execute();
                 $newId = $stmt->insert_id;
                 $stmt->close();
@@ -601,8 +609,24 @@ $activeLink = 'AdminUserManagement';
                                 <input type="text" class="form-control form-control-sm" name="last_name" placeholder="Last name" required>
                             </div>
                             <div class="col-12">
+                                <label class="form-label" style="font-size:13px; font-weight:600;">Middle Name</label>
+                                <input type="text" class="form-control form-control-sm" name="middle_name" placeholder="Optional">
+                            </div>
+                            <div class="col-12">
                                 <label class="form-label" style="font-size:13px; font-weight:600;">Email</label>
                                 <input type="email" class="form-control form-control-sm" name="email" placeholder="Enter email address" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" style="font-size:13px; font-weight:600;">Age</label>
+                                <input type="number" class="form-control form-control-sm" name="age" min="1" max="120" placeholder="Optional">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" style="font-size:13px; font-weight:600;">Gender</label>
+                                <select class="form-select form-select-sm" name="gender">
+                                    <option value="" selected>Not set</option>
+                                    <option value="Male">Male</option>
+                                    <option value="Female">Female</option>
+                                </select>
                             </div>
                             <div class="col-12">
                                 <label class="form-label" style="font-size:13px; font-weight:600;">Role</label>
