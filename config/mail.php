@@ -70,3 +70,62 @@ function sendOtpEmail($toEmail, $toName, $otpCode, $purpose)
 
     return true;
 }
+
+// Sends an approved/declined notification email for an application decision. Mirrors
+// sendOtpEmail's Brevo setup (falls back to a debug log if BREVO_API_KEY isn't configured).
+// Returns true on success (including the debug-log fallback), false only on a real send failure.
+function sendApplicationDecisionEmail($toEmail, $toName, $programLabel, $status, $reason = null)
+{
+    if (BREVO_API_KEY === '') {
+        $line = date('Y-m-d H:i:s') . " | $status | $toEmail | Program: $programLabel" . ($reason ? " | Reason: $reason" : '') . "\n";
+        file_put_contents(__DIR__ . '/otp_debug.log', $line, FILE_APPEND);
+        return true;
+    }
+
+    $isApproved = $status === 'approved';
+    $subject = BREVO_SENDER_NAME . ' - Application ' . ($isApproved ? 'Approved' : 'Declined');
+    $color = $isApproved ? '#2e7d32' : '#c62828';
+    $bg = $isApproved ? '#e8f5e9' : '#fce4ec';
+    $statusText = $isApproved ? 'Approved' : 'Declined';
+
+    $htmlContent = '<div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;">'
+        . '<h2 style="color:#409D42;">' . htmlspecialchars(BREVO_SENDER_NAME) . '</h2>'
+        . '<p>Hi ' . htmlspecialchars($toName) . ',</p>'
+        . '<p>Your application for <strong>' . htmlspecialchars($programLabel) . '</strong> has been reviewed.</p>'
+        . '<div style="font-size:20px;font-weight:bold;background:' . $bg . ';color:' . $color . ';padding:14px 20px;border-radius:8px;text-align:center;margin:16px 0;">' . $statusText . '</div>'
+        . ($reason ? '<p><strong>Reason:</strong> ' . htmlspecialchars($reason) . '</p>' : '')
+        . '<p style="color:#888;font-size:12px;">If you have questions, please contact your barangay office.</p>'
+        . '</div>';
+
+    $payload = [
+        'sender' => ['name' => BREVO_SENDER_NAME, 'email' => BREVO_SENDER_EMAIL],
+        'to' => [['email' => $toEmail, 'name' => $toName !== '' ? $toName : $toEmail]],
+        'subject' => $subject,
+        'htmlContent' => $htmlContent,
+        'textContent' => "Your application for $programLabel has been $statusText." . ($reason ? " Reason: $reason" : ''),
+    ];
+
+    $ch = curl_init('https://api.brevo.com/v3/smtp/email');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => json_encode($payload),
+        CURLOPT_HTTPHEADER => [
+            'accept: application/json',
+            'content-type: application/json',
+            'api-key: ' . BREVO_API_KEY,
+        ],
+        CURLOPT_TIMEOUT => 15,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+    curl_close($ch);
+
+    if ($curlError || $httpCode < 200 || $httpCode >= 300) {
+        error_log('Application decision email failed (Brevo): ' . ($curlError ?: "HTTP $httpCode - $response"));
+        return false;
+    }
+
+    return true;
+}
