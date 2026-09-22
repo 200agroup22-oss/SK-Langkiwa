@@ -294,37 +294,6 @@ $auditLogs = $conn->query("SELECT * FROM audit_logs $auditWhereSql ORDER BY crea
 $activityPaginationParams = ['tab' => 'activityLogsTab', 'role' => $roleFilter, 'logdate' => $dateFilter, 'logq' => $logSearch];
 $auditPaginationParams = ['tab' => 'auditLogsTab', 'action' => $actionFilter, 'auditdate' => $auditDateFilter, 'auditq' => $auditSearch];
 
-// Windowed page-number list for pagination controls (e.g. [1,2,3,4,5,'...',57]) — shows every
-// page when there are few, otherwise a block around the current page plus the first and last.
-function paginationPageList($current, $total, $window = 2)
-{
-    if ($total <= 7) {
-        return range(1, $total);
-    }
-    $pages = [1];
-    $start = max(2, $current - $window);
-    $end = min($total - 1, $current + $window);
-    if ($current <= $window + 2) {
-        $start = 2;
-        $end = min($total - 1, 2 * $window + 1);
-    }
-    if ($current >= $total - $window - 1) {
-        $end = $total - 1;
-        $start = max(2, $total - (2 * $window + 1));
-    }
-    if ($start > 2) {
-        $pages[] = '...';
-    }
-    for ($i = $start; $i <= $end; $i++) {
-        $pages[] = $i;
-    }
-    if ($end < $total - 1) {
-        $pages[] = '...';
-    }
-    $pages[] = $total;
-    return $pages;
-}
-
 // Renders a "Showing X to Y of Z entries" line + Bootstrap pagination bar for a log table.
 function renderLogPagination($current, $total, $totalRows, $perPage, $pageParam, array $extraParams)
 {
