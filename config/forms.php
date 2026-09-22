@@ -201,7 +201,11 @@ function cloneBaseFormFieldsIntoProgram($committeeId, $programTrack, $programId)
         return;
     }
 
-    $stmt = $conn->prepare("SELECT * FROM form_fields WHERE committee_id = ? AND program_track = ? AND program_id IS NULL AND archived_at IS NULL ORDER BY sort_order ASC, field_id ASC");
+    // Only the basic identity fields are cloned in automatically — a new program starts with a
+    // short form and the admin adds whatever extra fields (documents, Type of Assistance, etc.)
+    // that specific program actually needs, instead of every program inheriting the full base set.
+    $starterFieldKeys = ['last_name', 'first_name', 'middle_name', 'complete_address'];
+    $stmt = $conn->prepare("SELECT * FROM form_fields WHERE committee_id = ? AND program_track = ? AND program_id IS NULL AND archived_at IS NULL AND field_key IN ('" . implode("','", $starterFieldKeys) . "') ORDER BY sort_order ASC, field_id ASC");
     $stmt->bind_param('is', $committeeId, $programTrack);
     $stmt->execute();
     $baseFields = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
