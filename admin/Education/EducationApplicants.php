@@ -4,30 +4,14 @@ requireRole(['admin', 'committee_admin']);
 
 $committeeId = getCommitteeIdByCode('education');
 requireCommitteeAccess($committeeId);
-$track = 'assistance';
+$track = 'scholarship';
 $me = currentUser();
-
-// Scope the whole page to one specific program tab when navigated here via a program-specific
-// sidebar link, instead of pooling every program under the committee together — lets admins tell
-// applicants for different programs apart instead of them all landing in one shared list.
-$programId = isset($_GET['program_id']) && $_GET['program_id'] !== '' ? (int)$_GET['program_id'] : null;
-$committeePrograms = $conn->prepare("SELECT program_id, name FROM programs WHERE committee_id = ? AND archived_at IS NULL ORDER BY name ASC");
-$committeePrograms->bind_param('i', $committeeId);
-$committeePrograms->execute();
-$committeePrograms = $committeePrograms->get_result()->fetch_all(MYSQLI_ASSOC);
-$activeProgram = null;
-foreach ($committeePrograms as $cp) {
-    if ((int)$cp['program_id'] === $programId) {
-        $activeProgram = $cp;
-        break;
-    }
-}
 
 // ---- POST handlers (redirect-after-POST) ----
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (isset($_POST['add_applicant'])) {
-        $errors = validateDynamicSubmission($committeeId, $_POST, $_FILES, [], $track, $programId);
+        $errors = validateDynamicSubmission($committeeId, $_POST, $_FILES, [], $track);
         if (empty($errors)) {
             $lastName = trim($_POST['last_name'] ?? '');
             $firstName = trim($_POST['first_name'] ?? '');
@@ -35,14 +19,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $userId = getOrCreateWalkInUser($lastName, $firstName, $middleName);
 
             $settings = $conn->query("SELECT current_academic_year, current_semester FROM site_settings WHERE id = 1")->fetch_assoc();
-            $stmt = $conn->prepare("INSERT INTO applications (user_id, committee_id, program_track, program_id, status, academic_year, semester) VALUES (?, ?, ?, ?, 'pending', ?, ?)");
-            $stmt->bind_param('iisiss', $userId, $committeeId, $track, $programId, $settings['current_academic_year'], $settings['current_semester']);
+            $stmt = $conn->prepare("INSERT INTO applications (user_id, committee_id, program_track, status, academic_year, semester) VALUES (?, ?, ?, 'pending', ?, ?)");
+            $stmt->bind_param('iisss', $userId, $committeeId, $track, $settings['current_academic_year'], $settings['current_semester']);
             $stmt->execute();
             $applicationId = $stmt->insert_id;
             $stmt->close();
 
-            saveDynamicSubmission($applicationId, $committeeId, $_POST, $_FILES, $track, $programId);
-            logAudit('Added Applicant', 'Education assistance applicant #' . $applicationId);
+            saveDynamicSubmission($applicationId, $committeeId, $_POST, $_FILES, $track);
+            logAudit('Added Applicant', 'Education scholarship applicant #' . $applicationId);
             setFlash('success', 'Applicant added.');
         } else {
             setFlash('error', implode(' ', $errors));
@@ -51,14 +35,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (isset($_POST['edit_application'])) {
         $applicationId = (int)$_POST['application_id'];
-        // The application's own program (not the page's current filter) decides which extra
-        // fields apply — an admin filtering "All Programs" could be editing any applicant's row.
-        $appProgramId = getApplicationProgramId($applicationId);
         $existingFiles = getApplicationFiles($applicationId);
-        $errors = validateDynamicSubmission($committeeId, $_POST, $_FILES, $existingFiles, $track, $appProgramId);
+        $errors = validateDynamicSubmission($committeeId, $_POST, $_FILES, $existingFiles, $track);
         if (empty($errors)) {
-            saveDynamicSubmission($applicationId, $committeeId, $_POST, $_FILES, $track, $appProgramId);
-            logAudit('Updated Applicant', 'Education assistance applicant #' . $applicationId);
+            saveDynamicSubmission($applicationId, $committeeId, $_POST, $_FILES, $track);
+            logAudit('Updated Applicant', 'Education scholarship applicant #' . $applicationId);
             setFlash('success', 'Applicant updated.');
         } else {
             setFlash('error', implode(' ', $errors));
@@ -68,15 +49,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['approve_application'])) {
         $applicationId = (int)$_POST['application_id'];
         if (isProgramFull($committeeId, $track)) {
-            setFlash('error', 'Cannot approve — this program has reached its slot limit. Increase it in Configuration > Application/Program Settings, or decline/archive another approved applicant first.');
+            setFlash('error', 'Cannot approve — iSKolar ng Langkiwa has reached its slot limit. Increase it in Configuration > Application/Program Settings, or decline/archive another approved applicant first.');
         } else {
             $stmt = $conn->prepare("UPDATE applications SET status = 'approved', decided_at = NOW(), decided_by = ? WHERE application_id = ?");
             $stmt->bind_param('ii', $me['user_id'], $applicationId);
             $stmt->execute();
             $stmt->close();
-            logAudit('Approved Application', 'Education assistance applicant #' . $applicationId);
+
+            // Promote the applicant into an active scholar record. Year Level is stored as a
+            // text option ("1st Year", "2nd Year" ...) on the application, but scholars.year_level
+            // is a plain number, so keep just the leading digit.
+            $ownFields = getFormFields($committeeId, $track);
+            $appForAnswers = ['answers' => getApplicationAnswers($applicationId)];
+            $school = answerByKey($appForAnswers, $ownFields, 'school_university');
+            $course = answerByKey($appForAnswers, $ownFields, 'course');
+            $yearLevelText = answerByKey($appForAnswers, $ownFields, 'year_level');
+            $yearLevel = preg_match('/(\d+)/', $yearLevelText, $ylm) ? (int)$ylm[1] : null;
+
+            $userRow = $conn->prepare("SELECT user_id FROM applications WHERE application_id = ?");
+            $userRow->bind_param('i', $applicationId);
+            $userRow->execute();
+            $userId = ($r = $userRow->get_result()->fetch_assoc()) ? (int)$r['user_id'] : null;
+            $userRow->close();
+
+            if ($userId) {
+                $already = $conn->prepare("SELECT scholar_id FROM scholars WHERE user_id = ?");
+                $already->bind_param('i', $userId);
+                $already->execute();
+                $exists = $already->get_result()->fetch_assoc();
+                $already->close();
+
+                if (!$exists) {
+                    $insert = $conn->prepare("INSERT INTO scholars (user_id, application_id, school, course, year_level, status) VALUES (?, ?, ?, ?, ?, 'active')");
+                    $insert->bind_param('iissi', $userId, $applicationId, $school, $course, $yearLevel);
+                    $insert->execute();
+                    $insert->close();
+
+                    $roleStmt = $conn->prepare("UPDATE users SET role = 'scholar' WHERE user_id = ?");
+                    $roleStmt->bind_param('i', $userId);
+                    $roleStmt->execute();
+                    $roleStmt->close();
+                }
+            }
+
+            logAudit('Approved Application', 'Education scholarship applicant #' . $applicationId);
             notifyApplicationDecision($applicationId, 'approved');
-            setFlash('success', 'Applicant approved.');
+            setFlash('success', 'Applicant approved and added to the Scholars list.');
         }
     }
 
@@ -87,7 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->bind_param('sii', $reason, $me['user_id'], $applicationId);
         $stmt->execute();
         $stmt->close();
-        logAudit('Declined Application', 'Education assistance applicant #' . $applicationId);
+        logAudit('Declined Application', 'Education scholarship applicant #' . $applicationId);
         notifyApplicationDecision($applicationId, 'declined', $reason);
         setFlash('success', 'Applicant declined.');
     }
@@ -98,7 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->bind_param('i', $applicationId);
         $stmt->execute();
         $stmt->close();
-        logAudit('Archived Applicant', 'Education assistance applicant #' . $applicationId);
+        logAudit('Archived Applicant', 'Education scholarship applicant #' . $applicationId);
         setFlash('success', 'Applicant archived.');
     }
 
@@ -108,31 +126,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->bind_param('i', $applicationId);
         $stmt->execute();
         $stmt->close();
-        logAudit('Restored Applicant', 'Education assistance applicant #' . $applicationId);
+        logAudit('Restored Applicant', 'Education scholarship applicant #' . $applicationId);
         setFlash('success', 'Applicant restored.');
     }
 
-    header("Location: EducationAssistanceApplicants.php" . ($programId !== null ? '?program_id=' . $programId : ''));
+    // -- Renewals: scholars whose term ended (scholars.status = 'pending') via "End Semester" --
+    if (isset($_POST['renewal_approve'])) {
+        $scholarId = (int)$_POST['scholar_id'];
+        $stmt = $conn->prepare("UPDATE scholars SET status = 'active' WHERE scholar_id = ? AND status = 'pending'");
+        $stmt->bind_param('i', $scholarId);
+        $stmt->execute();
+        $stmt->close();
+        logAudit('Approved Scholar Renewal', 'Scholar #' . $scholarId);
+        setFlash('success', 'Renewal approved — scholar is active again.');
+    }
+
+    if (isset($_POST['renewal_decline'])) {
+        $scholarId = (int)$_POST['scholar_id'];
+        $stmt = $conn->prepare("UPDATE scholars SET status = 'archived' WHERE scholar_id = ? AND status = 'pending'");
+        $stmt->bind_param('i', $scholarId);
+        $stmt->execute();
+        $stmt->close();
+        $stmt = $conn->prepare("UPDATE users u JOIN scholars s ON s.user_id = u.user_id SET u.role = 'applicant' WHERE s.scholar_id = ?");
+        $stmt->bind_param('i', $scholarId);
+        $stmt->execute();
+        $stmt->close();
+        logAudit('Declined Scholar Renewal', 'Scholar #' . $scholarId);
+        setFlash('success', 'Renewal declined — scholar moved to the archive.');
+    }
+
+    $returnTab = (($_POST['return_tab'] ?? '') === 'renewals') ? '?tab=renewals' : '';
+    header("Location: EducationApplicants.php" . $returnTab);
     exit();
 }
 
 $pageError = getFlash('error');
 $pageSuccess = getFlash('success');
+$activeTab = (($_GET['tab'] ?? '') === 'renewals') ? 'renewals' : 'applications';
 
-$applications = listApplications($committeeId, $track, $programId);
-$archivedApplications = listArchivedApplications($committeeId, $track, $programId);
+$applications = listApplications($committeeId, $track);
+$archivedApplications = listArchivedApplications($committeeId, $track);
+$pendingRenewals = $conn->query("SELECT s.*, u.first_name, u.last_name, u.email
+    FROM scholars s JOIN users u ON u.user_id = s.user_id
+    WHERE s.status = 'pending' ORDER BY s.scholar_id ASC")->fetch_all(MYSQLI_ASSOC);
 
 // ---- filter / sort / search (GET, applied in PHP over the small result set) ----
 $statusFilter = $_GET['status'] ?? '';
 $sortBy = $_GET['sort'] ?? '';
 $search = trim($_GET['q'] ?? '');
 
+$ownFields = getFormFields($committeeId, $track);
 foreach ($applications as &$app) {
-    // Each application's own program has its own independent field set.
-    $appOwnFields = getFormFields($committeeId, $track, $app['program_id']);
-    $app['full_name'] = trim(answerByKey($app, $appOwnFields, 'last_name') . ' ' . answerByKey($app, $appOwnFields, 'first_name'));
-    $app['address'] = answerByKey($app, $appOwnFields, 'complete_address');
-    $app['assistance_type'] = answerByKey($app, $appOwnFields, 'assistance_type');
+    $app['full_name'] = trim(answerByKey($app, $ownFields, 'last_name') . ' ' . answerByKey($app, $ownFields, 'first_name'));
+    $app['address'] = answerByKey($app, $ownFields, 'complete_address');
+    $app['school'] = answerByKey($app, $ownFields, 'school_university');
+    $app['course'] = answerByKey($app, $ownFields, 'course');
+    $app['year_level'] = answerByKey($app, $ownFields, 'year_level');
 }
 unset($app);
 
@@ -158,7 +207,7 @@ switch ($sortBy) {
         break;
 }
 
-$activeLink = 'EducationAssistanceApplicants';
+$activeLink = 'EducationApplicants';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -166,7 +215,7 @@ $activeLink = 'EducationAssistanceApplicants';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo e($activeProgram ? $activeProgram['name'] : 'Education Assistance'); ?> Applicants</title>
+    <title>iSKolar ng Langkiwa Applicants</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="<?php echo APP_BASE; ?>/assets/css/admin.css" rel="stylesheet">
@@ -178,112 +227,177 @@ $activeLink = 'EducationAssistanceApplicants';
 
     <!-- Main Content -->
     <div class="main-content">
-        <h4 class="fw-bold mb-1"><?php echo e($activeProgram ? $activeProgram['name'] : 'Education Assistance'); ?> Applicants</h4>
-        <p class="text-muted mb-2" style="font-size: 13px;">
-            <?php if ($activeProgram): ?>
-                Viewing applications for the <?php echo e($activeProgram['name']); ?> program only. <a href="EducationAssistanceApplicants.php">View all Education Assistance programs</a>.
-            <?php else: ?>
-                View applications for Education financial assistance.
-            <?php endif; ?>
-        </p>
+        <h4 class="fw-bold mb-1">iSKolar ng Langkiwa Applicants</h4>
+        <p class="text-muted mb-2" style="font-size: 13px;">View new scholarship applications and end-of-term renewal decisions.</p>
 
         <?php if ($pageSuccess): ?><div class="alert alert-success py-2"><?php echo e($pageSuccess); ?></div><?php endif; ?>
         <?php if ($pageError): ?><div class="alert alert-danger py-2"><?php echo e($pageError); ?></div><?php endif; ?>
 
-        <form method="get">
-            <!-- Table Header -->
-            <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-                <div class="d-flex gap-2 align-items-center flex-wrap">
-                    <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addApplicantModal">
-                        <i class="bi bi-plus-lg me-1"></i> Add Applicant
-                    </button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#archivesApplicantModal">
-                        <i class="bi bi-archive me-1"></i> Archives
-                    </button>
-                </div>
-                <div class="search-box">
-                    <input type="text" name="q" value="<?php echo e($search); ?>" placeholder="Search...">
-                    <i class="bi bi-search"></i>
-                </div>
-            </div>
+        <!-- Tabs -->
+        <ul class="nav nav-tabs mb-3" id="applicantsTabNav">
+            <li class="nav-item">
+                <a class="nav-link<?php echo $activeTab === 'applications' ? ' active' : ''; ?>" href="EducationApplicants.php">
+                    <i class="bi bi-pencil-square me-1"></i> Applications
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link<?php echo $activeTab === 'renewals' ? ' active' : ''; ?>" href="EducationApplicants.php?tab=renewals">
+                    <i class="bi bi-arrow-repeat me-1"></i> Renewals
+                    <?php if (!empty($pendingRenewals)): ?><span class="badge text-bg-warning ms-1"><?php echo count($pendingRenewals); ?></span><?php endif; ?>
+                </a>
+            </li>
+        </ul>
 
-            <!-- Filter Bar -->
-            <div class="filter-bar d-flex gap-2 align-items-center mb-3 flex-wrap">
-                <span style="font-size:12px; color:#666; font-weight:600;"><i class="bi bi-funnel me-1"></i>Filter:</span>
-                <?php if (!empty($committeePrograms)): ?>
-                    <select class="filter-select" name="program_id" onchange="this.form.submit()">
-                        <option value="">All Programs</option>
-                        <?php foreach ($committeePrograms as $cp): ?>
-                            <option value="<?php echo $cp['program_id']; ?>" <?php echo $programId === (int)$cp['program_id'] ? 'selected' : ''; ?>><?php echo e($cp['name']); ?></option>
-                        <?php endforeach; ?>
+        <?php if ($activeTab === 'applications'): ?>
+
+            <form method="get">
+                <!-- Table Header -->
+                <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                    <div class="d-flex gap-2 align-items-center flex-wrap">
+                        <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addApplicantModal">
+                            <i class="bi bi-plus-lg me-1"></i> Add Applicant
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#archivesApplicantModal">
+                            <i class="bi bi-archive me-1"></i> Archives
+                        </button>
+                    </div>
+                    <div class="search-box">
+                        <input type="text" name="q" value="<?php echo e($search); ?>" placeholder="Search...">
+                        <i class="bi bi-search"></i>
+                    </div>
+                </div>
+
+                <!-- Filter Bar -->
+                <div class="filter-bar d-flex gap-2 align-items-center mb-3 flex-wrap">
+                    <span style="font-size:12px; color:#666; font-weight:600;"><i class="bi bi-funnel me-1"></i>Filter:</span>
+                    <select class="filter-select" name="status" onchange="this.form.submit()">
+                        <option value="">All Status</option>
+                        <option value="pending" <?php echo $statusFilter === 'pending' ? 'selected' : ''; ?>>Pending</option>
+                        <option value="approved" <?php echo $statusFilter === 'approved' ? 'selected' : ''; ?>>Approved</option>
+                        <option value="declined" <?php echo $statusFilter === 'declined' ? 'selected' : ''; ?>>Declined</option>
                     </select>
-                <?php endif; ?>
-                <select class="filter-select" name="status" onchange="this.form.submit()">
-                    <option value="">All Status</option>
-                    <option value="pending" <?php echo $statusFilter === 'pending' ? 'selected' : ''; ?>>Pending</option>
-                    <option value="approved" <?php echo $statusFilter === 'approved' ? 'selected' : ''; ?>>Approved</option>
-                    <option value="declined" <?php echo $statusFilter === 'declined' ? 'selected' : ''; ?>>Declined</option>
-                </select>
-                <span style="font-size:12px; color:#666; font-weight:600; margin-left:6px;"><i class="bi bi-sort-down me-1"></i>Sort by:</span>
-                <select class="filter-select" name="sort" onchange="this.form.submit()">
-                    <option value="">Default Order</option>
-                    <option value="name_asc" <?php echo $sortBy === 'name_asc' ? 'selected' : ''; ?>>Name: A → Z</option>
-                    <option value="name_desc" <?php echo $sortBy === 'name_desc' ? 'selected' : ''; ?>>Name: Z → A</option>
-                    <option value="id_oldest" <?php echo $sortBy === 'id_oldest' ? 'selected' : ''; ?>>Applicant ID: Oldest First</option>
-                    <option value="id_newest" <?php echo $sortBy === 'id_newest' ? 'selected' : ''; ?>>Applicant ID: Newest First</option>
-                </select>
-            </div>
-        </form>
+                    <span style="font-size:12px; color:#666; font-weight:600; margin-left:6px;"><i class="bi bi-sort-down me-1"></i>Sort by:</span>
+                    <select class="filter-select" name="sort" onchange="this.form.submit()">
+                        <option value="">Default Order</option>
+                        <option value="name_asc" <?php echo $sortBy === 'name_asc' ? 'selected' : ''; ?>>Name: A → Z</option>
+                        <option value="name_desc" <?php echo $sortBy === 'name_desc' ? 'selected' : ''; ?>>Name: Z → A</option>
+                        <option value="id_oldest" <?php echo $sortBy === 'id_oldest' ? 'selected' : ''; ?>>Applicant ID: Oldest First</option>
+                        <option value="id_newest" <?php echo $sortBy === 'id_newest' ? 'selected' : ''; ?>>Applicant ID: Newest First</option>
+                    </select>
+                </div>
+            </form>
 
-        <!-- Table -->
-        <div class="table-card">
-            <div class="table-responsive-wrap">
-                <table class="table mb-0">
-                    <thead>
-                        <tr>
-                            <th>Applicant ID</th>
-                            <th>Full Name</th>
-                            <th>Address</th>
-                            <?php if (!empty($committeePrograms)): ?><th>Program</th><?php endif; ?>
-                            <th>Type of Assistance</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if (empty($applications)): ?>
+            <!-- Table -->
+            <div class="table-card">
+                <div class="table-responsive-wrap">
+                    <table class="table mb-0">
+                        <thead>
                             <tr>
-                                <td colspan="<?php echo !empty($committeePrograms) ? 7 : 6; ?>">
-                                    <div class="empty-state">
-                                        <i class="bi bi-inbox"></i>
-                                        <p>No <?php echo e($activeProgram ? $activeProgram['name'] : 'education assistance'); ?> applications found.</p>
-                                    </div>
-                                </td>
+                                <th>Applicant ID</th>
+                                <th>Full Name</th>
+                                <th>Address</th>
+                                <th>School</th>
+                                <th>Course</th>
+                                <th>Year Level</th>
+                                <th>Status</th>
+                                <th>Actions</th>
                             </tr>
-                        <?php endif; ?>
-                        <?php foreach ($applications as $app): ?>
-                            <tr>
-                                <td><?php echo str_pad($app['application_id'], 3, '0', STR_PAD_LEFT); ?></td>
-                                <td><?php echo e($app['full_name']); ?></td>
-                                <td><?php echo e($app['address']); ?></td>
-                                <?php if (!empty($committeePrograms)): ?><td><?php echo e(programLabel($app['program_id'])); ?></td><?php endif; ?>
-                                <td><?php echo e($app['assistance_type']); ?></td>
-                                <td><span class="badge text-bg-<?php echo $app['status'] === 'approved' ? 'success' : ($app['status'] === 'declined' ? 'danger' : 'warning'); ?>"><?php echo ucfirst($app['status']); ?></span></td>
-                                <td class="d-flex gap-1">
-                                    <button class="btn-view" data-bs-toggle="modal" data-bs-target="#viewModal<?php echo $app['application_id']; ?>"><i class="bi bi-eye"></i> View</button>
-                                    <button class="btn-edit" data-bs-toggle="modal" data-bs-target="#editModal<?php echo $app['application_id']; ?>"><i class="bi bi-pencil"></i> Edit</button>
-                                    <button class="btn-archive" data-bs-toggle="modal" data-bs-target="#archiveModal<?php echo $app['application_id']; ?>"><i class="bi bi-archive"></i> Archive</button>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($applications)): ?>
+                                <tr>
+                                    <td colspan="8">
+                                        <div class="empty-state">
+                                            <i class="bi bi-inbox"></i>
+                                            <p>No iSKolar ng Langkiwa applications found.</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endif; ?>
+                            <?php foreach ($applications as $app): ?>
+                                <tr>
+                                    <td><?php echo str_pad($app['application_id'], 3, '0', STR_PAD_LEFT); ?></td>
+                                    <td><?php echo e($app['full_name']); ?></td>
+                                    <td><?php echo e($app['address']); ?></td>
+                                    <td><?php echo e($app['school']); ?></td>
+                                    <td><?php echo e($app['course']); ?></td>
+                                    <td><?php echo e($app['year_level']); ?></td>
+                                    <td><span class="badge text-bg-<?php echo $app['status'] === 'approved' ? 'success' : ($app['status'] === 'declined' ? 'danger' : 'warning'); ?>"><?php echo ucfirst($app['status']); ?></span></td>
+                                    <td class="d-flex gap-1">
+                                        <button class="btn-view" data-bs-toggle="modal" data-bs-target="#viewModal<?php echo $app['application_id']; ?>"><i class="bi bi-eye"></i> View</button>
+                                        <button class="btn-edit" data-bs-toggle="modal" data-bs-target="#editModal<?php echo $app['application_id']; ?>"><i class="bi bi-pencil"></i> Edit</button>
+                                        <button class="btn-archive" data-bs-toggle="modal" data-bs-target="#archiveModal<?php echo $app['application_id']; ?>"><i class="bi bi-archive"></i> Archive</button>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
             </div>
-        </div>
 
-        <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
-            <span style="font-size:12px; color:#888;">Showing <?php echo count($applications); ?> of <?php echo count($applications); ?> entries</span>
-        </div>
+            <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
+                <span style="font-size:12px; color:#888;">Showing <?php echo count($applications); ?> of <?php echo count($applications); ?> entries</span>
+            </div>
+
+        <?php else: ?>
+
+            <!-- Renewals tab -->
+            <p class="text-muted mb-2" style="font-size: 13px;">
+                These scholars finished their term (via "End Semester" on the Scholars page) and are awaiting a renewal decision. They keep scholar-portal access to submit their updated requirements while pending.
+            </p>
+            <div class="table-card">
+                <div class="table-responsive-wrap">
+                    <table class="table mb-0">
+                        <thead>
+                            <tr>
+                                <th>Scholar ID</th>
+                                <th>Full Name</th>
+                                <th>School</th>
+                                <th>Course</th>
+                                <th>Year Level</th>
+                                <th>Finished Term</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($pendingRenewals)): ?>
+                                <tr>
+                                    <td colspan="7">
+                                        <div class="empty-state">
+                                            <i class="bi bi-inbox"></i>
+                                            <p>No renewals awaiting a decision.</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endif; ?>
+                            <?php foreach ($pendingRenewals as $sch): ?>
+                                <tr>
+                                    <td><?php echo str_pad($sch['scholar_id'], 3, '0', STR_PAD_LEFT); ?></td>
+                                    <td><?php echo e(trim($sch['first_name'] . ' ' . $sch['last_name'])); ?></td>
+                                    <td><?php echo e($sch['school'] ?? '—'); ?></td>
+                                    <td><?php echo e($sch['course'] ?? '—'); ?></td>
+                                    <td><?php echo e($sch['year_level'] ?? '—'); ?></td>
+                                    <td><?php echo e(trim(($sch['finished_academic_year'] ?? '') . ' ' . ($sch['finished_semester'] ?? ''))); ?></td>
+                                    <td class="d-flex gap-1">
+                                        <form method="post" class="d-inline">
+                                            <input type="hidden" name="scholar_id" value="<?php echo $sch['scholar_id']; ?>">
+                                            <input type="hidden" name="return_tab" value="renewals">
+                                            <button type="submit" name="renewal_approve" class="btn btn-sm btn-success" onclick="return confirm('Approve this renewal and make the scholar active again?');"><i class="bi bi-check-lg me-1"></i>Approve</button>
+                                        </form>
+                                        <form method="post" class="d-inline">
+                                            <input type="hidden" name="scholar_id" value="<?php echo $sch['scholar_id']; ?>">
+                                            <input type="hidden" name="return_tab" value="renewals">
+                                            <button type="submit" name="renewal_decline" class="btn btn-sm btn-danger" onclick="return confirm('Decline this renewal? The scholar will be moved to the archive.');"><i class="bi bi-x-lg me-1"></i>Decline</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        <?php endif; ?>
     </div>
 
     <!-- ADD -->
@@ -292,11 +406,11 @@ $activeLink = 'EducationAssistanceApplicants';
             <div class="modal-content border-0 shadow">
                 <form method="post" enctype="multipart/form-data">
                     <div class="modal-header">
-                        <h6 class="modal-title fw-bold"><i class="bi bi-person-plus-fill me-2"></i> Education Assistance Application Form</h6>
+                        <h6 class="modal-title fw-bold"><i class="bi bi-person-plus-fill me-2"></i> iSKolar ng Langkiwa Application Form</h6>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body p-4">
-                        <?php renderDynamicFormFields($committeeId, [], [], $track, $programId); ?>
+                        <?php renderDynamicFormFields($committeeId, [], [], $track); ?>
                     </div>
                     <div class="modal-footer border-0">
                         <button type="button" class="btn btn-sm btn-secondary px-4" data-bs-dismiss="modal">Cancel</button>
@@ -308,9 +422,7 @@ $activeLink = 'EducationAssistanceApplicants';
     </div>
 
     <?php foreach ($applications as $app):
-        // Render this applicant's own program's fields (shared + whatever that program added),
-        // not the page's current filter — "All Programs" pools applicants from every program together.
-        $appFields = getFormFields($committeeId, $track, $app['program_id']);
+        $appFields = getFormFields($committeeId, $track);
     ?>
         <!-- VIEW MODAL -->
         <div class="modal fade" id="viewModal<?php echo $app['application_id']; ?>" tabindex="-1">
@@ -380,7 +492,7 @@ $activeLink = 'EducationAssistanceApplicants';
                         </div>
                         <div class="modal-body p-4">
                             <input type="hidden" name="application_id" value="<?php echo $app['application_id']; ?>">
-                            <?php renderDynamicFormFields($committeeId, $app['answers'], $app['files'], $track, $app['program_id']); ?>
+                            <?php renderDynamicFormFields($committeeId, $app['answers'], $app['files'], $track); ?>
                         </div>
                         <div class="modal-footer border-0">
                             <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -430,7 +542,7 @@ $activeLink = 'EducationAssistanceApplicants';
                                 <i class="bi bi-check-circle-fill" style="font-size:28px;color:#2e7d32;"></i>
                             </div>
                             <p class="fw-bold mb-1" style="font-size:14px;">Approve this applicant?</p>
-                            <p class="text-muted" style="font-size:12px; margin-bottom:0;">This applicant will be approved for Education assistance.</p>
+                            <p class="text-muted" style="font-size:12px; margin-bottom:0;">This applicant will be approved and added to the Scholars list.</p>
                         </div>
                         <div class="modal-footer border-0 justify-content-center gap-2">
                             <button type="button" class="btn btn-sm btn-secondary px-4" data-bs-dismiss="modal">Cancel</button>
@@ -502,7 +614,7 @@ $activeLink = 'EducationAssistanceApplicants';
                                     <?php foreach ($archivedApplications as $arch):
                                         $archAnswers = getApplicationAnswers($arch['application_id']);
                                         $archApp = ['answers' => $archAnswers];
-                                        $archFields = getFormFields($committeeId, $track, $arch['program_id']);
+                                        $archFields = getFormFields($committeeId, $track);
                                     ?>
                                         <tr>
                                             <td><?php echo str_pad($arch['application_id'], 3, '0', STR_PAD_LEFT); ?></td>
