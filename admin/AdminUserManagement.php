@@ -76,12 +76,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $targetId = (int)$_POST['user_id'];
         $lastName = trim($_POST['last_name'] ?? '');
         $firstName = trim($_POST['first_name'] ?? '');
+        $middleName = trim($_POST['middle_name'] ?? '');
         $email = trim($_POST['email'] ?? '');
         $role = $_POST['role'] ?? 'applicant';
         $positionTitle = trim($_POST['position_title'] ?? '');
         $status = $_POST['status'] ?? 'active';
         $password = $_POST['password'] ?? '';
         $committeeIds = (array)($_POST['committee_ids'] ?? []);
+
+        $ageRaw = trim($_POST['age'] ?? '');
+        $age = ($ageRaw !== '' && ctype_digit($ageRaw)) ? (int)$ageRaw : null;
+        $gender = $_POST['gender'] ?? '';
+        if (!in_array($gender, ['Male', 'Female'], true)) {
+            $gender = null;
+        }
 
         $allowedRoles = ['admin', 'committee_admin', 'scholar', 'applicant'];
         if (!in_array($role, $allowedRoles, true)) {
@@ -113,11 +121,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 if ($password !== '') {
                     $hash = password_hash($password, PASSWORD_DEFAULT);
-                    $stmt = $conn->prepare("UPDATE users SET last_name = ?, first_name = ?, email = ?, role = ?, position_title = ?, status = ?, password_hash = ? WHERE user_id = ?");
-                    $stmt->bind_param('sssssssi', $lastName, $firstName, $email, $role, $positionTitle, $status, $hash, $targetId);
+                    $stmt = $conn->prepare("UPDATE users SET last_name = ?, first_name = ?, middle_name = ?, age = ?, gender = ?, email = ?, role = ?, position_title = ?, status = ?, password_hash = ? WHERE user_id = ?");
+                    $stmt->bind_param('sssissssssi', $lastName, $firstName, $middleName, $age, $gender, $email, $role, $positionTitle, $status, $hash, $targetId);
                 } else {
-                    $stmt = $conn->prepare("UPDATE users SET last_name = ?, first_name = ?, email = ?, role = ?, position_title = ?, status = ? WHERE user_id = ?");
-                    $stmt->bind_param('ssssssi', $lastName, $firstName, $email, $role, $positionTitle, $status, $targetId);
+                    $stmt = $conn->prepare("UPDATE users SET last_name = ?, first_name = ?, middle_name = ?, age = ?, gender = ?, email = ?, role = ?, position_title = ?, status = ? WHERE user_id = ?");
+                    $stmt->bind_param('sssisssssi', $lastName, $firstName, $middleName, $age, $gender, $email, $role, $positionTitle, $status, $targetId);
                 }
                 $stmt->execute();
                 $stmt->close();
@@ -405,9 +413,23 @@ $activeLink = 'AdminUserManagement';
                                 <div class="info-label">Last Name</div>
                                 <div class="info-value"><?php echo e($u['last_name']); ?></div>
                             </div>
+                            <?php if (!empty($u['middle_name'])): ?>
+                                <div class="col-12">
+                                    <div class="info-label">Middle Name</div>
+                                    <div class="info-value"><?php echo e($u['middle_name']); ?></div>
+                                </div>
+                            <?php endif; ?>
                             <div class="col-12">
                                 <div class="info-label">Email</div>
                                 <div class="info-value"><?php echo e($u['email']); ?></div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="info-label">Age</div>
+                                <div class="info-value"><?php echo $u['age'] !== null ? e($u['age']) : '—'; ?></div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="info-label">Gender</div>
+                                <div class="info-value"><?php echo !empty($u['gender']) ? e($u['gender']) : '—'; ?></div>
                             </div>
                             <div class="col-6">
                                 <div class="info-label">Role</div>
@@ -453,8 +475,24 @@ $activeLink = 'AdminUserManagement';
                                     <input type="text" class="form-control form-control-sm" name="last_name" value="<?php echo e($u['last_name']); ?>" required>
                                 </div>
                                 <div class="col-12">
+                                    <label class="form-label" style="font-size:13px; font-weight:600;">Middle Name</label>
+                                    <input type="text" class="form-control form-control-sm" name="middle_name" value="<?php echo e($u['middle_name']); ?>" placeholder="Optional">
+                                </div>
+                                <div class="col-12">
                                     <label class="form-label" style="font-size:13px; font-weight:600;">Email</label>
                                     <input type="email" class="form-control form-control-sm" name="email" value="<?php echo e($u['email']); ?>" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" style="font-size:13px; font-weight:600;">Age</label>
+                                    <input type="number" class="form-control form-control-sm" name="age" value="<?php echo e($u['age']); ?>" min="1" max="120" placeholder="Optional">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" style="font-size:13px; font-weight:600;">Gender</label>
+                                    <select class="form-select form-select-sm" name="gender">
+                                        <option value="" <?php echo empty($u['gender']) ? 'selected' : ''; ?>>Not set</option>
+                                        <option value="Male" <?php echo $u['gender'] === 'Male' ? 'selected' : ''; ?>>Male</option>
+                                        <option value="Female" <?php echo $u['gender'] === 'Female' ? 'selected' : ''; ?>>Female</option>
+                                    </select>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label" style="font-size:13px; font-weight:600;">Role</label>
