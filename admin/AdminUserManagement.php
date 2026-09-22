@@ -370,7 +370,7 @@ $activeLink = 'AdminUserManagement';
                                 <td><?php echo e($u['email']); ?></td>
                                 <td>
                                     <span class="badge-role"><?php echo e(roleLabel($u['role'], $u['position_title'])); ?></span>
-                                    <?php if ($u['role'] === 'committee_admin'): ?>
+                                    <?php if ($u['role'] === 'committee_admin' && empty($u['position_title'])): ?>
                                         <div class="text-muted mt-1" style="font-size:11px;"><?php echo e(implode(', ', $committeeNamesByUser[(int)$u['user_id']] ?? []) ?: 'No committees assigned yet'); ?></div>
                                     <?php endif; ?>
                                 </td>
