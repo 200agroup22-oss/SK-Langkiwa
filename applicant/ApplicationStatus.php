@@ -38,8 +38,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_application'])) 
 $statusError = getFlash('error');
 $statusSuccess = getFlash('success');
 
-$stmt = $conn->prepare("SELECT a.application_id, a.committee_id, a.program_track, a.program_id, a.status, a.decline_reason, a.submitted_at, c.name AS committee_name
-    FROM applications a JOIN committees c ON c.committee_id = a.committee_id
+$stmt = $conn->prepare("SELECT a.application_id, a.committee_id, a.program_track, a.program_id, a.status, a.decline_reason, a.submitted_at, c.name AS committee_name, p.name AS program_name, pt.label AS track_label
+    FROM applications a
+    JOIN committees c ON c.committee_id = a.committee_id
+    LEFT JOIN programs p ON p.program_id = a.program_id
+    LEFT JOIN program_tabs pt ON pt.committee_id = a.committee_id AND pt.track_code = a.program_track
     WHERE a.user_id = ? AND a.archived_at IS NULL
     ORDER BY a.submitted_at DESC");
 $stmt->bind_param('i', $me['user_id']);
@@ -246,6 +249,7 @@ function statusLabel($status)
                     <thead>
                         <tr style="background-color: #a5d6a7;">
                             <th style="background-color: #a5d6a7; color: #1b5e20; padding: 10px 14px; font-weight: 600; border: none;">Committee</th>
+                            <th style="background-color: #a5d6a7; color: #1b5e20; padding: 10px 14px; font-weight: 600; border: none;">Program</th>
                             <th style="background-color: #a5d6a7; color: #1b5e20; padding: 10px 14px; font-weight: 600; border: none;">Date Submitted</th>
                             <th style="background-color: #a5d6a7; color: #1b5e20; padding: 10px 14px; font-weight: 600; border: none;">Status</th>
                             <th style="background-color: #a5d6a7; color: #1b5e20; padding: 10px 14px; font-weight: 600; border: none;">Action</th>
@@ -254,12 +258,13 @@ function statusLabel($status)
                     <tbody>
                         <?php if (empty($applications)): ?>
                             <tr>
-                                <td colspan="4" class="text-center text-muted py-4">You haven't submitted any applications yet.</td>
+                                <td colspan="5" class="text-center text-muted py-4">You haven't submitted any applications yet.</td>
                             </tr>
                         <?php endif; ?>
                         <?php foreach ($applications as $app): ?>
                             <tr>
                                 <td style="padding: 12px 14px; vertical-align: middle;"><?php echo e($app['committee_name']); ?></td>
+                                <td style="padding: 12px 14px; vertical-align: middle;"><?php echo e($app['program_name'] ?: ($app['track_label'] ?: '—')); ?></td>
                                 <td style="padding: 12px 14px; vertical-align: middle;"><?php echo date('F j, Y', strtotime($app['submitted_at'])); ?></td>
                                 <td style="padding: 12px 14px; vertical-align: middle;">
                                     <span class="<?php echo statusBadgeClass($app['status']); ?>"><?php echo statusLabel($app['status']); ?></span>
