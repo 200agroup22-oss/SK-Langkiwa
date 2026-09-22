@@ -240,6 +240,13 @@ function statusLabel($status)
     }
 }
 
+// ---- Pagination (10 per page, in-memory over this small filtered/sorted result set) ----
+$perPage = 10;
+$totalRows = count($displayRows);
+$totalPages = max(1, (int)ceil($totalRows / $perPage));
+$page = max(1, min($totalPages, (int)($_GET['page'] ?? 1)));
+$pagedRows = array_slice($displayRows, ($page - 1) * $perPage, $perPage);
+
 $activeLink = 'ActiveCitizenshipInKindAssistance';
 ?>
 <!DOCTYPE html>
@@ -333,12 +340,12 @@ $activeLink = 'ActiveCitizenshipInKindAssistance';
                         </tr>
                     </thead>
                     <tbody>
-                        <?php if (empty($displayRows)): ?>
+                        <?php if (empty($pagedRows)): ?>
                             <tr>
                                 <td colspan="<?php echo !empty($committeePrograms) ? 8 : 7; ?>" class="text-center text-muted py-4">No <?php echo e($activeProgram ? $activeProgram['name'] : 'Active Citizenship'); ?> in-kind assistance beneficiaries found.</td>
                             </tr>
                         <?php endif; ?>
-                        <?php foreach ($displayRows as $row): ?>
+                        <?php foreach ($pagedRows as $row): ?>
                             <tr>
                                 <td><?php echo str_pad($row['application_id'], 3, '0', STR_PAD_LEFT); ?></td>
                                 <td><?php echo e($row['full_name']); ?></td>
@@ -363,9 +370,7 @@ $activeLink = 'ActiveCitizenshipInKindAssistance';
             </div>
         </div>
 
-        <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
-            <span style="font-size:12px; color:#888;">Showing <?php echo count($displayRows); ?> of <?php echo count($displayRows); ?> entries</span>
-        </div>
+        <?php renderPagination($page, $totalPages, $totalRows, $perPage); ?>
     </div>
 
     <!-- ADD -->
@@ -420,7 +425,7 @@ $activeLink = 'ActiveCitizenshipInKindAssistance';
         </div>
     </div>
 
-    <?php foreach ($displayRows as $row):
+    <?php foreach ($pagedRows as $row):
         if (!$row['beneficiary_id']) continue;
     ?>
         <!-- VIEW MODAL -->
