@@ -40,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $valid = $stmt->get_result()->fetch_assoc();
         $stmt->close();
 
-        if ($valid && $items !== '' && $quantity > 0) {
+        if ($valid && $items !== '' && $quantity > 0 && applicationAssistanceTypeMatches($applicationId, $type)) {
             $stmt = $conn->prepare("INSERT INTO assistance_beneficiaries (application_id, type, items, quantity, status) VALUES (?, ?, ?, ?, 'pending')");
             $stmt->bind_param('issi', $applicationId, $type, $items, $quantity);
             $stmt->execute();
@@ -79,14 +79,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setFlash('success', 'Item(s) marked as distributed.');
     }
 
-    if (isset($_POST['delete_beneficiary'])) {
+    if (isset($_POST['archive_beneficiary'])) {
         $beneficiaryId = (int)($_POST['beneficiary_id'] ?? 0);
-        $stmt = $conn->prepare("DELETE FROM assistance_beneficiaries WHERE beneficiary_id = ? AND type = 'in_kind'");
+        $stmt = $conn->prepare("UPDATE assistance_beneficiaries SET archived_at = NOW() WHERE beneficiary_id = ? AND type = 'in_kind'");
         $stmt->bind_param('i', $beneficiaryId);
         $stmt->execute();
         $stmt->close();
-        logAudit('Deleted In-Kind Beneficiary', 'Beneficiary #' . $beneficiaryId);
-        setFlash('success', 'Beneficiary record removed.');
+        logAudit('Archived In-Kind Beneficiary', 'Beneficiary #' . $beneficiaryId);
+        setFlash('success', 'Beneficiary record archived.');
+    }
+
+    if (isset($_POST['restore_beneficiary'])) {
+        $beneficiaryId = (int)($_POST['beneficiary_id'] ?? 0);
+        $stmt = $conn->prepare("UPDATE assistance_beneficiaries SET archived_at = NULL WHERE beneficiary_id = ? AND type = 'in_kind'");
+        $stmt->bind_param('i', $beneficiaryId);
+        $stmt->execute();
+        $stmt->close();
+        logAudit('Restored In-Kind Beneficiary', 'Beneficiary #' . $beneficiaryId);
+        setFlash('success', 'Beneficiary record restored.');
     }
 
     header("Location: ActiveCitizenshipInKindAssistance.php" . ($programId !== null ? '?program_id=' . $programId : ''));
@@ -100,7 +110,7 @@ $pageSuccess = getFlash('success');
 $sql = "SELECT a.application_id, a.user_id, a.program_id, ab.beneficiary_id, ab.items, ab.quantity, ab.status AS b_status, ab.date_distributed
         FROM applications a
         LEFT JOIN assistance_beneficiaries ab ON ab.application_id = a.application_id AND ab.type = 'in_kind'
-        WHERE a.committee_id = ? AND a.program_track = ? AND a.status = 'approved' AND a.archived_at IS NULL"
+        WHERE a.committee_id = ? AND a.program_track = ? AND a.status = 'approved' AND a.archived_at IS NULL AND (ab.beneficiary_id IS NULL OR ab.archived_at IS NULL)"
     . ($programId !== null ? " AND a.program_id = ?" : "") . "
         ORDER BY a.application_id ASC";
 $stmt = $conn->prepare($sql);
@@ -126,6 +136,35 @@ foreach ($rows as &$row) {
     $row['answers'] = $answers;
 }
 unset($row);
+
+// Hide applicants who requested the OTHER assistance type on their form from this page entirely —
+// they only ever appear on the page matching what they actually asked for. An application with no
+// recognizable answer (e.g. submitted before this field existed) still shows on both, so it never
+// becomes unprocessable.
+$rows = array_values(array_filter($rows, function ($row) use ($type) {
+    if ($row['beneficiary_id']) {
+        return true;
+    }
+    return assistanceTypeAnswerMatches(answerByKey(['answers' => $row['answers']], $row['fields'], 'assistance_type'), $type);
+}));
+
+// ---- Archived beneficiaries (for the Archives modal) ----
+$archivedStmt = $conn->prepare("SELECT ab.beneficiary_id, ab.application_id, ab.items, ab.quantity, ab.archived_at, a.program_id
+    FROM assistance_beneficiaries ab
+    JOIN applications a ON a.application_id = ab.application_id
+    WHERE a.committee_id = ? AND a.program_track = ? AND ab.type = 'in_kind' AND ab.archived_at IS NOT NULL
+    ORDER BY ab.archived_at DESC");
+$archivedStmt->bind_param('is', $committeeId, $track);
+$archivedStmt->execute();
+$archivedBeneficiaries = $archivedStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$archivedStmt->close();
+foreach ($archivedBeneficiaries as &$ab) {
+    $abAnswers = getApplicationAnswers($ab['application_id']);
+    $abFields = getFormFields($committeeId, $track, $ab['program_id']);
+    $ab['full_name'] = trim(answerByKey(['answers' => $abAnswers], $abFields, 'last_name') . ' ' . answerByKey(['answers' => $abAnswers], $abFields, 'first_name'));
+    $ab['address'] = answerByKey(['answers' => $abAnswers], $abFields, 'complete_address');
+}
+unset($ab);
 
 // Applications eligible to become a NEW beneficiary (approved, no beneficiary row of any type yet)
 $eligibleStmt = $conn->prepare("SELECT a.application_id FROM applications a
@@ -241,7 +280,7 @@ $activeLink = 'ActiveCitizenshipInKindAssistance';
                         <i class="bi bi-plus-lg me-1"></i> Add Beneficiary
                     </button>
                     <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#archivesBeneficiaryModal">
-                        <i class="bi bi-list-ul me-1"></i> All Beneficiaries
+                        <i class="bi bi-archive me-1"></i> Archives
                     </button>
                 </div>
                 <div class="search-box">
@@ -312,7 +351,7 @@ $activeLink = 'ActiveCitizenshipInKindAssistance';
                                     <?php if ($row['beneficiary_id']): ?>
                                         <button class="btn-view" data-bs-toggle="modal" data-bs-target="#viewModal<?php echo $row['beneficiary_id']; ?>"><i class="bi bi-eye"></i> View</button>
                                         <button class="btn-edit" data-bs-toggle="modal" data-bs-target="#editModal<?php echo $row['beneficiary_id']; ?>"><i class="bi bi-pencil"></i> Edit</button>
-                                        <button class="btn-archive" data-bs-toggle="modal" data-bs-target="#deleteModal<?php echo $row['beneficiary_id']; ?>"><i class="bi bi-trash"></i> Delete</button>
+                                        <button class="btn-archive" data-bs-toggle="modal" data-bs-target="#archiveModal<?php echo $row['beneficiary_id']; ?>"><i class="bi bi-archive"></i> Archive</button>
                                     <?php else: ?>
                                         <button type="button" class="btn-view" onclick="document.getElementById('addAppSelect').value='<?php echo $row['application_id']; ?>';" data-bs-toggle="modal" data-bs-target="#addBeneficiaryModal"><i class="bi bi-plus-lg"></i> Add</button>
                                     <?php endif; ?>
@@ -505,24 +544,24 @@ $activeLink = 'ActiveCitizenshipInKindAssistance';
             </div>
         </div>
 
-        <!-- DELETE MODAL -->
-        <div class="modal fade" id="deleteModal<?php echo $row['beneficiary_id']; ?>" tabindex="-1">
+        <!-- ARCHIVE MODAL -->
+        <div class="modal fade" id="archiveModal<?php echo $row['beneficiary_id']; ?>" tabindex="-1">
             <div class="modal-dialog modal-dialog-centered modal-sm">
                 <div class="modal-content border-0 shadow">
                     <form method="post">
                         <input type="hidden" name="beneficiary_id" value="<?php echo $row['beneficiary_id']; ?>">
                         <div class="modal-header">
-                            <h6 class="modal-title fw-bold"><i class="bi bi-archive me-2"></i>Delete Beneficiary Record</h6>
+                            <h6 class="modal-title fw-bold"><i class="bi bi-archive me-2"></i>Archive Beneficiary Record</h6>
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body p-4 text-center">
-                            <div class="archive-icon-wrap"><i class="bi bi-trash-fill"></i></div>
+                            <div class="archive-icon-wrap"><i class="bi bi-archive-fill"></i></div>
                             <p class="fw-bold mb-1" style="font-size:14px;">Are you sure?</p>
-                            <p class="text-muted" style="font-size:12px; margin-bottom:0;">This removes the in-kind assistance record for this applicant. The application itself is not affected, and a new beneficiary record can be added again later.</p>
+                            <p class="text-muted" style="font-size:12px; margin-bottom:0;">This hides the in-kind assistance record for this applicant. The application itself is not affected, and you can restore it later from Archives.</p>
                         </div>
                         <div class="modal-footer border-0 justify-content-center gap-2">
                             <button type="button" class="btn btn-sm btn-secondary px-4" data-bs-dismiss="modal">Cancel</button>
-                            <button type="submit" name="delete_beneficiary" class="btn btn-sm btn-danger px-4"><i class="bi bi-trash me-1"></i>Yes, Delete</button>
+                            <button type="submit" name="archive_beneficiary" class="btn btn-sm btn-danger px-4"><i class="bi bi-archive me-1"></i>Yes, Archive</button>
                         </div>
                     </form>
                 </div>
@@ -560,12 +599,12 @@ $activeLink = 'ActiveCitizenshipInKindAssistance';
         </div>
     <?php endforeach; ?>
 
-    <!-- ALL BENEFICIARIES MODAL -->
+    <!-- ARCHIVES MODAL -->
     <div class="modal fade" id="archivesBeneficiaryModal" tabindex="-1">
         <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
             <div class="modal-content border-0 shadow">
                 <div class="modal-header">
-                    <h6 class="modal-title fw-bold"><i class="bi bi-list-ul me-2"></i> All Approved Applicants (Active Citizenship Assistance)</h6>
+                    <h6 class="modal-title fw-bold"><i class="bi bi-archive-fill me-2"></i> Archived Beneficiaries (Active Citizenship In-Kind Assistance)</h6>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-4">
@@ -578,22 +617,29 @@ $activeLink = 'ActiveCitizenshipInKindAssistance';
                                         <th>Full Name</th>
                                         <th>Address</th>
                                         <th>Item(s)</th>
-                                        <th>Status</th>
+                                        <th>Archived On</th>
+                                        <th class="text-center">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php if (empty($rows)): ?>
+                                    <?php if (empty($archivedBeneficiaries)): ?>
                                         <tr>
-                                            <td colspan="5" class="text-center text-muted">No approved Active Citizenship applicants yet.</td>
+                                            <td colspan="6" class="text-center text-muted">No archived beneficiaries.</td>
                                         </tr>
                                     <?php endif; ?>
-                                    <?php foreach ($rows as $row): ?>
+                                    <?php foreach ($archivedBeneficiaries as $ab): ?>
                                         <tr>
-                                            <td><?php echo str_pad($row['application_id'], 3, '0', STR_PAD_LEFT); ?></td>
-                                            <td><?php echo e($row['full_name']); ?></td>
-                                            <td><?php echo e($row['address']); ?></td>
-                                            <td><?php echo $row['beneficiary_id'] ? e($row['items']) : '—'; ?></td>
-                                            <td><span class="badge text-bg-<?php echo statusBadgeClass($row['beneficiary_id'] ? $row['b_status'] : 'not_added'); ?>"><?php echo statusLabel($row['beneficiary_id'] ? $row['b_status'] : 'not_added'); ?></span></td>
+                                            <td><?php echo str_pad($ab['application_id'], 3, '0', STR_PAD_LEFT); ?></td>
+                                            <td><?php echo e($ab['full_name']); ?></td>
+                                            <td><?php echo e($ab['address']); ?></td>
+                                            <td><?php echo e($ab['items']); ?> (<?php echo (int)$ab['quantity']; ?>)</td>
+                                            <td><?php echo date('Y-m-d H:i', strtotime($ab['archived_at'])); ?></td>
+                                            <td class="text-center">
+                                                <form method="post">
+                                                    <input type="hidden" name="beneficiary_id" value="<?php echo $ab['beneficiary_id']; ?>">
+                                                    <button type="submit" name="restore_beneficiary" class="btn btn-sm btn-outline-success py-0 px-2" style="font-size:11px;"><i class="bi bi-arrow-counterclockwise"></i> Restore</button>
+                                                </form>
+                                            </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>

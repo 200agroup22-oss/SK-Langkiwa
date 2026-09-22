@@ -718,6 +718,48 @@ function answerByKey($app, $fields, $key, $default = '')
     return $default;
 }
 
+// Whether an applicant's answer to the "Type of Assistance" form field (e.g. "Cash Assistance" /
+// "In-kind Assistance") matches a given Cash/In-Kind Assistance admin page ($pageType: 'cash' or
+// 'in_kind') — used so an applicant only ever shows up as a beneficiary candidate on the page
+// matching what they actually requested, not on both. An application with no recognizable answer
+// (submitted before this field existed, or the field was removed from the form) still matches
+// either page, so older applications don't silently become impossible to process.
+// Looks up an application's own "Type of Assistance" answer and checks it against $pageType
+// ('cash' or 'in_kind') — the server-side counterpart to the display-side filtering in each
+// Cash/In-Kind Assistance page, so a forged "add beneficiary" request can't add someone under the
+// type they didn't actually request.
+function applicationAssistanceTypeMatches($applicationId, $pageType)
+{
+    global $conn;
+    $stmt = $conn->prepare("SELECT committee_id, program_track, program_id FROM applications WHERE application_id = ?");
+    $stmt->bind_param('i', $applicationId);
+    $stmt->execute();
+    $app = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$app) {
+        return false;
+    }
+    $fields = getFormFields($app['committee_id'], $app['program_track'], $app['program_id']);
+    $answers = getApplicationAnswers($applicationId);
+    $answer = answerByKey(['answers' => $answers], $fields, 'assistance_type');
+    return assistanceTypeAnswerMatches($answer, $pageType);
+}
+
+function assistanceTypeAnswerMatches($answer, $pageType)
+{
+    $answer = trim((string)$answer);
+    if ($answer === '') {
+        return true;
+    }
+    if (stripos($answer, 'in-kind') !== false || stripos($answer, 'in kind') !== false || stripos($answer, 'inkind') !== false) {
+        return $pageType === 'in_kind';
+    }
+    if (stripos($answer, 'cash') !== false) {
+        return $pageType === 'cash';
+    }
+    return true;
+}
+
 // Persists $_POST/$_FILES for a committee's dynamic fields against an application.
 // Non-file answers are fully replaced; files are only replaced for fields with a newly uploaded file.
 function saveDynamicSubmission($applicationId, $committeeId, array $post, array $files, $programTrack = 'assistance', $programId = null)

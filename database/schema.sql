@@ -244,6 +244,7 @@ CREATE TABLE assistance_beneficiaries (
     status ENUM('pending','released','distributed') NOT NULL DEFAULT 'pending',
     date_released DATE NULL,
     date_distributed DATE NULL,
+    archived_at DATETIME NULL,
     FOREIGN KEY (application_id) REFERENCES applications(application_id)
 ) ENGINE=InnoDB;
 
