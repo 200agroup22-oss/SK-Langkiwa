@@ -19,6 +19,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute();
         $stmt->close();
     }
+    if (isset($_POST['restore_notification'])) {
+        $notificationId = (int)$_POST['notification_id'];
+        $stmt = $conn->prepare("UPDATE notifications SET archived_at = NULL WHERE notification_id = ? AND user_id = ?");
+        $stmt->bind_param('ii', $notificationId, $me['user_id']);
+        $stmt->execute();
+        $stmt->close();
+    }
+    if (isset($_POST['restore_announcement'])) {
+        $announcementId = (int)$_POST['announcement_id'];
+        $stmt = $conn->prepare("DELETE FROM announcement_archives WHERE user_id = ? AND announcement_id = ?");
+        $stmt->bind_param('ii', $me['user_id'], $announcementId);
+        $stmt->execute();
+        $stmt->close();
+    }
     header("Location: applicant.php");
     exit();
 }
@@ -55,6 +69,30 @@ foreach ($personalNotifications as $n) {
 }
 usort($announcements, fn($a, $b) => strtotime($b['posted_at']) <=> strtotime($a['posted_at']));
 $announcements = array_slice($announcements, 0, 5);
+
+// ---- Archived items (for the Archives modal — everything this applicant has dismissed) ----
+$stmt = $conn->prepare("SELECT a.announcement_id, a.title, a.message, aa.archived_at FROM announcement_archives aa
+    JOIN announcements a ON a.announcement_id = aa.announcement_id
+    WHERE aa.user_id = ? ORDER BY aa.archived_at DESC");
+$stmt->bind_param('i', $me['user_id']);
+$stmt->execute();
+$archivedBroadcasts = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+
+$stmt = $conn->prepare("SELECT notification_id, title, message, archived_at FROM notifications WHERE user_id = ? AND archived_at IS NOT NULL ORDER BY archived_at DESC");
+$stmt->bind_param('i', $me['user_id']);
+$stmt->execute();
+$archivedNotifications = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+
+$archivedAnnouncements = [];
+foreach ($archivedBroadcasts as $a) {
+    $archivedAnnouncements[] = ['type' => 'announcement', 'id' => (int)$a['announcement_id'], 'title' => $a['title'], 'message' => $a['message'], 'archived_at' => $a['archived_at']];
+}
+foreach ($archivedNotifications as $n) {
+    $archivedAnnouncements[] = ['type' => 'notification', 'id' => (int)$n['notification_id'], 'title' => $n['title'], 'message' => $n['message'], 'archived_at' => $n['archived_at']];
+}
+usort($archivedAnnouncements, fn($a, $b) => strtotime($b['archived_at']) <=> strtotime($a['archived_at']));
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -265,9 +303,10 @@ $announcements = array_slice($announcements, 0, 5);
             <!-- Announcements -->
             <div class="col-lg-3 col-md-6">
                 <div class="section-card">
-                    <div class="section-title">
-                        <i class="bi bi-bell-fill text-danger"></i> Announcement
-                        <span class="badge bg-danger rounded-circle ms-1" style="font-size: 11px;"><?php echo count($announcements); ?></span>
+                    <div class="section-title d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-bell-fill text-danger"></i> Announcement
+                            <span class="badge bg-danger rounded-circle ms-1" style="font-size: 11px;"><?php echo count($announcements); ?></span></span>
+                        <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:11px;" data-bs-toggle="modal" data-bs-target="#archivedAnnouncementsModal"><i class="bi bi-archive me-1"></i>Archives</button>
                     </div>
                     <hr class="my-divider">
                     <?php if (empty($announcements)): ?>
@@ -332,6 +371,39 @@ $announcements = array_slice($announcements, 0, 5);
             document.getElementById('archiveAnnouncementForm').submit();
         });
     </script>
+
+    <!-- ARCHIVED ANNOUNCEMENTS MODAL -->
+    <div class="modal fade" id="archivedAnnouncementsModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header">
+                    <h6 class="modal-title fw-bold"><i class="bi bi-archive-fill me-2"></i>Archived Announcements</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <?php if (empty($archivedAnnouncements)): ?>
+                        <p class="text-muted mb-0" style="font-size: 13px;">No archived announcements.</p>
+                    <?php endif; ?>
+                    <?php foreach ($archivedAnnouncements as $a): ?>
+                        <div class="announcement-item d-flex justify-content-between align-items-start gap-2">
+                            <div>
+                                <p class="fw-semibold mb-1" style="font-size: 13px;"><?php echo e($a['title']); ?></p>
+                                <p class="mb-0" style="font-size: 12px; color: #444;"><?php echo e($a['message']); ?></p>
+                                <p class="text-muted mb-0 mt-1" style="font-size: 11px;">Archived: <?php echo date('F j, Y', strtotime($a['archived_at'])); ?></p>
+                            </div>
+                            <form method="post">
+                                <input type="hidden" name="<?php echo $a['type'] === 'notification' ? 'notification_id' : 'announcement_id'; ?>" value="<?php echo $a['id']; ?>">
+                                <button type="submit" name="<?php echo $a['type'] === 'notification' ? 'restore_notification' : 'restore_announcement'; ?>" class="btn btn-sm btn-outline-success py-0 px-2" style="font-size:11px;"><i class="bi bi-arrow-counterclockwise me-1"></i>Restore</button>
+                            </form>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
