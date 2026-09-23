@@ -90,6 +90,22 @@ if ($programParam !== 'all' && strpos($programParam, 'track:') === 0) {
     $programLabel = $row['name'];
 }
 
+// ---- Validate term (only meaningful for the Education committee's Scholars Report — every
+// other report type ignores this param). Blank/"current" means "whatever term is active right
+// now", matching this report's original behavior before term selection existed. ----
+$termParam = $_GET['term'] ?? '';
+$termAcademicYear = null;
+$termSemester = null;
+$termLabel = '';
+if ($committeeCode === 'education' && $termParam !== '' && $termParam !== 'current') {
+    $termParts = explode('|', $termParam, 2);
+    if (count($termParts) === 2 && $termParts[0] !== '' && $termParts[1] !== '') {
+        $termAcademicYear = $termParts[0];
+        $termSemester = $termParts[1];
+        $termLabel = $termAcademicYear . ' - ' . $termSemester;
+    }
+}
+
 // ---- Validate from/to dates (YYYY-MM-DD) ----
 function isValidDate($value)
 {
@@ -117,7 +133,7 @@ $fromInclusive = $from . ' 00:00:00';
 
 $reportLabelOverrides = ['activity-log' => 'Activity Log', 'audit-log' => 'Audit Trail'];
 $reportLabel = $reportLabelOverrides[$type] ?? ucfirst(str_replace('-', ' ', $type));
-$scopeLabel = $committeeLabel . ($programLabel !== null ? ' — ' . $programLabel : '');
+$scopeLabel = $committeeLabel . ($programLabel !== null ? ' — ' . $programLabel : '') . ($termLabel !== '' ? ' — ' . $termLabel : '');
 logAudit('Generated Report', $reportLabel . ' / ' . $scopeLabel . ' / ' . $from . ' to ' . $to);
 
 // ---- PDF setup ----
@@ -127,6 +143,7 @@ class ReportPDF extends FPDF
     public $committeeLabel = '';
     public $programLabel = '';
     public $dateRange = '';
+    public $termLabel = '';
     public $logoPath = '';
 
     function Header()
@@ -148,7 +165,11 @@ class ReportPDF extends FPDF
         $this->Cell(0, 8, pdfEnc(siteName() . ' - ' . $this->reportTitle), 0, 1);
         $this->SetFont('Helvetica', '', 9);
         $this->SetXY($textX, 13);
-        $this->Cell(0, 5, pdfEnc('Committee: ' . $this->committeeLabel . '   |   Program: ' . $this->programLabel), 0, 1);
+        $scopeLine = 'Committee: ' . $this->committeeLabel . '   |   Program: ' . $this->programLabel;
+        if ($this->termLabel !== '') {
+            $scopeLine .= '   |   Term: ' . $this->termLabel;
+        }
+        $this->Cell(0, 5, pdfEnc($scopeLine), 0, 1);
         $this->SetXY($textX, 18.5);
         $this->Cell(0, 5, pdfEnc('Period: ' . $this->dateRange), 0, 1);
         $this->SetTextColor(0, 0, 0);
@@ -280,6 +301,7 @@ $pdf->AliasNbPages();
 $pdf->reportTitle = $reportLabel . ' Report';
 $pdf->committeeLabel = $committeeLabel;
 $pdf->programLabel = $programLabel !== null ? $programLabel : 'All Programs';
+$pdf->termLabel = $termLabel;
 $pdf->dateRange = $from . ' to ' . $to;
 $pdf->logoPath = siteLogoPath();
 $pdf->SetMargins(10, 10, 10);
@@ -673,7 +695,19 @@ switch ($type) {
             $totalHeld = 0;
             foreach ($scholarRows as $row) {
                 $scholarId = (int)$row['scholar_id'];
-                $allowance = ensureAllowanceRecord($scholarId);
+                if ($termAcademicYear !== null) {
+                    // A specific past/other term was picked — read whatever record already exists for
+                    // it instead of ensureAllowanceRecord(), which always operates on the CURRENT term
+                    // and would wrongly create a fresh "pending" row for a term that isn't active.
+                    $termStmt = $conn->prepare("SELECT eligibility, amount FROM allowance_distributions WHERE scholar_id = ? AND academic_year = ? AND semester = ?");
+                    $termStmt->bind_param('iss', $scholarId, $termAcademicYear, $termSemester);
+                    $termStmt->execute();
+                    $termRecord = $termStmt->get_result()->fetch_assoc();
+                    $termStmt->close();
+                    $allowance = $termRecord ?: ['eligibility' => 'no_record', 'amount' => 0];
+                } else {
+                    $allowance = ensureAllowanceRecord($scholarId);
+                }
                 $rows[] = [
                     str_pad($scholarId, 3, '0', STR_PAD_LEFT),
                     trim($row['first_name'] . ' ' . $row['last_name']),

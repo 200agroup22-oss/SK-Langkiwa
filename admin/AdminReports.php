@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../config/forms.php';
+require_once __DIR__ . '/../config/scholars.php';
 requireRole(['admin', 'committee_admin']);
 
 $me = currentUser();
@@ -29,6 +30,19 @@ foreach ($builtInTracksResult as $t) {
 $allProgramsResult = $conn->query("SELECT p.program_id, p.name, c.code AS committee_code FROM programs p JOIN committees c ON c.committee_id = p.committee_id WHERE p.archived_at IS NULL AND p.status = 'active' ORDER BY p.name ASC");
 foreach ($allProgramsResult as $p) {
     $programsByCommitteeCode[$p['committee_code']][] = ['id' => (string)(int)$p['program_id'], 'name' => $p['name']];
+}
+
+// Academic terms for the Scholars Report's Term filter (Education-only — scholarship allowance
+// is tracked per academic_year+semester, unlike any other committee's data). The current term
+// always leads the list, even if no allowance_distributions row exists for it yet.
+$currentTerm = getCurrentTerm();
+$termOptions = [['academic_year' => $currentTerm['current_academic_year'], 'semester' => $currentTerm['current_semester']]];
+$pastTermsResult = $conn->query("SELECT DISTINCT academic_year, semester FROM allowance_distributions ORDER BY academic_year DESC, semester DESC");
+foreach ($pastTermsResult as $t) {
+    $isCurrent = $t['academic_year'] === $currentTerm['current_academic_year'] && $t['semester'] === $currentTerm['current_semester'];
+    if (!$isCurrent) {
+        $termOptions[] = $t;
+    }
 }
 
 // ---- Period + committee filters (GET, drive the whole dashboard view) ----
@@ -984,6 +998,16 @@ $activeLink = 'AdminReports';
                             </select>
                             <div class="form-text" style="font-size:11.5px;" id="reportProgramHint">Pick a committee to filter by a specific program, or leave it on "All Programs".</div>
                         </div>
+                        <div class="mb-3">
+                            <label for="reportTerm" class="form-label">Term</label>
+                            <select class="form-select" id="reportTerm" disabled>
+                                <option value="" selected>N/A</option>
+                                <?php foreach ($termOptions as $i => $t): ?>
+                                    <option value="<?php echo e($t['academic_year'] . '|' . $t['semester']); ?>"><?php echo e($t['academic_year'] . ' - ' . $t['semester']); ?><?php echo $i === 0 ? ' (Current)' : ''; ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <div class="form-text" style="font-size:11.5px;" id="reportTermHint">Only applies to Education (Scholars Report) — pick a specific academic term, or leave as N/A for other committees.</div>
+                        </div>
                         <div class="row g-2">
                             <div class="col-6">
                                 <label for="reportDateFrom" class="form-label">Date From</label>
@@ -1235,7 +1259,16 @@ $activeLink = 'AdminReports';
         const reportCommitteeSelect = document.getElementById('reportCommittee');
         const reportProgramSelect = document.getElementById('reportProgram');
         const reportProgramHint = document.getElementById('reportProgramHint');
+        const reportTermSelect = document.getElementById('reportTerm');
         const logReportTypes = ['activity-log', 'audit-log'];
+
+        // Term only ever applies to Education (scholarship allowance is tracked per academic
+        // term; nothing else in the app is) — every other committee shows it locked on "N/A".
+        function updateTermAvailability() {
+            const isEducation = reportCommitteeSelect.value === 'education' && !reportCommitteeSelect.disabled;
+            reportTermSelect.disabled = !isEducation;
+            reportTermSelect.value = isEducation ? reportTermSelect.options[1].value : '';
+        }
 
         reportCommitteeSelect.addEventListener('change', function() {
             const code = this.value;
@@ -1249,6 +1282,7 @@ $activeLink = 'AdminReports';
                 reportProgramSelect.appendChild(opt);
             });
             reportProgramSelect.disabled = code === 'all';
+            updateTermAvailability();
         });
 
         // Activity/Audit logs aren't scoped to a committee or program, so lock those filters out when picked.
@@ -1261,7 +1295,10 @@ $activeLink = 'AdminReports';
             reportProgramHint.textContent = isLogReport ?
                 'Not applicable to this report — activity and audit logs are system-wide.' :
                 'Pick a committee to filter by a specific program, or leave it on "All Programs".';
+            updateTermAvailability();
         });
+
+        updateTermAvailability();
 
         // Generate Report -> streams a PDF from GenerateReport.php
         document.getElementById('generateReportForm').addEventListener('submit', function(e) {
@@ -1269,10 +1306,11 @@ $activeLink = 'AdminReports';
             const reportType = document.getElementById('reportType').value;
             const committee = reportCommitteeSelect.disabled ? 'all' : document.getElementById('reportCommittee').value;
             const program = reportProgramSelect.disabled ? 'all' : reportProgramSelect.value;
+            const term = reportTermSelect.disabled ? '' : reportTermSelect.value;
             const dateFrom = document.getElementById('reportDateFrom').value;
             const dateTo = document.getElementById('reportDateTo').value;
 
-            window.location.href = `GenerateReport.php?type=${encodeURIComponent(reportType)}&committee=${encodeURIComponent(committee)}&program=${encodeURIComponent(program)}&from=${encodeURIComponent(dateFrom)}&to=${encodeURIComponent(dateTo)}`;
+            window.location.href = `GenerateReport.php?type=${encodeURIComponent(reportType)}&committee=${encodeURIComponent(committee)}&program=${encodeURIComponent(program)}&term=${encodeURIComponent(term)}&from=${encodeURIComponent(dateFrom)}&to=${encodeURIComponent(dateTo)}`;
 
             const modalEl = document.getElementById('generateReportModal');
             bootstrap.Modal.getInstance(modalEl).hide();
