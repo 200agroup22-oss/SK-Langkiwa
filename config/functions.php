@@ -168,6 +168,18 @@ function startOtp($purpose, $email, array $data = [])
     return $_SESSION['otp_pending']['code'];
 }
 
+// Personal in-app notification (shown in that one user's own Announcement widget only), separate
+// from admin-authored broadcast announcements — used for automatic status-change alerts like an
+// application decision, so the applicant/scholar sees it without having to open their email.
+function notifyUserInApp($userId, $title, $message)
+{
+    global $conn;
+    $stmt = $conn->prepare("INSERT INTO notifications (user_id, title, message) VALUES (?, ?, ?)");
+    $stmt->bind_param('iss', $userId, $title, $message);
+    $stmt->execute();
+    $stmt->close();
+}
+
 function logAudit($action, $details = null)
 {
     global $conn;

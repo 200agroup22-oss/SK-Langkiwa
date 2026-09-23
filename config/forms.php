@@ -241,7 +241,7 @@ function setProgramTabVisible($programId, $isVisible)
 function notifyApplicationDecision($applicationId, $status, $reason = null)
 {
     global $conn;
-    $stmt = $conn->prepare("SELECT u.email, u.first_name, u.last_name, p.name AS program_name, pt.label AS track_label, c.name AS committee_name
+    $stmt = $conn->prepare("SELECT u.user_id, u.email, u.first_name, u.last_name, p.name AS program_name, pt.label AS track_label, c.name AS committee_name
         FROM applications a
         JOIN users u ON u.user_id = a.user_id
         LEFT JOIN programs p ON p.program_id = a.program_id
@@ -253,13 +253,21 @@ function notifyApplicationDecision($applicationId, $status, $reason = null)
     $row = $stmt->get_result()->fetch_assoc();
     $stmt->close();
 
-    if (!$row || empty($row['email'])) {
+    if (!$row) {
         return;
     }
 
     $programLabel = $row['program_name'] ?: ($row['track_label'] ?: $row['committee_name']);
     $toName = trim($row['first_name'] . ' ' . $row['last_name']);
-    sendApplicationDecisionEmail($row['email'], $toName, $programLabel, $status, $reason);
+
+    if (!empty($row['email'])) {
+        sendApplicationDecisionEmail($row['email'], $toName, $programLabel, $status, $reason);
+    }
+
+    $isApproved = $status === 'approved';
+    $title = 'Application ' . ($isApproved ? 'Approved' : 'Declined');
+    $message = 'Your application for ' . $programLabel . ' has been ' . ($isApproved ? 'approved. Congratulations!' : 'declined.' . (!empty($reason) ? ' Reason: ' . $reason : ''));
+    notifyUserInApp((int)$row['user_id'], $title, $message);
 }
 
 // Committee IDs a 'committee_admin' user is assigned to manage. Meaningless for other roles —

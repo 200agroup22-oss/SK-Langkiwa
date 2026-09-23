@@ -269,6 +269,29 @@ CREATE TABLE announcements (
     FOREIGN KEY (posted_by) REFERENCES users(user_id)
 ) ENGINE=InnoDB;
 
+-- Per-viewer dismissal of a broadcast announcement (the announcement itself stays visible to
+-- everyone else it was sent to — this only hides it for the one user who archived it).
+CREATE TABLE announcement_archives (
+    user_id INT NOT NULL,
+    announcement_id INT NOT NULL,
+    archived_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, announcement_id),
+    FOREIGN KEY (user_id) REFERENCES users(user_id),
+    FOREIGN KEY (announcement_id) REFERENCES announcements(announcement_id)
+) ENGINE=InnoDB;
+
+-- Personal in-app notifications (e.g. "your application was approved") shown alongside broadcast
+-- announcements in the applicant/scholar dashboard's Announcement widget, but owned by one user.
+CREATE TABLE notifications (
+    notification_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    title VARCHAR(200) NOT NULL,
+    message TEXT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    archived_at DATETIME NULL,
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+) ENGINE=InnoDB;
+
 CREATE TABLE important_dates (
     date_id INT AUTO_INCREMENT PRIMARY KEY,
     event_name VARCHAR(150) NOT NULL,

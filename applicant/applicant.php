@@ -4,13 +4,57 @@ requireRole('applicant');
 
 $me = currentUser();
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isset($_POST['archive_notification'])) {
+        $notificationId = (int)$_POST['notification_id'];
+        $stmt = $conn->prepare("UPDATE notifications SET archived_at = NOW() WHERE notification_id = ? AND user_id = ?");
+        $stmt->bind_param('ii', $notificationId, $me['user_id']);
+        $stmt->execute();
+        $stmt->close();
+    }
+    if (isset($_POST['archive_announcement'])) {
+        $announcementId = (int)$_POST['announcement_id'];
+        $stmt = $conn->prepare("INSERT IGNORE INTO announcement_archives (user_id, announcement_id) VALUES (?, ?)");
+        $stmt->bind_param('ii', $me['user_id'], $announcementId);
+        $stmt->execute();
+        $stmt->close();
+    }
+    header("Location: applicant.php");
+    exit();
+}
+
 $settings = $conn->query("SELECT * FROM site_settings WHERE id = 1")->fetch_assoc();
 
 $dates = $conn->query("SELECT event_name, event_date FROM important_dates ORDER BY event_date ASC LIMIT 5")->fetch_all(MYSQLI_ASSOC);
 
-$announcements = $conn->query("SELECT title, message, posted_at FROM announcements
-    WHERE archived_at IS NULL AND sent_to IN ('all','applicants')
-    ORDER BY posted_at DESC LIMIT 5")->fetch_all(MYSQLI_ASSOC);
+// Announcement widget combines two sources — admin-authored broadcasts (dismissible per-viewer via
+// announcement_archives, since the same announcement is shown to everyone it was sent to) and this
+// applicant's own personal notifications (e.g. application decisions, archivable outright since
+// those are theirs alone) — merged and sorted so the most recent of either kind shows first.
+$stmt = $conn->prepare("SELECT a.announcement_id, a.title, a.message, a.posted_at FROM announcements a
+    WHERE a.archived_at IS NULL AND a.sent_to IN ('all','applicants')
+    AND NOT EXISTS (SELECT 1 FROM announcement_archives aa WHERE aa.announcement_id = a.announcement_id AND aa.user_id = ?)
+    ORDER BY a.posted_at DESC LIMIT 5");
+$stmt->bind_param('i', $me['user_id']);
+$stmt->execute();
+$broadcastAnnouncements = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+
+$stmt = $conn->prepare("SELECT notification_id, title, message, created_at FROM notifications WHERE user_id = ? AND archived_at IS NULL ORDER BY created_at DESC LIMIT 5");
+$stmt->bind_param('i', $me['user_id']);
+$stmt->execute();
+$personalNotifications = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+
+$announcements = [];
+foreach ($broadcastAnnouncements as $a) {
+    $announcements[] = ['type' => 'announcement', 'id' => (int)$a['announcement_id'], 'title' => $a['title'], 'message' => $a['message'], 'posted_at' => $a['posted_at']];
+}
+foreach ($personalNotifications as $n) {
+    $announcements[] = ['type' => 'notification', 'id' => (int)$n['notification_id'], 'title' => $n['title'], 'message' => $n['message'], 'posted_at' => $n['created_at']];
+}
+usort($announcements, fn($a, $b) => strtotime($b['posted_at']) <=> strtotime($a['posted_at']));
+$announcements = array_slice($announcements, 0, 5);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -231,10 +275,18 @@ $announcements = $conn->query("SELECT title, message, posted_at FROM announcemen
                     <?php endif; ?>
                     <div class="<?php echo count($announcements) >= 4 ? 'announcement-list-scroll' : ''; ?>">
                         <?php foreach ($announcements as $a): ?>
-                            <div class="announcement-item">
-                                <p class="fw-semibold mb-1" style="font-size: 13px;"><?php echo e($a['title']); ?></p>
-                                <p class="mb-0" style="font-size: 12px; color: #444;"><?php echo e($a['message']); ?></p>
-                                <p class="text-muted mb-0 mt-1" style="font-size: 11px;">Posted: <?php echo date('F j, Y', strtotime($a['posted_at'])); ?></p>
+                            <div class="announcement-item d-flex justify-content-between align-items-start gap-2">
+                                <div>
+                                    <p class="fw-semibold mb-1" style="font-size: 13px;"><?php echo e($a['title']); ?></p>
+                                    <p class="mb-0" style="font-size: 12px; color: #444;"><?php echo e($a['message']); ?></p>
+                                    <p class="text-muted mb-0 mt-1" style="font-size: 11px;">Posted: <?php echo date('F j, Y', strtotime($a['posted_at'])); ?></p>
+                                </div>
+                                <form method="post" onsubmit="return confirm('Archive this announcement?');">
+                                    <input type="hidden" name="<?php echo $a['type'] === 'notification' ? 'notification_id' : 'announcement_id'; ?>" value="<?php echo $a['id']; ?>">
+                                    <button type="submit" name="<?php echo $a['type'] === 'notification' ? 'archive_notification' : 'archive_announcement'; ?>" class="btn btn-sm p-0 text-muted" style="font-size:14px; line-height:1;" title="Archive">
+                                        <i class="bi bi-archive"></i>
+                                    </button>
+                                </form>
                             </div>
                         <?php endforeach; ?>
                     </div>
