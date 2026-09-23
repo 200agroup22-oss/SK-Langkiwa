@@ -281,12 +281,9 @@ $announcements = array_slice($announcements, 0, 5);
                                     <p class="mb-0" style="font-size: 12px; color: #444;"><?php echo e($a['message']); ?></p>
                                     <p class="text-muted mb-0 mt-1" style="font-size: 11px;">Posted: <?php echo date('F j, Y', strtotime($a['posted_at'])); ?></p>
                                 </div>
-                                <form method="post" onsubmit="return confirm('Archive this announcement?');">
-                                    <input type="hidden" name="<?php echo $a['type'] === 'notification' ? 'notification_id' : 'announcement_id'; ?>" value="<?php echo $a['id']; ?>">
-                                    <button type="submit" name="<?php echo $a['type'] === 'notification' ? 'archive_notification' : 'archive_announcement'; ?>" class="btn btn-sm p-0 text-muted" style="font-size:14px; line-height:1;" title="Archive">
-                                        <i class="bi bi-archive"></i>
-                                    </button>
-                                </form>
+                                <button type="button" class="btn btn-sm p-0 text-muted" style="font-size:14px; line-height:1;" title="Archive" onclick="confirmArchiveAnnouncement('<?php echo $a['type']; ?>', <?php echo $a['id']; ?>)">
+                                    <i class="bi bi-archive"></i>
+                                </button>
                             </div>
                         <?php endforeach; ?>
                     </div>
@@ -295,6 +292,46 @@ $announcements = array_slice($announcements, 0, 5);
 
         </div>
     </div>
+
+    <!-- ARCHIVE ANNOUNCEMENT CONFIRMATION MODAL -->
+    <div class="modal fade" id="archiveAnnouncementModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 400px;">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header" style="background: linear-gradient(90deg, #e53935, #ef9a9a);">
+                    <h6 class="modal-title fw-bold text-white"><i class="bi bi-archive-fill me-2"></i>Archive Announcement</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter: brightness(0) invert(1);"></button>
+                </div>
+                <div class="modal-body p-4 text-center">
+                    <i class="bi bi-exclamation-triangle-fill text-warning" style="font-size: 40px;"></i>
+                    <p class="mt-3 mb-0" style="font-size: 14px;">Are you sure you want to archive this announcement? You won't see it here anymore.</p>
+                </div>
+                <div class="modal-footer border-0 justify-content-center">
+                    <button type="button" class="btn btn-sm btn-secondary px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" id="confirmArchiveAnnouncementBtn" class="btn btn-sm btn-danger px-4"><i class="bi bi-archive me-1"></i> Yes, Archive</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <form id="archiveAnnouncementForm" method="post" class="d-none">
+        <input type="hidden" name="notification_id" id="archiveNotificationId" value="">
+        <input type="hidden" name="announcement_id" id="archiveAnnouncementId" value="">
+        <input type="hidden" name="archive_notification" id="archiveNotificationFlag" value="1" disabled>
+        <input type="hidden" name="archive_announcement" id="archiveAnnouncementFlag" value="1" disabled>
+    </form>
+
+    <script>
+        function confirmArchiveAnnouncement(type, id) {
+            document.getElementById('archiveNotificationFlag').disabled = type !== 'notification';
+            document.getElementById('archiveAnnouncementFlag').disabled = type !== 'announcement';
+            document.getElementById('archiveNotificationId').value = type === 'notification' ? id : '';
+            document.getElementById('archiveAnnouncementId').value = type === 'announcement' ? id : '';
+            new bootstrap.Modal(document.getElementById('archiveAnnouncementModal')).show();
+        }
+        document.getElementById('confirmArchiveAnnouncementBtn').addEventListener('click', function() {
+            document.getElementById('archiveAnnouncementForm').submit();
+        });
+    </script>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
