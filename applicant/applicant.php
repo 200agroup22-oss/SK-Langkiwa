@@ -116,6 +116,10 @@ usort($archivedAnnouncements, fn($a, $b) => strtotime($b['archived_at']) <=> str
         }
 
         .btn-appform {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            max-width: 100%;
             background-color: #45b84d;
             color: #fff;
             border-radius: 20px;
@@ -123,6 +127,8 @@ usort($archivedAnnouncements, fn($a, $b) => strtotime($b['archived_at']) <=> str
             font-size: 13px;
             font-weight: 600;
             text-decoration: none;
+            text-align: center;
+            white-space: normal;
         }
 
         .section-card {
