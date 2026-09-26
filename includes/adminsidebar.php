@@ -3,7 +3,7 @@
 require_once __DIR__ . '/../config/forms.php';
 $activeLink = $activeLink ?? '';
 $adminMe = currentUser();
-$isSuperAdmin = hasFullCommitteeAccess($adminMe['role'] ?? '');
+$isSuperAdmin = $adminMe ? hasFullCommitteeAccess($adminMe) : false;
 // Content Management / User Management / Configuration stay Super-Admin-only even though
 // secretary/treasurer see every committee's menu just like a Super Admin does.
 $isFullAdmin = ($adminMe['role'] ?? '') === 'admin';
@@ -198,8 +198,14 @@ function collapseAttrs($expanded)
         <span class="brand-text d-sm-none">SK Langkiwa</span>
     </div>
     <div class="d-flex align-items-center gap-3">
-        <?php $roleBadgeLabels = ['admin' => 'Super Admin', 'committee_admin' => 'Committee Admin', 'secretary' => 'Secretary', 'treasurer' => 'Treasurer']; ?>
-        <span class="role-badge d-none d-sm-inline-block"><?php echo e($roleBadgeLabels[$adminMe['role'] ?? ''] ?? ucfirst($adminMe['role'] ?? '')); ?></span>
+        <?php
+        $roleBadgeLabels = ['admin' => 'Super Admin', 'committee_admin' => 'Committee Admin'];
+        $positionFlags = [];
+        if (!empty($adminMe['is_secretary'])) $positionFlags[] = 'Secretary';
+        if (!empty($adminMe['is_treasurer'])) $positionFlags[] = 'Treasurer';
+        $roleBadgeText = !empty($positionFlags) ? implode(' & ', $positionFlags) : ($roleBadgeLabels[$adminMe['role'] ?? ''] ?? ucfirst($adminMe['role'] ?? ''));
+        ?>
+        <span class="role-badge d-none d-sm-inline-block"><?php echo e($roleBadgeText); ?></span>
         <div class="dropdown">
             <a href="#" class="dropdown-toggle d-flex align-items-center gap-2 text-white text-decoration-none border border-white border-opacity-50 rounded-pill px-3 py-1"
                 data-bs-toggle="dropdown" style="font-size: 14px; font-weight: 600;">

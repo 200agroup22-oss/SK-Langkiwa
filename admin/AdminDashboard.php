@@ -1,10 +1,10 @@
 <?php
 require_once __DIR__ . '/../config/functions.php';
 require_once __DIR__ . '/../config/forms.php';
-requireRole(['admin', 'committee_admin', 'secretary', 'treasurer']);
+requireRole(['admin', 'committee_admin']);
 
 $me = currentUser();
-$isSuperAdmin = hasFullCommitteeAccess($me['role']);
+$isSuperAdmin = hasFullCommitteeAccess($me);
 $myCommitteeIds = $isSuperAdmin ? [] : getUserCommitteeIds($me['user_id']);
 // A committee_admin assigned to nothing yet gets an "IN (0)" filter, which safely matches no rows
 // instead of throwing on an empty IN() list. $committeeIdList is built from ints only (never raw

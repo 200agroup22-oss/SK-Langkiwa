@@ -26,6 +26,8 @@ function currentUser()
         'first_name' => $_SESSION['first_name'],
         'last_name' => $_SESSION['last_name'],
         'email' => $_SESSION['email'],
+        'is_secretary' => $_SESSION['is_secretary'] ?? 0,
+        'is_treasurer' => $_SESSION['is_treasurer'] ?? 0,
     ];
 }
 
@@ -34,8 +36,6 @@ function dashboardUrlForRole($role)
     switch ($role) {
         case 'admin':
         case 'committee_admin':
-        case 'secretary':
-        case 'treasurer':
             return APP_BASE . '/admin/AdminDashboard.php';
         case 'scholar':
             return APP_BASE . '/scholar/Scholar.php';
@@ -54,7 +54,9 @@ function syncSession()
     if (!isLoggedIn()) {
         return;
     }
-    $stmt = $conn->prepare("SELECT role, status, first_name, last_name, email FROM users WHERE user_id = ?");
+    // SELECT * for the same reason as login.php's query — tolerate a deploy that hasn't had
+    // MigrateSecretaryTreasurerFlags.php run against it yet instead of hard-failing.
+    $stmt = $conn->prepare("SELECT * FROM users WHERE user_id = ?");
     $stmt->bind_param('i', $_SESSION['user_id']);
     $stmt->execute();
     $row = $stmt->get_result()->fetch_assoc();
@@ -71,6 +73,8 @@ function syncSession()
     $_SESSION['first_name'] = $row['first_name'];
     $_SESSION['last_name'] = $row['last_name'];
     $_SESSION['email'] = $row['email'];
+    $_SESSION['is_secretary'] = (int)($row['is_secretary'] ?? 0);
+    $_SESSION['is_treasurer'] = (int)($row['is_treasurer'] ?? 0);
 }
 
 // $roles: a role string or array of allowed roles. Redirects to login (if guest)

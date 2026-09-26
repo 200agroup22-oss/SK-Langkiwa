@@ -13,7 +13,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($email === '' || $password === '') {
         setFlash('error', 'Please enter your email and password.');
     } else {
-        $stmt = $conn->prepare("SELECT user_id, first_name, last_name, email, password_hash, role, status FROM users WHERE email = ?");
+        // SELECT * (not an explicit column list) so login still works even for one request right
+        // after this file deploys but before MigrateSecretaryTreasurerFlags.php has been run —
+        // an explicit is_secretary/is_treasurer column reference would hard-fail the query until
+        // those columns exist, breaking login for everyone in that gap.
+        $stmt = $conn->prepare("SELECT * FROM users WHERE email = ?");
         $stmt->bind_param('s', $email);
         $stmt->execute();
         $user = $stmt->get_result()->fetch_assoc();
@@ -29,6 +33,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['first_name'] = $user['first_name'];
             $_SESSION['last_name'] = $user['last_name'];
             $_SESSION['email'] = $user['email'];
+            $_SESSION['is_secretary'] = (int)($user['is_secretary'] ?? 0);
+            $_SESSION['is_treasurer'] = (int)($user['is_treasurer'] ?? 0);
 
             logActivityLogin($user['user_id'], $user['first_name'] . ' ' . $user['last_name'], $user['email'], $user['role']);
             logAudit('Logged In');
@@ -70,7 +76,7 @@ $loginSuccess = getFlash('success');
 <body style="background-color: #b4ebc0;">
     <div class="container-fluid d-flex justify-content-center align-items-center vh-100">
 
-        <div class="card" style="width: 450px;">
+        <div class="card" style="width: 450px; max-width: 92vw;">
             <div class="card-header text-center">
                 <img src="<?php echo siteLogoUrl(); ?>" alt="logo" height="70px" style="border-radius:100%;">
                 <?php echo e(siteName()); ?>

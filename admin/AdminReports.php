@@ -1,10 +1,10 @@
 <?php
 require_once __DIR__ . '/../config/forms.php';
 require_once __DIR__ . '/../config/scholars.php';
-requireRole(['admin', 'committee_admin', 'secretary', 'treasurer']);
+requireRole(['admin', 'committee_admin']);
 
 $me = currentUser();
-$isSuperAdmin = hasFullCommitteeAccess($me['role']);
+$isSuperAdmin = hasFullCommitteeAccess($me);
 $myCommitteeIds = $isSuperAdmin ? [] : getUserCommitteeIds($me['user_id']);
 // Activity/Audit Logs are system-wide account activity (every user, every role) — kept to the
 // true Super Admin only, unlike the rest of this page which secretary/treasurer also get.

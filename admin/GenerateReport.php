@@ -5,9 +5,9 @@
 // documented exception to the redirect-after-POST convention used elsewhere in admin/).
 require_once __DIR__ . '/../config/scholars.php';
 require_once __DIR__ . '/../config/fpdf/fpdf.php';
-requireRole(['admin', 'committee_admin', 'secretary', 'treasurer']);
+requireRole(['admin', 'committee_admin']);
 $me = currentUser();
-$isSuperAdmin = hasFullCommitteeAccess($me['role']);
+$isSuperAdmin = hasFullCommitteeAccess($me);
 $myCommitteeIds = $isSuperAdmin ? [] : getUserCommitteeIds($me['user_id']);
 // Activity/Audit Logs are system-wide account activity — true Super Admin only, even though
 // secretary/treasurer get every other report type across every committee.

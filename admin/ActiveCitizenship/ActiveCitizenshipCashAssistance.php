@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/../../config/forms.php';
-requireRole(['admin', 'committee_admin', 'secretary', 'treasurer']);
+requireRole(['admin', 'committee_admin']);
 
 $committeeId = getCommitteeIdByCode('active_citizenship');
 requireCommitteeAccess($committeeId);

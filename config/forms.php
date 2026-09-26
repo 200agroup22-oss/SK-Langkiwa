@@ -270,9 +270,8 @@ function notifyApplicationDecision($applicationId, $status, $reason = null)
     notifyUserInApp((int)$row['user_id'], $title, $message);
 }
 
-// Committee IDs a 'committee_admin', 'secretary', or 'treasurer' user is assigned to. Meaningless
-// for other roles — callers should check the role first (or just call requireCommitteeAccess(),
-// which does).
+// Committee IDs a 'committee_admin' user is assigned to. Meaningless for other roles — callers
+// should check the role first (or just call requireCommitteeAccess(), which does).
 function getUserCommitteeIds($userId)
 {
     global $conn;
@@ -284,31 +283,33 @@ function getUserCommitteeIds($userId)
     return $ids;
 }
 
-// True only for 'admin' — the one role that sees every committee's data unscoped and also gets
-// Content Management / User Management / Configuration. 'committee_admin', 'secretary', and
-// 'treasurer' are all scoped to their own specific assigned committee(s) via
-// admin_committee_assignments instead (see getUserCommitteeIds()).
-function hasFullCommitteeAccess($role)
+// True for 'admin' (also gets Content Management / User Management / Configuration) and for any
+// committee_admin additionally checked as Secretary and/or Treasurer in User Management — both
+// flags mean "sees every committee's data unscoped + full Reports", same as admin's committee
+// visibility, just without the management pages. Takes the full user array (needs the two flags,
+// not just the role string).
+function hasFullCommitteeAccess($user)
 {
-    return $role === 'admin';
+    return $user['role'] === 'admin' || !empty($user['is_secretary']) || !empty($user['is_treasurer']);
 }
 
-// The three roles that get an "Assigned Committees" picker in User Management and are scoped to
-// just those committees everywhere else (Applicants/Scholars/Assistance/Reports) — as opposed to
-// 'admin' (sees everything) or 'scholar'/'applicant' (not admin-side roles at all).
+// 'committee_admin' is the only role that gets an "Assigned Committees" picker in User Management
+// and is scoped to just those committees elsewhere (Applicants/Scholars/Assistance/Reports) unless
+// also flagged Secretary/Treasurer (see hasFullCommitteeAccess()) — as opposed to 'admin' (sees
+// everything) or 'scholar'/'applicant' (not admin-side roles at all).
 function isCommitteeScopedRole($role)
 {
-    return in_array($role, ['committee_admin', 'secretary', 'treasurer'], true);
+    return $role === 'committee_admin';
 }
 
-// Call after requireRole(['admin', 'committee_admin', 'secretary', 'treasurer']) on any
-// committee-specific admin page, once that page's $committeeId is known. Admin always passes;
-// committee_admin/secretary/treasurer are sent back to their dashboard if this committee isn't one
-// they're assigned to.
+// Call after requireRole(['admin', 'committee_admin']) on any committee-specific admin page, once
+// that page's $committeeId is known. Admin (and a Secretary/Treasurer-flagged committee_admin)
+// always passes; an unflagged committee_admin is sent back to their dashboard if this committee
+// isn't one they're assigned to.
 function requireCommitteeAccess($committeeId)
 {
     $me = currentUser();
-    if (hasFullCommitteeAccess($me['role'])) {
+    if (hasFullCommitteeAccess($me)) {
         return;
     }
     if (!in_array((int)$committeeId, getUserCommitteeIds($me['user_id']), true)) {

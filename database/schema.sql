@@ -16,7 +16,12 @@ CREATE TABLE users (
     gender ENUM('Male','Female') NULL,
     email VARCHAR(150) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
-    role ENUM('applicant','scholar','admin','committee_admin','secretary','treasurer') NOT NULL DEFAULT 'applicant',
+    role ENUM('applicant','scholar','admin','committee_admin') NOT NULL DEFAULT 'applicant',
+    -- Secretary/Treasurer aren't separate roles — they're flags a committee_admin can also have
+    -- (checked alongside their assigned committees), granting full unscoped committee + Reports
+    -- access without Content Management/User Management/Configuration. See getUserCommitteeIds().
+    is_secretary TINYINT(1) NOT NULL DEFAULT 0,
+    is_treasurer TINYINT(1) NOT NULL DEFAULT 0,
     position_title VARCHAR(100) NULL,
     profile_photo VARCHAR(255) NULL,
     status ENUM('active','inactive','archived') NOT NULL DEFAULT 'active',
