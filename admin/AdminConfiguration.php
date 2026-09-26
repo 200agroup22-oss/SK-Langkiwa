@@ -38,6 +38,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    if (isset($_POST['save_site_name'])) {
+        $siteName = trim($_POST['site_name'] ?? '');
+        if ($siteName === '') {
+            setFlash('error', 'System name cannot be blank.');
+        } else {
+            $stmt = $conn->prepare("UPDATE site_settings SET site_name = ? WHERE id = 1");
+            $stmt->bind_param('s', $siteName);
+            $stmt->execute();
+            $stmt->close();
+            logAudit('Updated Site Settings', 'System name: ' . $siteName);
+            setFlash('success', 'System name updated.');
+        }
+    }
+
     if (isset($_POST['save_about'])) {
         $aboutText = trim($_POST['about_text'] ?? '');
         $stmt = $conn->prepare("UPDATE site_settings SET about_text = ? WHERE id = 1");
@@ -685,6 +699,22 @@ $activeLink = 'AdminConfiguration';
             <div class="config-card">
                 <div class="card-section-title"><i class="bi bi-gear-fill"></i> Settings</div>
                 <div class="card-section-sub">Configure system-wide settings that apply across all pages and modules.</div>
+
+                <!-- System Name -->
+                <form method="post">
+                    <div class="setting-item">
+                        <div>
+                            <div class="setting-label"><i class="bi bi-card-heading text-success me-1"></i> System Name</div>
+                            <div class="setting-desc">The site/barangay name shown in the header, sidebar, and everywhere else the system identifies itself.</div>
+                        </div>
+                        <div class="setting-control gap-3">
+                            <input type="text" name="site_name" class="form-control form-control-sm" style="max-width:280px;" value="<?php echo e($settings['site_name']); ?>" required>
+                            <button type="submit" name="save_site_name" class="btn btn-sm btn-outline-success"><i class="bi bi-save me-1"></i> Save</button>
+                        </div>
+                    </div>
+                </form>
+
+                <div class="divider"></div>
 
                 <!-- Logo -->
                 <form method="post" enctype="multipart/form-data">
