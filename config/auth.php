@@ -3,7 +3,7 @@ require_once __DIR__ . '/db.php';
 
 // Change APP_BASE to '' if the app is deployed at the web root instead of /200A.
 if (!defined('APP_BASE')) {
-    define('APP_BASE', '');
+    define('APP_BASE', '/200A');
 }
 
 if (session_status() === PHP_SESSION_NONE) {
@@ -34,6 +34,8 @@ function dashboardUrlForRole($role)
     switch ($role) {
         case 'admin':
         case 'committee_admin':
+        case 'secretary':
+        case 'treasurer':
             return APP_BASE . '/admin/AdminDashboard.php';
         case 'scholar':
             return APP_BASE . '/scholar/Scholar.php';

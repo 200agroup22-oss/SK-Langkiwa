@@ -3,7 +3,10 @@
 require_once __DIR__ . '/../config/forms.php';
 $activeLink = $activeLink ?? '';
 $adminMe = currentUser();
-$isSuperAdmin = ($adminMe['role'] ?? '') === 'admin';
+$isSuperAdmin = hasFullCommitteeAccess($adminMe['role'] ?? '');
+// Content Management / User Management / Configuration stay Super-Admin-only even though
+// secretary/treasurer see every committee's menu just like a Super Admin does.
+$isFullAdmin = ($adminMe['role'] ?? '') === 'admin';
 $myCommitteeIds = $isSuperAdmin ? [] : getUserCommitteeIds($adminMe['user_id']);
 function committeeAllowed($committeeId)
 {
@@ -195,7 +198,8 @@ function collapseAttrs($expanded)
         <span class="brand-text d-sm-none">SK Langkiwa</span>
     </div>
     <div class="d-flex align-items-center gap-3">
-        <span class="role-badge d-none d-sm-inline-block"><?php echo $isSuperAdmin ? 'Super Admin' : 'Committee Admin'; ?></span>
+        <?php $roleBadgeLabels = ['admin' => 'Super Admin', 'committee_admin' => 'Committee Admin', 'secretary' => 'Secretary', 'treasurer' => 'Treasurer']; ?>
+        <span class="role-badge d-none d-sm-inline-block"><?php echo e($roleBadgeLabels[$adminMe['role'] ?? ''] ?? ucfirst($adminMe['role'] ?? '')); ?></span>
         <div class="dropdown">
             <a href="#" class="dropdown-toggle d-flex align-items-center gap-2 text-white text-decoration-none border border-white border-opacity-50 rounded-pill px-3 py-1"
                 data-bs-toggle="dropdown" style="font-size: 14px; font-weight: 600;">
@@ -429,8 +433,10 @@ function collapseAttrs($expanded)
 
     <!-- Bottom section: Program Management + User Management + Configuration -->
     <div class="config-section">
-        <a href="<?php echo APP_BASE; ?>/admin/AdminProgramManagement.php" class="nav-link-item<?php echo navActive('AdminProgramManagement'); ?>"><i class="bi bi-diagram-3-fill"></i> Content Management</a>
-        <?php if ($isSuperAdmin): ?>
+        <?php if ($isFullAdmin): ?>
+            <a href="<?php echo APP_BASE; ?>/admin/AdminProgramManagement.php" class="nav-link-item<?php echo navActive('AdminProgramManagement'); ?>"><i class="bi bi-diagram-3-fill"></i> Content Management</a>
+        <?php endif; ?>
+        <?php if ($isFullAdmin): ?>
             <a href="<?php echo APP_BASE; ?>/admin/AdminUserManagement.php" class="nav-link-item<?php echo navActive('AdminUserManagement'); ?>"><i class="bi bi-person-fill"></i> User Management</a>
             <a href="<?php echo APP_BASE; ?>/admin/AdminConfiguration.php" class="nav-link-item<?php echo navActive('AdminConfiguration'); ?>"><i class="bi bi-gear-fill"></i> Configuration</a>
         <?php endif; ?>

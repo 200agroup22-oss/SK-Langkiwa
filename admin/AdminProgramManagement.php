@@ -1,6 +1,8 @@
 <?php
 require_once __DIR__ . '/../config/forms.php';
-requireRole(['admin', 'committee_admin']);
+// Content Management is Super Admin only now — committee_admin (and secretary/treasurer) no
+// longer get any access here, scoped or otherwise.
+requireRole('admin');
 
 $me = currentUser();
 $isSuperAdmin = $me['role'] === 'admin';

@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/config/functions.php';
-requireRole(['applicant', 'scholar', 'admin', 'committee_admin']);
+requireRole(['applicant', 'scholar', 'admin', 'committee_admin', 'secretary', 'treasurer']);
 
 $me = currentUser();
 
@@ -90,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_user'])) {
 $profileSuccess = getFlash('success');
 $profileError = getFlash('error');
 $photoUrl = $user['profile_photo'] ? APP_BASE . '/' . $user['profile_photo'] : APP_BASE . '/photos/default.jpg';
-$roleLabel = ['admin' => 'Super Admin', 'committee_admin' => 'Committee Admin'][$user['role']] ?? ucfirst($user['role']);
+$roleLabel = ['admin' => 'Super Admin', 'committee_admin' => 'Committee Admin', 'secretary' => 'Secretary', 'treasurer' => 'Treasurer'][$user['role']] ?? ucfirst($user['role']);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -101,7 +101,7 @@ $roleLabel = ['admin' => 'Super Admin', 'committee_admin' => 'Committee Admin'][
     <title>User Profile</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-    <?php if (in_array($user['role'], ['admin', 'committee_admin'], true)): ?>
+    <?php if (in_array($user['role'], ['admin', 'committee_admin', 'secretary', 'treasurer'], true)): ?>
         <link href="<?php echo APP_BASE; ?>/assets/css/admin.css" rel="stylesheet">
     <?php endif; ?>
     <style>
@@ -279,7 +279,7 @@ $roleLabel = ['admin' => 'Super Admin', 'committee_admin' => 'Committee Admin'][
 
 <body>
     <?php
-    if (in_array($user['role'], ['admin', 'committee_admin'], true)) {
+    if (in_array($user['role'], ['admin', 'committee_admin', 'secretary', 'treasurer'], true)) {
         include __DIR__ . '/includes/adminsidebar.php';
         echo '<div class="main-content">';
     } elseif ($user['role'] === 'scholar') {

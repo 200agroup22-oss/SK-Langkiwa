@@ -2,7 +2,7 @@
 // Generic Cash Assistance page for any committee added beyond the 4 built-in ones.
 // Committee is selected via ?committee=<id> instead of being hardcoded.
 require_once __DIR__ . '/../config/forms.php';
-requireRole(['admin', 'committee_admin']);
+requireRole(['admin', 'committee_admin', 'secretary', 'treasurer']);
 
 $committeeId = (int)($_GET['committee'] ?? 0);
 $committee = null;

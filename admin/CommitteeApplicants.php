@@ -3,7 +3,7 @@
 // ones (Education/Health/Sports/Active Citizenship, which each keep their own dedicated pages).
 // Committee is selected via ?committee=<id> instead of being hardcoded.
 require_once __DIR__ . '/../config/forms.php';
-requireRole(['admin', 'committee_admin']);
+requireRole(['admin', 'committee_admin', 'secretary', 'treasurer']);
 
 $committeeId = (int)($_GET['committee'] ?? 0);
 $committee = null;

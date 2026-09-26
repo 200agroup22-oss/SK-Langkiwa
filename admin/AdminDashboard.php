@@ -1,10 +1,10 @@
 <?php
 require_once __DIR__ . '/../config/functions.php';
 require_once __DIR__ . '/../config/forms.php';
-requireRole(['admin', 'committee_admin']);
+requireRole(['admin', 'committee_admin', 'secretary', 'treasurer']);
 
 $me = currentUser();
-$isSuperAdmin = $me['role'] === 'admin';
+$isSuperAdmin = hasFullCommitteeAccess($me['role']);
 $myCommitteeIds = $isSuperAdmin ? [] : getUserCommitteeIds($me['user_id']);
 // A committee_admin assigned to nothing yet gets an "IN (0)" filter, which safely matches no rows
 // instead of throwing on an empty IN() list. $committeeIdList is built from ints only (never raw
@@ -375,7 +375,9 @@ $activeLink = 'AdminDashboard';
                         </table>
                     </div>
                 </div>
-                <a href="<?php echo APP_BASE; ?>/admin/AdminProgramManagement.php" style="font-size:12px;">Manage program dates in Content Management &rarr;</a>
+                <?php if ($me['role'] === 'admin'): ?>
+                    <a href="<?php echo APP_BASE; ?>/admin/AdminProgramManagement.php" style="font-size:12px;">Manage program dates in Content Management &rarr;</a>
+                <?php endif; ?>
             </div>
         <?php endif; ?>
 

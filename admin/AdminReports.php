@@ -1,11 +1,14 @@
 <?php
 require_once __DIR__ . '/../config/forms.php';
 require_once __DIR__ . '/../config/scholars.php';
-requireRole(['admin', 'committee_admin']);
+requireRole(['admin', 'committee_admin', 'secretary', 'treasurer']);
 
 $me = currentUser();
-$isSuperAdmin = $me['role'] === 'admin';
+$isSuperAdmin = hasFullCommitteeAccess($me['role']);
 $myCommitteeIds = $isSuperAdmin ? [] : getUserCommitteeIds($me['user_id']);
+// Activity/Audit Logs are system-wide account activity (every user, every role) — kept to the
+// true Super Admin only, unlike the rest of this page which secretary/treasurer also get.
+$isFullAdmin = $me['role'] === 'admin';
 
 $committees = $conn->query("SELECT * FROM committees ORDER BY committee_id ASC")->fetch_all(MYSQLI_ASSOC);
 if (!$isSuperAdmin) {
@@ -663,7 +666,7 @@ $activeLink = 'AdminReports';
         <!-- Tabs -->
         <div class="content-tabs">
             <button class="content-tab-btn active" data-tab="overviewTab"><i class="bi bi-bar-chart-fill"></i> Overview</button>
-            <?php if ($isSuperAdmin): ?>
+            <?php if ($isFullAdmin): ?>
                 <button class="content-tab-btn" data-tab="activityLogsTab"><i class="bi bi-activity"></i> Activity Logs</button>
                 <button class="content-tab-btn" data-tab="auditLogsTab"><i class="bi bi-journal-text"></i> Audit Logs</button>
             <?php endif; ?>
@@ -815,7 +818,7 @@ $activeLink = 'AdminReports';
         <!-- ==============================
              ACTIVITY LOGS TAB (super admin only — system-wide, not scoped to a committee)
         ============================== -->
-        <?php if ($isSuperAdmin): ?>
+        <?php if ($isFullAdmin): ?>
             <div class="tab-pane-custom" id="activityLogsTab">
                 <div class="section-label"><i class="bi bi-activity me-1"></i> Activity Logs <span class="text-muted" style="font-weight:500; text-transform:none; letter-spacing:normal;">(user login/logout history, all-time)</span></div>
 
@@ -880,13 +883,13 @@ $activeLink = 'AdminReports';
 
                 <?php renderLogPagination($logPage, $totalActivityPages, $totalActivityLogs, $logPerPage, 'logpage', $activityPaginationParams); ?>
             </div><!-- /activityLogsTab -->
-        <?php endif; // $isSuperAdmin (Activity Logs tab) 
+        <?php endif; // $isFullAdmin (Activity Logs tab) 
         ?>
 
         <!-- ==============================
              AUDIT LOGS TAB (super admin only — system-wide, not scoped to a committee)
         ============================== -->
-        <?php if ($isSuperAdmin): ?>
+        <?php if ($isFullAdmin): ?>
             <div class="tab-pane-custom" id="auditLogsTab">
                 <div class="section-label"><i class="bi bi-journal-text me-1"></i> Audit Logs <span class="text-muted" style="font-weight:500; text-transform:none; letter-spacing:normal;">(all user actions and system events, all-time)</span></div>
 
@@ -949,7 +952,7 @@ $activeLink = 'AdminReports';
 
                 <?php renderLogPagination($auditPage, $totalAuditPages, $totalAuditLogs, $auditPerPage, 'auditpage', $auditPaginationParams); ?>
             </div><!-- /auditLogsTab -->
-        <?php endif; // $isSuperAdmin (Audit Logs tab) 
+        <?php endif; // $isFullAdmin (Audit Logs tab) 
         ?>
 
     </div><!-- end .main-content -->
@@ -976,7 +979,7 @@ $activeLink = 'AdminReports';
                                 <option value="disbursement">Disbursement Report</option>
                                 <option value="application-status">Application Status Report</option>
                                 <option value="scholars">Scholars Report (incl. Activity Participation)</option>
-                                <?php if ($isSuperAdmin): ?>
+                                <?php if ($isFullAdmin): ?>
                                     <option value="activity-log">Activity Log Report</option>
                                     <option value="audit-log">Audit Trail Report</option>
                                 <?php endif; ?>

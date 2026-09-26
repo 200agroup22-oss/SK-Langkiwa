@@ -5,10 +5,13 @@
 // documented exception to the redirect-after-POST convention used elsewhere in admin/).
 require_once __DIR__ . '/../config/scholars.php';
 require_once __DIR__ . '/../config/fpdf/fpdf.php';
-requireRole(['admin', 'committee_admin']);
+requireRole(['admin', 'committee_admin', 'secretary', 'treasurer']);
 $me = currentUser();
-$isSuperAdmin = $me['role'] === 'admin';
+$isSuperAdmin = hasFullCommitteeAccess($me['role']);
 $myCommitteeIds = $isSuperAdmin ? [] : getUserCommitteeIds($me['user_id']);
+// Activity/Audit Logs are system-wide account activity — true Super Admin only, even though
+// secretary/treasurer get every other report type across every committee.
+$isFullAdmin = $me['role'] === 'admin';
 
 // ---- Validate report type ----
 $allowedTypes = ['consolidated', 'applicants', 'beneficiaries', 'financial', 'in-kind', 'disbursement', 'application-status', 'scholars', 'activity-log', 'audit-log'];
@@ -19,11 +22,11 @@ if (!in_array($type, $allowedTypes, true)) {
     echo 'Invalid report type.';
     exit();
 }
-// Activity/audit logs are system-wide, not scoped to any committee — a committee_admin never gets these.
-if (!$isSuperAdmin && in_array($type, ['activity-log', 'audit-log'], true)) {
+// Activity/audit logs are system-wide, not scoped to any committee — only the true Super Admin gets these.
+if (!$isFullAdmin && in_array($type, ['activity-log', 'audit-log'], true)) {
     http_response_code(403);
     header('Content-Type: text/plain');
-    echo 'Not available to Committee Admins.';
+    echo 'Not available to this role.';
     exit();
 }
 

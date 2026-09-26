@@ -270,8 +270,9 @@ function notifyApplicationDecision($applicationId, $status, $reason = null)
     notifyUserInApp((int)$row['user_id'], $title, $message);
 }
 
-// Committee IDs a 'committee_admin' user is assigned to manage. Meaningless for other roles —
-// callers should check the role first (or just call requireCommitteeAccess(), which does).
+// Committee IDs a 'committee_admin', 'secretary', or 'treasurer' user is assigned to. Meaningless
+// for other roles — callers should check the role first (or just call requireCommitteeAccess(),
+// which does).
 function getUserCommitteeIds($userId)
 {
     global $conn;
@@ -283,13 +284,31 @@ function getUserCommitteeIds($userId)
     return $ids;
 }
 
-// Call after requireRole(['admin', 'committee_admin']) on any committee-specific admin page, once
-// that page's $committeeId is known. A super admin ('admin') always passes; a committee_admin is
-// sent back to their dashboard if this committee isn't one they're assigned to.
+// True only for 'admin' — the one role that sees every committee's data unscoped and also gets
+// Content Management / User Management / Configuration. 'committee_admin', 'secretary', and
+// 'treasurer' are all scoped to their own specific assigned committee(s) via
+// admin_committee_assignments instead (see getUserCommitteeIds()).
+function hasFullCommitteeAccess($role)
+{
+    return $role === 'admin';
+}
+
+// The three roles that get an "Assigned Committees" picker in User Management and are scoped to
+// just those committees everywhere else (Applicants/Scholars/Assistance/Reports) — as opposed to
+// 'admin' (sees everything) or 'scholar'/'applicant' (not admin-side roles at all).
+function isCommitteeScopedRole($role)
+{
+    return in_array($role, ['committee_admin', 'secretary', 'treasurer'], true);
+}
+
+// Call after requireRole(['admin', 'committee_admin', 'secretary', 'treasurer']) on any
+// committee-specific admin page, once that page's $committeeId is known. Admin always passes;
+// committee_admin/secretary/treasurer are sent back to their dashboard if this committee isn't one
+// they're assigned to.
 function requireCommitteeAccess($committeeId)
 {
     $me = currentUser();
-    if ($me['role'] === 'admin') {
+    if (hasFullCommitteeAccess($me['role'])) {
         return;
     }
     if (!in_array((int)$committeeId, getUserCommitteeIds($me['user_id']), true)) {
