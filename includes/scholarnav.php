@@ -80,19 +80,24 @@ $navLinks = [
         .scholar-nav .scholar-link {
             font-size: 13px;
             padding: 6px 8px;
-        }
-
-        .scholar-nav .scholar-link i {
-            display: none;
+            gap: 5px !important;
         }
 
         .scholar-nav .scholar-role {
-            display: none;
+            font-size: 12px;
+            padding: 6px 12px !important;
         }
 
         .scholar-nav .scholar-profile {
             font-size: 13px;
             padding: 3px 10px;
+        }
+    }
+
+    /* Narrowest desktop-layout widths (older iPads): only the logo, no brand text */
+    @media (min-width: 992px) and (max-width: 1079.98px) {
+        .scholar-nav .navbar-brand span {
+            display: none !important;
         }
     }
 
