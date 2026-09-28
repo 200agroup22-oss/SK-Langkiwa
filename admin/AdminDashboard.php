@@ -19,12 +19,14 @@ $totalBeneficiaries = (int)($conn->query("SELECT COUNT(*) c FROM applications WH
 // Total Applicants: distinct users who have ever submitted an application (not archived).
 $totalApplicants = (int)($conn->query("SELECT COUNT(DISTINCT user_id) c FROM applications WHERE archived_at IS NULL" . $committeeFilterApplications)->fetch_assoc()['c'] ?? 0);
 
-// Activity Attendees: total attendance rows marked present across all activities (scoped to the
-// admin's committee(s) via the activity's own committee_id).
-$activityAttendees = (int)($conn->query(
-    "SELECT COUNT(*) c FROM attendance att
-     JOIN activities act ON act.activity_id = att.activity_id
-     WHERE att.status = 'present'" . ($isSuperAdmin ? '' : " AND act.committee_id IN ($committeeIdList)")
+// Approved This Month: applications actually decided (approved) within the current calendar
+// month — a much more actionable "how are we doing lately" figure than an all-time total, and
+// more relevant to a scholarship/assistance program than a generic activity-attendance count.
+$approvedThisMonth = (int)($conn->query(
+    "SELECT COUNT(*) c FROM applications
+     WHERE status = 'approved' AND archived_at IS NULL
+     AND YEAR(decided_at) = YEAR(CURDATE()) AND MONTH(decided_at) = MONTH(CURDATE())"
+        . $committeeFilterApplications
 )->fetch_assoc()['c'] ?? 0);
 
 // ---- Application Status Breakdown ----
@@ -302,11 +304,11 @@ $activeLink = 'AdminDashboard';
             <div class="col-md-4">
                 <div class="stat-card">
                     <div class="stat-icon" style="background:#fff3e0;">
-                        <i class="bi bi-person-badge-fill" style="color:#f59e0b;"></i>
+                        <i class="bi bi-calendar2-check-fill" style="color:#f59e0b;"></i>
                     </div>
                     <div>
-                        <div class="label">Activity Attendees</div>
-                        <div class="value"><?php echo $activityAttendees; ?></div>
+                        <div class="label">Approved This Month</div>
+                        <div class="value"><?php echo $approvedThisMonth; ?></div>
                     </div>
                 </div>
             </div>
