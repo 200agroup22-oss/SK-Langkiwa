@@ -302,7 +302,7 @@ $activeLink = 'AdminDashboard';
             <div class="col-md-4">
                 <div class="stat-card">
                     <div class="stat-icon" style="background:#fff3e0;">
-                        <i class="bi bi-person-check-fill" style="color:#f59e0b;"></i>
+                        <i class="bi bi-person-badge-fill" style="color:#f59e0b;"></i>
                     </div>
                     <div>
                         <div class="label">Activity Attendees</div>
