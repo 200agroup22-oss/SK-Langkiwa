@@ -48,13 +48,13 @@ $dates = $conn->query("SELECT event_name, event_date FROM important_dates ORDER 
 $stmt = $conn->prepare("SELECT a.announcement_id, a.title, a.message, a.posted_at FROM announcements a
     WHERE a.archived_at IS NULL AND a.sent_to IN ('all','applicants')
     AND NOT EXISTS (SELECT 1 FROM announcement_archives aa WHERE aa.announcement_id = a.announcement_id AND aa.user_id = ?)
-    ORDER BY a.posted_at DESC LIMIT 5");
+    ORDER BY a.posted_at DESC LIMIT 20");
 $stmt->bind_param('i', $me['user_id']);
 $stmt->execute();
 $broadcastAnnouncements = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
-$stmt = $conn->prepare("SELECT notification_id, title, message, created_at FROM notifications WHERE user_id = ? AND archived_at IS NULL ORDER BY created_at DESC LIMIT 5");
+$stmt = $conn->prepare("SELECT notification_id, title, message, created_at FROM notifications WHERE user_id = ? AND archived_at IS NULL ORDER BY created_at DESC LIMIT 20");
 $stmt->bind_param('i', $me['user_id']);
 $stmt->execute();
 $personalNotifications = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -68,7 +68,7 @@ foreach ($personalNotifications as $n) {
     $announcements[] = ['type' => 'notification', 'id' => (int)$n['notification_id'], 'title' => $n['title'], 'message' => $n['message'], 'posted_at' => $n['created_at']];
 }
 usort($announcements, fn($a, $b) => strtotime($b['posted_at']) <=> strtotime($a['posted_at']));
-$announcements = array_slice($announcements, 0, 5);
+$announcements = array_slice($announcements, 0, 20);
 
 // ---- Archived items (for the Archives modal — everything this applicant has dismissed) ----
 $stmt = $conn->prepare("SELECT a.announcement_id, a.title, a.message, aa.archived_at FROM announcement_archives aa
@@ -100,7 +100,7 @@ usort($archivedAnnouncements, fn($a, $b) => strtotime($b['archived_at']) <=> str
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sangguniang Kabataan ng Langkiwa</title>
+    <title>iSKolar ng Langkiwa</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <style>
@@ -198,15 +198,25 @@ usort($archivedAnnouncements, fn($a, $b) => strtotime($b['archived_at']) <=> str
             margin-bottom: 12px;
         }
 
-        .announcement-list-scroll {
-            max-height: 320px;
-            overflow-y: auto;
-            padding-right: 6px;
-        }
-
         hr.my-divider {
             border-top: 1px solid #eee;
             margin: 10px 0 12px;
+        }
+
+        /* Announcement widget pagination (paginateList() below) — same green theme as the rest of the app */
+        #announcementPagination .pagination {
+            margin-bottom: 0;
+        }
+
+        #announcementPagination .page-link {
+            color: #2e7d32;
+            font-size: 12px;
+            padding: 2px 9px;
+        }
+
+        #announcementPagination .page-item.active .page-link {
+            background-color: #45b84d;
+            border-color: #45b84d;
         }
     </style>
 </head>
@@ -318,7 +328,7 @@ usort($archivedAnnouncements, fn($a, $b) => strtotime($b['archived_at']) <=> str
                     <?php if (empty($announcements)): ?>
                         <p class="text-muted mb-0" style="font-size: 13px;">No announcements yet.</p>
                     <?php endif; ?>
-                    <div class="<?php echo count($announcements) >= 4 ? 'announcement-list-scroll' : ''; ?>">
+                    <div id="announcementList">
                         <?php foreach ($announcements as $a): ?>
                             <div class="announcement-item d-flex justify-content-between align-items-start gap-2">
                                 <div>
@@ -332,6 +342,7 @@ usort($archivedAnnouncements, fn($a, $b) => strtotime($b['archived_at']) <=> str
                             </div>
                         <?php endforeach; ?>
                     </div>
+                    <nav id="announcementPagination" class="mt-2"></nav>
                 </div>
             </div>
 
@@ -376,6 +387,58 @@ usort($archivedAnnouncements, fn($a, $b) => strtotime($b['archived_at']) <=> str
         document.getElementById('confirmArchiveAnnouncementBtn').addEventListener('click', function() {
             document.getElementById('archiveAnnouncementForm').submit();
         });
+
+        // Client-side pagination for a small, already-fetched list (the Announcement widget) — no
+        // page reload needed just to flip between a couple of items.
+        function paginateList(listId, navId, perPage) {
+            const list = document.getElementById(listId);
+            const nav = document.getElementById(navId);
+            if (!list || !nav) return;
+            const items = Array.from(list.children);
+            // Bootstrap's .d-flex utility is !important, so a plain style.display = 'none' can't
+            // hide it — remove the class instead when hiding, and only restore it on items that
+            // actually had it to begin with.
+            items.forEach(function(item) {
+                item.dataset.wasFlex = item.classList.contains('d-flex') ? '1' : '';
+            });
+            const totalPages = Math.max(1, Math.ceil(items.length / perPage));
+            let currentPage = 1;
+
+            function render() {
+                items.forEach(function(item, i) {
+                    const page = Math.floor(i / perPage) + 1;
+                    const show = page === currentPage;
+                    item.classList.toggle('d-none', !show);
+                    if (item.dataset.wasFlex) {
+                        item.classList.toggle('d-flex', show);
+                    }
+                });
+                if (totalPages <= 1) {
+                    nav.innerHTML = '';
+                    return;
+                }
+                let html = '<ul class="pagination pagination-sm mb-0">';
+                html += '<li class="page-item ' + (currentPage <= 1 ? 'disabled' : '') + '"><a class="page-link" href="#" data-page="' + (currentPage - 1) + '">Previous</a></li>';
+                for (let p = 1; p <= totalPages; p++) {
+                    html += '<li class="page-item ' + (p === currentPage ? 'active' : '') + '"><a class="page-link" href="#" data-page="' + p + '">' + p + '</a></li>';
+                }
+                html += '<li class="page-item ' + (currentPage >= totalPages ? 'disabled' : '') + '"><a class="page-link" href="#" data-page="' + (currentPage + 1) + '">Next</a></li>';
+                html += '</ul>';
+                nav.innerHTML = html;
+                nav.querySelectorAll('.page-link').forEach(function(link) {
+                    link.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        const page = parseInt(this.dataset.page, 10);
+                        if (page >= 1 && page <= totalPages) {
+                            currentPage = page;
+                            render();
+                        }
+                    });
+                });
+            }
+            render();
+        }
+        paginateList('announcementList', 'announcementPagination', 2);
     </script>
 
     <!-- ARCHIVED ANNOUNCEMENTS MODAL -->
