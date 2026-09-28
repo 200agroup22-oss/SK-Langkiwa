@@ -280,7 +280,7 @@ $activeLink = 'AdminDashboard';
             <div class="col-md-4">
                 <div class="stat-card">
                     <div class="stat-icon" style="background:#e8f5e9;">
-                        <i class="bi bi-mortarboard-fill" style="color:#45b84d;"></i>
+                        <i class="bi bi-award-fill" style="color:#45b84d;"></i>
                     </div>
                     <div>
                         <div class="label">Total Beneficiaries</div>
@@ -291,7 +291,7 @@ $activeLink = 'AdminDashboard';
             <div class="col-md-4">
                 <div class="stat-card">
                     <div class="stat-icon" style="background:#e3f2fd;">
-                        <i class="bi bi-people-fill" style="color:#1e88e5;"></i>
+                        <i class="bi bi-person-lines-fill" style="color:#1e88e5;"></i>
                     </div>
                     <div>
                         <div class="label">Total Applicants</div>
@@ -302,7 +302,7 @@ $activeLink = 'AdminDashboard';
             <div class="col-md-4">
                 <div class="stat-card">
                     <div class="stat-icon" style="background:#fff3e0;">
-                        <i class="bi bi-calendar-check-fill" style="color:#f59e0b;"></i>
+                        <i class="bi bi-person-check-fill" style="color:#f59e0b;"></i>
                     </div>
                     <div>
                         <div class="label">Activity Attendees</div>
