@@ -39,10 +39,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_user'])) {
     $wantsPasswordChange = ($currentPassword !== '' || $newPassword !== '' || $confirmNewPassword !== '');
     $newPasswordHash = null;
     if (empty($errors) && $wantsPasswordChange) {
+        $newPasswordError = validatePasswordStrength($newPassword);
         if (!password_verify($currentPassword, $user['password_hash'])) {
             $errors[] = 'Current password is incorrect.';
-        } elseif (strlen($newPassword) < 8) {
-            $errors[] = 'New password must be at least 8 characters.';
+        } elseif ($newPasswordError) {
+            $errors[] = $newPasswordError;
         } elseif ($newPassword !== $confirmNewPassword) {
             $errors[] = 'New password and confirmation do not match.';
         } else {
@@ -384,9 +385,10 @@ if (!empty($user['is_treasurer'])) {
                         <label class="form-label">New Password</label>
                         <div class="input-group">
                             <span class="input-group-text"><i class="bi bi-lock-fill"></i></span>
-                            <input type="password" name="new_password" class="form-control" placeholder="Enter new password" minlength="8">
+                            <input type="password" name="new_password" class="form-control" placeholder="Enter new password" minlength="8" pattern="(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}" title="At least 8 characters, including one uppercase letter, one number, and one special character.">
                             <span class="input-group-text" style="cursor:pointer;" onclick="togglePasswordVisibility(this)"><i class="bi bi-eye-fill"></i></span>
                         </div>
+                        <div class="form-text" style="font-size:11.5px;">At least 8 characters, with one uppercase letter, one number, and one special character.</div>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Confirm New Password</label>

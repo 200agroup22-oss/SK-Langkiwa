@@ -41,6 +41,26 @@ function generateQrToken()
     return bin2hex(random_bytes(16));
 }
 
+// Shared password strength rule for signup, forgot-password reset, and change-password — at least
+// 8 characters with one uppercase letter, one number, and one special character. Returns an error
+// message string, or null if the password meets the requirement.
+function validatePasswordStrength($password)
+{
+    if (strlen($password) < 8) {
+        return 'Password must be at least 8 characters.';
+    }
+    if (!preg_match('/[A-Z]/', $password)) {
+        return 'Password must contain at least one uppercase letter.';
+    }
+    if (!preg_match('/[0-9]/', $password)) {
+        return 'Password must contain at least one number.';
+    }
+    if (!preg_match('/[^A-Za-z0-9]/', $password)) {
+        return 'Password must contain at least one special character.';
+    }
+    return null;
+}
+
 // Validates a single $_FILES entry (extension, size, actual content type) without touching the
 // filesystem, so callers can surface a bad file as a normal form error before doing anything
 // that would need to be undone. Returns an error message string, or null if the file is valid.

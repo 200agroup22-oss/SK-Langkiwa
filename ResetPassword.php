@@ -18,8 +18,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = $_POST['password'] ?? '';
     $confirmPassword = $_POST['confirm_password'] ?? '';
 
-    if (strlen($password) < 8) {
-        $error = 'Password must be at least 8 characters.';
+    $passwordError = validatePasswordStrength($password);
+    if ($passwordError) {
+        $error = $passwordError;
     } elseif ($password !== $confirmPassword) {
         $error = 'Passwords do not match.';
     } else {
@@ -59,7 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body style="background-color: #b4ebc0;">
     <div class="container-fluid d-flex justify-content-center align-items-center vh-100">
 
-        <div class="card" style="width: 450px;">
+        <div class="card" style="width: 450px; max-width: 92vw;">
             <div class="card-header text-center">
                 <img src="<?php echo siteLogoUrl(); ?>" alt="logo" height="70px" style="border-radius:100%;">
                 <?php echo e(siteName()); ?>
@@ -79,9 +80,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <label class="form-label">New Password</label>
                         <div class="input-group">
                             <span class="input-group-text"><i class="bi bi-lock-fill"></i></span>
-                            <input type="password" name="password" class="form-control" placeholder="Enter new password" minlength="8" required>
+                            <input type="password" name="password" class="form-control" placeholder="Enter new password" minlength="8" pattern="(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}" title="At least 8 characters, including one uppercase letter, one number, and one special character." required>
                             <span class="input-group-text" style="cursor:pointer;" onclick="togglePasswordVisibility(this)"><i class="bi bi-eye-fill"></i></span>
                         </div>
+                        <div class="form-text" style="font-size:11.5px;">At least 8 characters, with one uppercase letter, one number, and one special character.</div>
                     </div>
 
                     <div class="mb-3">

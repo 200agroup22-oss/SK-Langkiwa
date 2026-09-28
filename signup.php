@@ -34,8 +34,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $errors[] = 'Please enter a valid email address.';
     }
-    if (strlen($password) < 8) {
-        $errors[] = 'Password must be at least 8 characters.';
+    $passwordError = validatePasswordStrength($password);
+    if ($passwordError) {
+        $errors[] = $passwordError;
     }
     if ($password !== $confirmPassword) {
         $errors[] = 'Passwords do not match.';
@@ -175,9 +176,10 @@ $privacyText = $settings['privacy_policy'] ?? '';
                             <label class="form-label">Password</label>
                             <div class="input-group">
                                 <span class="input-group-text"><i class="bi bi-lock-fill"></i></span>
-                                <input type="password" name="password" class="form-control" placeholder="Enter your password" minlength="8" required>
+                                <input type="password" name="password" class="form-control" placeholder="Enter your password" minlength="8" pattern="(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}" title="At least 8 characters, including one uppercase letter, one number, and one special character." required>
                                 <span class="input-group-text" style="cursor:pointer;" onclick="togglePasswordVisibility(this)"><i class="bi bi-eye-fill"></i></span>
                             </div>
+                            <div class="form-text" style="font-size:11.5px;">At least 8 characters, with one uppercase letter, one number, and one special character.</div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Confirm Password</label>
