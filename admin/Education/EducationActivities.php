@@ -94,14 +94,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $states = $_POST['attendance'] ?? [];
         foreach ($states as $scholarId => $status) {
             $scholarId = (int)$scholarId;
-            $status = in_array($status, ['present', 'absent', 'pending'], true) ? $status : 'pending';
+            $status = ($status === 'present') ? 'present' : 'absent';
             if ($status === 'present') {
                 $stmt = $conn->prepare("UPDATE attendance SET status = 'present', scanned_at = COALESCE(scanned_at, NOW()) WHERE activity_id = ? AND scholar_id = ?");
-                $stmt->bind_param('ii', $activityId, $scholarId);
             } else {
-                $stmt = $conn->prepare("UPDATE attendance SET status = ?, scanned_at = NULL WHERE activity_id = ? AND scholar_id = ?");
-                $stmt->bind_param('sii', $status, $activityId, $scholarId);
+                $stmt = $conn->prepare("UPDATE attendance SET status = 'absent', scanned_at = NULL WHERE activity_id = ? AND scholar_id = ?");
             }
+            $stmt->bind_param('ii', $activityId, $scholarId);
             $stmt->execute();
             $stmt->close();
         }
