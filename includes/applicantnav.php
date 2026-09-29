@@ -95,7 +95,7 @@ $roleLabel = ucfirst($me['role'] ?? 'applicant');
                         <li>
                             <hr class="dropdown-divider my-1">
                         </li>
-                        <li><a class="dropdown-item d-flex align-items-center gap-2 py-2 text-danger" href="<?php echo APP_BASE; ?>/logout.php"><i class="bi bi-box-arrow-right"></i> Log Out</a></li>
+                        <li><a class="dropdown-item d-flex align-items-center gap-2 py-2 text-danger" href="#" data-bs-toggle="modal" data-bs-target="#logoutConfirmModal"><i class="bi bi-box-arrow-right"></i> Log Out</a></li>
                     </ul>
                 </li>
 
@@ -105,3 +105,23 @@ $roleLabel = ucfirst($me['role'] ?? 'applicant');
     </div>
 
 </nav>
+
+<!-- LOG OUT CONFIRMATION MODAL -->
+<div class="modal fade" id="logoutConfirmModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 380px;">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header" style="background: linear-gradient(90deg, #e53935, #ef9a9a);">
+                <h6 class="modal-title fw-bold text-white"><i class="bi bi-box-arrow-right me-2"></i>Log Out</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter: brightness(0) invert(1);"></button>
+            </div>
+            <div class="modal-body p-4 text-center">
+                <i class="bi bi-question-circle-fill text-warning" style="font-size: 40px;"></i>
+                <p class="mt-3 mb-0" style="font-size: 14px;">Are you sure you want to log out?</p>
+            </div>
+            <div class="modal-footer border-0 justify-content-center">
+                <button type="button" class="btn btn-sm btn-secondary px-4" data-bs-dismiss="modal">Cancel</button>
+                <a href="<?php echo APP_BASE; ?>/logout.php" class="btn btn-sm btn-danger px-4"><i class="bi bi-box-arrow-right me-1"></i> Yes, Log Out</a>
+            </div>
+        </div>
+    </div>
+</div>
