@@ -280,32 +280,47 @@ $activeLink = 'AdminUserManagement';
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="<?php echo APP_BASE; ?>/assets/css/admin.css" rel="stylesheet">
     <style>
+        /* border-radius kept modest (not a full pill) because .badge-role's text — a custom
+           position title like "Admin/SK Chairperson" — can wrap onto two lines on narrow
+           screens; a pill radius looks fine on one line but makes a wrapped badge look like two
+           broken/disconnected capsules instead of one rounded box. */
         .badge-role {
+            display: inline-block;
             background-color: #f0f0f0;
             color: #444;
             font-size: 11px;
             padding: 3px 10px;
-            border-radius: 20px;
+            border-radius: 8px;
             font-weight: 600;
             border: 1px solid #ddd;
+            text-align: center;
         }
 
         .badge-active {
+            display: inline-block;
             background-color: #4caf50;
             color: #fff;
             font-size: 11px;
             padding: 3px 10px;
-            border-radius: 20px;
+            border-radius: 8px;
             font-weight: 600;
         }
 
         .badge-inactive {
+            display: inline-block;
             background-color: #9e9e9e;
             color: #fff;
             font-size: 11px;
             padding: 3px 10px;
-            border-radius: 20px;
+            border-radius: 8px;
             font-weight: 600;
+        }
+
+        /* Edge/IE inject their own built-in "reveal password" eye icon inside password fields —
+           hide it so it doesn't double up with this app's own toggle button. */
+        input[type="password"]::-ms-reveal,
+        input[type="password"]::-ms-clear {
+            display: none;
         }
     </style>
 </head>

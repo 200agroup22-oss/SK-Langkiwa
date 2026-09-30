@@ -70,6 +70,13 @@ $loginSuccess = getFlash('success');
             color: #409D42;
 
         }
+
+        /* Edge/IE inject their own built-in "reveal password" eye icon inside password fields —
+           hide it so it doesn't double up with this app's own toggle button. */
+        input[type="password"]::-ms-reveal,
+        input[type="password"]::-ms-clear {
+            display: none;
+        }
     </style>
 </head>
 
