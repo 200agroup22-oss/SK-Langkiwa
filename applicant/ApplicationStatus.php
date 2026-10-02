@@ -332,11 +332,18 @@ function statusLabel($status)
                             ?>
                                 <div class="col-md-6">
                                     <div class="info-label mb-1"><?php echo e($field['label']); ?></div>
-                                    <div class="doc-item">
-                                        <i class="bi bi-file-earmark-image-fill"></i>
-                                        <?php echo $file ? e($file['original_name']) : 'Not submitted'; ?>
-                                        <?php if ($file): ?><i class="bi bi-check-circle-fill doc-check"></i><?php endif; ?>
-                                    </div>
+                                    <?php if ($file): ?>
+                                        <a class="doc-item text-decoration-none" href="<?php echo APP_BASE . '/' . e($file['path']); ?>" target="_blank" rel="noopener">
+                                            <i class="bi bi-file-earmark-image-fill"></i>
+                                            <?php echo e($file['original_name']); ?>
+                                            <i class="bi bi-check-circle-fill doc-check"></i>
+                                        </a>
+                                    <?php else: ?>
+                                        <div class="doc-item">
+                                            <i class="bi bi-file-earmark-image-fill"></i>
+                                            Not submitted
+                                        </div>
+                                    <?php endif; ?>
                                 </div>
                             <?php endforeach; ?>
                         </div>
