@@ -290,6 +290,7 @@ $reqError = getFlash('error');
                                     <i class="bi bi-upload file-box-icon"></i> &nbsp;&nbsp;<span class="file-box-label">Attach File</span>
                                     <input type="file" class="d-none" name="<?php echo e($field['field_key']); ?>" accept=".jpg,.jpeg,.png,.pdf">
                                 </label>
+                                <div class="text-muted mt-1" style="font-size:11px;">JPG, PNG or PDF, up to 4MB.</div>
                             <?php endif; ?>
                             <?php if (!empty($currentFiles[$field['field_id']])): ?>
                                 <div class="doc-status mt-2">

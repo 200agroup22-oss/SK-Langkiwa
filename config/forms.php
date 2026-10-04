@@ -611,7 +611,8 @@ function renderDynamicFormFields($committeeId, $existingAnswers = [], $existingF
                     echo '<div class="mb-1 small text-success"><i class="bi bi-check-circle-fill"></i> On file: <a href="' . APP_BASE . '/' . e($existingFiles[$field['field_id']]['path']) . '" target="_blank" rel="noopener" class="text-success">' . e($existingFiles[$field['field_id']]['original_name']) . '</a></div>';
                 }
                 $fileRequired = (!empty($existingFiles[$field['field_id']])) ? '' : $required;
-                echo '<input type="file" class="form-control" name="' . $name . '" accept=".jpg,.jpeg,.png,.pdf" ' . $fileRequired . '>';
+                echo '<input type="file" class="form-control" name="' . $name . '" accept=".jpg,.jpeg,.png,.pdf" ' . $fileRequired . ' onchange="if(this.files[0]&&this.files[0].size>4194304){this.value=\'\';this.setCustomValidity(\'File must be 4MB or smaller.\');this.reportValidity();}else{this.setCustomValidity(\'\');}">';
+                echo '<div class="form-text" style="font-size:11.5px;">JPG, PNG or PDF, up to 4MB.</div>';
                 break;
 
             case 'number':

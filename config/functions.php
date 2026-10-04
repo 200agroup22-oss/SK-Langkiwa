@@ -66,6 +66,9 @@ function validatePasswordStrength($password)
 // that would need to be undone. Returns an error message string, or null if the file is valid.
 function validateUploadedFile(array $file)
 {
+    if ($file['error'] === UPLOAD_ERR_INI_SIZE || $file['error'] === UPLOAD_ERR_FORM_SIZE) {
+        return 'File must be 4MB or smaller.';
+    }
     if ($file['error'] !== UPLOAD_ERR_OK) {
         return 'File upload failed (error code ' . $file['error'] . ').';
     }
@@ -75,8 +78,8 @@ function validateUploadedFile(array $file)
     if (!in_array($ext, $allowedExts, true)) {
         return 'Only JPG, PNG, and PDF files are allowed.';
     }
-    if ($file['size'] > 5 * 1024 * 1024) {
-        return 'File must be smaller than 5MB.';
+    if ($file['size'] > 4 * 1024 * 1024) {
+        return 'File must be 4MB or smaller.';
     }
 
     // Validate actual content, not just the claimed extension, so a renamed executable can't slip through.
