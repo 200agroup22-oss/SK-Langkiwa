@@ -225,8 +225,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setFlash('success', 'Field removed.');
     }
 
-    // Rename a form/program from the Forms tab. The title shown here is the program_tabs label; a
-    // catalog program also keeps its own name in `programs`, so both are updated to stay in sync.
+    // Set the heading shown at the top of an application form (e.g. "HEALTH APPLICATION FORM").
+    // This is separate from the program name (the sidebar label), which is managed in Content
+    // Management. A blank title clears the custom one and the default heading is used again.
     if (isset($_POST['rename_form'])) {
         $renameTabId = (int)($_POST['form_tab_id'] ?? 0);
         $newTitle = trim($_POST['form_title'] ?? '');
@@ -236,23 +237,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $tabRow = getProgramTabById($renameTabId);
         if (!$tabRow) {
             setFlash('error', 'Form not found.');
-        } elseif ($newTitle === '') {
-            setFlash('error', 'Form title cannot be blank.');
-        } elseif (mb_strlen($newTitle) > 100) {
-            setFlash('error', 'Form title must be 100 characters or fewer.');
+        } elseif (mb_strlen($newTitle) > 150) {
+            setFlash('error', 'Form title must be 150 characters or fewer.');
         } else {
-            $stmt = $conn->prepare("UPDATE program_tabs SET label = ? WHERE tab_id = ?");
-            $stmt->bind_param('si', $newTitle, $renameTabId);
+            ensureFormTitleColumn();
+            $titleValue = $newTitle === '' ? null : $newTitle;
+            $stmt = $conn->prepare("UPDATE program_tabs SET form_title = ? WHERE tab_id = ?");
+            $stmt->bind_param('si', $titleValue, $renameTabId);
             $stmt->execute();
             $stmt->close();
-            if (!empty($tabRow['program_id'])) {
-                $stmt = $conn->prepare("UPDATE programs SET name = ? WHERE program_id = ?");
-                $stmt->bind_param('si', $newTitle, $tabRow['program_id']);
-                $stmt->execute();
-                $stmt->close();
-            }
-            logAudit('Renamed Form', '"' . $tabRow['label'] . '" -> "' . $newTitle . '" (tab #' . $renameTabId . ')');
-            setFlash('success', 'Form title updated.');
+            logAudit('Updated Form Title', ($newTitle === '' ? 'Reset to default' : '"' . $newTitle . '"') . ' (tab #' . $renameTabId . ')');
+            setFlash('success', $newTitle === '' ? 'Form title reset to default.' : 'Form title updated.');
         }
     }
 
@@ -331,6 +326,7 @@ foreach ($allCommittees as $c) {
             'committee_id' => $cid,
             'committee_name' => $c['name'],
             'label' => $t['label'],
+            'form_title' => trim($t['form_title'] ?? ''),
             'track' => $formTrack,
             'program_id' => $formProgramId,
             'fields' => getFormFields($cid, $formTrack, $formProgramId),
@@ -974,8 +970,13 @@ $activeLink = 'AdminConfiguration';
                             <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
                                 <span class="committee-tag"><?php echo e($panel['committee_name']); ?></span>
                                 <h6 class="mb-0 fw-bold"><?php echo e($panel['label']); ?></h6>
-                                <button type="button" class="btn btn-sm btn-light py-0 px-1" title="Rename form" data-bs-toggle="modal" data-bs-target="#renameFormModal<?php echo $tabId; ?>"><i class="bi bi-pencil"></i></button>
                                 <span class="text-muted" style="font-size:12px; font-weight:500;">(<?php echo count($fields); ?> field<?php echo count($fields) === 1 ? '' : 's'; ?>)</span>
+                            </div>
+
+                            <div class="d-flex align-items-center gap-2 mb-3 flex-wrap" style="font-size:13px;">
+                                <span class="text-muted">Form title:</span>
+                                <strong><?php echo e($panel['form_title'] !== '' ? mb_strtoupper($panel['form_title']) : 'Default'); ?></strong>
+                                <button type="button" class="btn btn-sm btn-light py-0 px-1" title="Edit form title" data-bs-toggle="modal" data-bs-target="#renameFormModal<?php echo $tabId; ?>"><i class="bi bi-pencil"></i></button>
                             </div>
 
                             <div class="modal fade" id="renameFormModal<?php echo $tabId; ?>" tabindex="-1" aria-hidden="true">
@@ -984,13 +985,13 @@ $activeLink = 'AdminConfiguration';
                                         <form method="POST">
                                             <input type="hidden" name="form_tab_id" value="<?php echo $tabId; ?>">
                                             <div class="modal-header">
-                                                <h6 class="modal-title fw-bold"><i class="bi bi-pencil me-2"></i>Rename Form</h6>
+                                                <h6 class="modal-title fw-bold"><i class="bi bi-pencil me-2"></i>Edit Form Title</h6>
                                                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                             </div>
                                             <div class="modal-body">
                                                 <label class="form-label">Form title</label>
-                                                <input type="text" class="form-control" name="form_title" value="<?php echo e($panel['label']); ?>" maxlength="100" required>
-                                                <div class="form-text" style="font-size:11.5px;">This also renames the program everywhere it appears (sidebar, applications, reports).</div>
+                                                <input type="text" class="form-control" name="form_title" value="<?php echo e($panel['form_title']); ?>" maxlength="150" placeholder="e.g. Health Application Form">
+                                                <div class="form-text" style="font-size:11.5px;">Shown at the top of the application form. Leave blank to use the default title. The program name in the sidebar is not changed.</div>
                                             </div>
                                             <div class="modal-footer">
                                                 <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Cancel</button>
@@ -1147,7 +1148,7 @@ $activeLink = 'AdminConfiguration';
                                     </div>
                                     <div class="modal-body p-4">
                                         <div class="preview-form-card p-2">
-                                            <h5 class="text-center fw-bold mb-4" style="letter-spacing:0.5px;"><?php echo e(mb_strtoupper($panel['committee_name'] . ' - ' . $panel['label'])); ?> APPLICATION FORM</h5>
+                                            <h5 class="text-center fw-bold mb-4" style="letter-spacing:0.5px;"><?php echo e(mb_strtoupper($panel['form_title'] !== '' ? $panel['form_title'] : $panel['committee_name'] . ' - ' . $panel['label'] . ' Application Form')); ?></h5>
                                             <?php renderDynamicFormFields($panel['committee_id'], [], [], $panel['track'], $panel['program_id']); ?>
                                             <button type="button" class="btn btn-success w-100 mt-2" style="letter-spacing:1px; font-weight:700;" disabled>SUBMIT</button>
                                         </div>

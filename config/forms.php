@@ -41,6 +41,51 @@ function getProgramTab($committeeId, $trackCode, $fallbackLabel = 'Assistance Pr
     return $tabs[$trackCode] ?? ['label' => $fallbackLabel, 'icon' => $fallbackIcon, 'is_visible' => 1, 'max_slots' => null];
 }
 
+// program_tabs.form_title is the heading shown at the top of an application form (e.g. "HEALTH
+// APPLICATION FORM"), separate from the program name used in the sidebar. The column is created on
+// demand by ensureFormTitleColumn() the first time a Super Admin sets a title, so readers just
+// treat a missing column the same as "no custom title".
+function formTitleColumnExists()
+{
+    global $conn;
+    static $exists = null;
+    if ($exists === null) {
+        $exists = (bool)$conn->query("SHOW COLUMNS FROM program_tabs LIKE 'form_title'")->num_rows;
+    }
+    return $exists;
+}
+
+function ensureFormTitleColumn()
+{
+    global $conn;
+    if (!formTitleColumnExists()) {
+        $conn->query("ALTER TABLE program_tabs ADD COLUMN form_title VARCHAR(150) NULL");
+    }
+}
+
+// The heading for an application form: the custom title set in Configuration > Forms, or $default.
+// Matches the same tab the admin edits: a catalog program by program_id, otherwise the committee's
+// built-in tab for the track.
+function formTitleFor($committeeId, $track, $programId, $default)
+{
+    global $conn;
+    if (!formTitleColumnExists()) {
+        return $default;
+    }
+    if ($programId !== null) {
+        $stmt = $conn->prepare("SELECT form_title FROM program_tabs WHERE program_id = ? LIMIT 1");
+        $stmt->bind_param('i', $programId);
+    } else {
+        $stmt = $conn->prepare("SELECT form_title FROM program_tabs WHERE committee_id = ? AND track_code = ? AND program_id IS NULL ORDER BY tab_id ASC LIMIT 1");
+        $stmt->bind_param('is', $committeeId, $track);
+    }
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    $title = trim($row['form_title'] ?? '');
+    return $title !== '' ? $title : $default;
+}
+
 // Looks up a single program_tabs row by its tab_id — used by the Form-builder pages to know
 // which sidebar tab (e.g. a custom program like "test1") the admin actually clicked, since those
 // pages otherwise have no way to tell one program tab's "Form" link apart from another's.
@@ -417,10 +462,17 @@ function slugifyFieldKey($label, $committeeId, $track, $conn, $programId = null)
     if ($base === '') {
         $base = 'field';
     }
+    // "Type of Assistance" is a built-in field the Cash/In-Kind pages look up by key, so a re-added
+    // copy must use that key too (only a live copy counts as already taken).
+    $liveOnly = '';
+    if ($base === 'type_of_assistance') {
+        $base = 'assistance_type';
+        $liveOnly = ' AND archived_at IS NULL';
+    }
     $key = $base;
     $i = 2;
     while (true) {
-        $sql = "SELECT field_id FROM form_fields WHERE committee_id = ? AND program_track = ? AND field_key = ? AND " . ($programId !== null ? "program_id = ?" : "program_id IS NULL");
+        $sql = "SELECT field_id FROM form_fields WHERE committee_id = ? AND program_track = ? AND field_key = ?" . $liveOnly . " AND " . ($programId !== null ? "program_id = ?" : "program_id IS NULL");
         $stmt = $conn->prepare($sql);
         if ($programId !== null) {
             $stmt->bind_param('issi', $committeeId, $track, $key, $programId);
@@ -754,12 +806,11 @@ function programLabel($programId)
 function answerByKey($app, $fields, $key, $default = '')
 {
     foreach ($fields as $f) {
-        if ($f['field_key'] === $key) {
+        if (fieldMatchesKey($f, $key)) {
             $value = $app['answers'][$f['field_id']] ?? '';
             if ($value !== '' && $value !== null) {
                 return $value;
             }
-            break;
         }
     }
     // Fall back to an answer stored under a removed (archived) copy of the same field — e.g. the
@@ -767,8 +818,9 @@ function answerByKey($app, $fields, $key, $default = '')
     // answer still points at the old field_id and would otherwise show as blank in the lists.
     if (!empty($app['application_id'])) {
         global $conn;
+        $labelMatch = $key === 'assistance_type' ? " OR LOWER(TRIM(f.label)) = 'type of assistance'" : '';
         $stmt = $conn->prepare("SELECT aa.value FROM application_answers aa JOIN form_fields f ON f.field_id = aa.field_id
-            WHERE aa.application_id = ? AND f.field_key = ? AND aa.value IS NOT NULL AND aa.value <> '' ORDER BY aa.answer_id DESC LIMIT 1");
+            WHERE aa.application_id = ? AND (f.field_key = ?" . $labelMatch . ") AND aa.value IS NOT NULL AND aa.value <> '' ORDER BY aa.answer_id DESC LIMIT 1");
         $stmt->bind_param('is', $app['application_id'], $key);
         $stmt->execute();
         $row = $stmt->get_result()->fetch_assoc();
@@ -778,6 +830,17 @@ function answerByKey($app, $fields, $key, $default = '')
         }
     }
     return $default;
+}
+
+// Whether a form field is the one the system knows by $key. The "Type of Assistance" field is
+// recognised by its label too, because a copy re-added through Configuration > Forms gets an
+// auto-generated key (type_of_assistance) instead of the built-in assistance_type.
+function fieldMatchesKey($field, $key)
+{
+    if ($field['field_key'] === $key) {
+        return true;
+    }
+    return $key === 'assistance_type' && strtolower(trim($field['label'] ?? '')) === 'type of assistance';
 }
 
 // Whether an applicant's answer to the "Type of Assistance" form field (e.g. "Cash Assistance" /

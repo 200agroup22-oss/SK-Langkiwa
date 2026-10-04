@@ -186,7 +186,7 @@ if (!$existing && !$programClosed && $_SERVER['REQUEST_METHOD'] === 'POST') {
             <!-- Main Content -->
             <div class="col-12 col-md-9 col-lg-10">
                 <div class="form-card mx-auto" style="max-width: 850px;">
-                    <h4 class="text-center mb-4"><?php echo e(mb_strtoupper($displayName)); ?> APPLICATION FORM</h4>
+                    <h4 class="text-center mb-4"><?php echo e(mb_strtoupper(formTitleFor($committeeId, 'assistance', $programId, $displayName . ' Application Form'))); ?></h4>
 
                     <?php if ($programRow && (!empty($programRow['app_start_date']) || !empty($programRow['app_end_date']))): ?>
                         <div class="d-flex flex-wrap gap-2 align-items-center mb-3">

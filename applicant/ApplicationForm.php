@@ -163,7 +163,7 @@ if (!$existing && $_SERVER['REQUEST_METHOD'] === 'POST') {
             <!-- Main Content -->
             <div class="col-12 col-md-9 col-lg-10">
                 <div class="form-card mx-auto" style="max-width: 850px;">
-                    <h4 class="text-center mb-4">SCHOLAR APPLICATION FORM</h4>
+                    <h4 class="text-center mb-4"><?php echo e(mb_strtoupper(formTitleFor($committeeId, 'scholarship', null, 'Scholar Application Form'))); ?></h4>
 
                     <?php if ($existing): ?>
                         <div class="alert alert-info py-2 mb-0">
