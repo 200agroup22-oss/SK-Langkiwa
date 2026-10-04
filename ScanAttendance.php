@@ -1,8 +1,20 @@
 <?php
-require_once __DIR__ . '/config/functions.php';
+require_once __DIR__ . '/config/forms.php';
 header('Content-Type: application/json');
 
-if (!isLoggedIn() || $_SESSION['role'] !== 'admin') {
+// Scanning is allowed for the Super Admin and for any Committee Admin who can open the Education
+// Activities page (assigned to Education, or flagged Secretary/Treasurer = every committee).
+$canScan = false;
+if (isLoggedIn()) {
+    $scanUser = currentUser();
+    if ($scanUser['role'] === 'admin' || hasFullCommitteeAccess($scanUser)) {
+        $canScan = true;
+    } elseif ($scanUser['role'] === 'committee_admin') {
+        $canScan = in_array((int)getCommitteeIdByCode('education'), getUserCommitteeIds($scanUser['user_id']), true);
+    }
+}
+
+if (!$canScan) {
     http_response_code(403);
     echo json_encode(['success' => false, 'message' => 'Not authorized.']);
     exit();

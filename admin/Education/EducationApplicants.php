@@ -18,6 +18,11 @@ function yearLevelToInt($text)
 
 // ---- POST handlers (redirect-after-POST) ----
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isViewOnlyOfficer()) {
+        setFlash('error', 'Your role has view-only access on this page.');
+        header('Location: ' . basename($_SERVER['PHP_SELF']));
+        exit();
+    }
     // Renewal actions redirect back to the Renewals tab instead of the default New Applicants one.
     $redirectTab = '';
 
@@ -297,12 +302,16 @@ $activeLink = 'EducationApplicants';
                 <!-- Table Header -->
                 <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
                     <div class="d-flex gap-2 align-items-center flex-wrap">
-                        <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addApplicantModal">
-                            <i class="bi bi-plus-lg me-1"></i> Add Applicant
-                        </button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#archivesApplicantModal">
-                            <i class="bi bi-archive me-1"></i> Archives
-                        </button>
+                        <?php if (!isViewOnlyOfficer()): ?>
+                            <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addApplicantModal">
+                                <i class="bi bi-plus-lg me-1"></i> Add Applicant
+                            </button>
+                        <?php endif; ?>
+                        <?php if (!isViewOnlyOfficer()): ?>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#archivesApplicantModal">
+                                <i class="bi bi-archive me-1"></i> Archives
+                            </button>
+                        <?php endif; ?>
                     </div>
                     <div class="search-box">
                         <input type="text" name="q" value="<?php echo e($search); ?>" placeholder="Search...">
@@ -363,8 +372,12 @@ $activeLink = 'EducationApplicants';
                                     <td><span class="badge text-bg-<?php echo $app['status'] === 'approved' ? 'success' : ($app['status'] === 'declined' ? 'danger' : 'warning'); ?>"><?php echo ucfirst($app['status']); ?></span></td>
                                     <td class="d-flex gap-1">
                                         <button class="btn-view" data-bs-toggle="modal" data-bs-target="#viewModal<?php echo $app['application_id']; ?>"><i class="bi bi-eye"></i> View</button>
-                                        <button class="btn-edit" data-bs-toggle="modal" data-bs-target="#editModal<?php echo $app['application_id']; ?>"><i class="bi bi-pencil"></i> Edit</button>
-                                        <button class="btn-archive" data-bs-toggle="modal" data-bs-target="#archiveModal<?php echo $app['application_id']; ?>"><i class="bi bi-archive"></i> Archive</button>
+                                        <?php if (!isViewOnlyOfficer()): ?>
+                                            <button class="btn-edit" data-bs-toggle="modal" data-bs-target="#editModal<?php echo $app['application_id']; ?>"><i class="bi bi-pencil"></i> Edit</button>
+                                        <?php endif; ?>
+                                        <?php if (!isViewOnlyOfficer()): ?>
+                                            <button class="btn-archive" data-bs-toggle="modal" data-bs-target="#archiveModal<?php echo $app['application_id']; ?>"><i class="bi bi-archive"></i> Archive</button>
+                                        <?php endif; ?>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -427,11 +440,15 @@ $activeLink = 'EducationApplicants';
                                         <div class="d-flex gap-1 justify-content-center">
                                             <form method="post" onsubmit="return confirm('Approve renewal for <?php echo e(addslashes($ps['first_name'] . ' ' . $ps['last_name'])); ?>? They will go back on the active Scholars list.');">
                                                 <input type="hidden" name="scholar_id" value="<?php echo $ps['scholar_id']; ?>">
-                                                <button type="submit" name="approve_renewal" class="btn btn-sm btn-outline-success py-0 px-2" style="font-size:11px;"><i class="bi bi-check-lg"></i> Approve</button>
+                                                <?php if (!isViewOnlyOfficer()): ?>
+                                                    <button type="submit" name="approve_renewal" class="btn btn-sm btn-outline-success py-0 px-2" style="font-size:11px;"><i class="bi bi-check-lg"></i> Approve</button>
+                                                <?php endif; ?>
                                             </form>
                                             <form method="post" onsubmit="return confirm('Decline renewal for <?php echo e(addslashes($ps['first_name'] . ' ' . $ps['last_name'])); ?>? They will be archived and lose scholar-portal access.');">
                                                 <input type="hidden" name="scholar_id" value="<?php echo $ps['scholar_id']; ?>">
-                                                <button type="submit" name="decline_renewal" class="btn btn-sm btn-outline-danger py-0 px-2" style="font-size:11px;"><i class="bi bi-x-lg"></i> Decline</button>
+                                                <?php if (!isViewOnlyOfficer()): ?>
+                                                    <button type="submit" name="decline_renewal" class="btn btn-sm btn-outline-danger py-0 px-2" style="font-size:11px;"><i class="bi bi-x-lg"></i> Decline</button>
+                                                <?php endif; ?>
                                             </form>
                                         </div>
                                     </td>
@@ -508,8 +525,12 @@ $activeLink = 'EducationApplicants';
                                 <div class="decision-title"><i class="bi bi-clipboard2-check me-1"></i> Application Decision</div>
                                 <div class="decision-sub">Review the applicant's information and submitted documents before making a decision.</div>
                                 <div class="d-flex gap-2 flex-wrap">
-                                    <button class="btn-approve" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#approveModal<?php echo $app['application_id']; ?>"><i class="bi bi-check-circle-fill"></i> Approve</button>
-                                    <button class="btn-decline" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#declineModal<?php echo $app['application_id']; ?>"><i class="bi bi-x-circle"></i> Decline</button>
+                                    <?php if (!isViewOnlyOfficer()): ?>
+                                        <button class="btn-approve" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#approveModal<?php echo $app['application_id']; ?>"><i class="bi bi-check-circle-fill"></i> Approve</button>
+                                    <?php endif; ?>
+                                    <?php if (!isViewOnlyOfficer()): ?>
+                                        <button class="btn-decline" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#declineModal<?php echo $app['application_id']; ?>"><i class="bi bi-x-circle"></i> Decline</button>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         <?php elseif ($app['status'] === 'declined' && $app['decline_reason']): ?>

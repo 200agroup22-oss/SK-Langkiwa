@@ -8,6 +8,11 @@ $term = getCurrentTerm();
 $me = currentUser();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isViewOnlyOfficer() && !isset($_POST['save_attendance'])) {
+        setFlash('error', 'Your role can only scan and record attendance on this page.');
+        header('Location: EducationActivities.php');
+        exit();
+    }
 
     if (isset($_POST['add_activity'])) {
         $title = trim($_POST['title'] ?? '');
@@ -94,13 +99,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $states = $_POST['attendance'] ?? [];
         foreach ($states as $scholarId => $status) {
             $scholarId = (int)$scholarId;
-            $status = ($status === 'present') ? 'present' : 'absent';
+            $status = in_array($status, ['present', 'absent', 'pending'], true) ? $status : 'pending';
             if ($status === 'present') {
                 $stmt = $conn->prepare("UPDATE attendance SET status = 'present', scanned_at = COALESCE(scanned_at, NOW()) WHERE activity_id = ? AND scholar_id = ?");
+                $stmt->bind_param('ii', $activityId, $scholarId);
             } else {
-                $stmt = $conn->prepare("UPDATE attendance SET status = 'absent', scanned_at = NULL WHERE activity_id = ? AND scholar_id = ?");
+                $stmt = $conn->prepare("UPDATE attendance SET status = ?, scanned_at = NULL WHERE activity_id = ? AND scholar_id = ?");
+                $stmt->bind_param('sii', $status, $activityId, $scholarId);
             }
-            $stmt->bind_param('ii', $activityId, $scholarId);
             $stmt->execute();
             $stmt->close();
         }
@@ -233,12 +239,16 @@ $activeLink = 'EducationActivities';
 
         <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
             <div class="d-flex gap-2 align-items-center flex-wrap">
-                <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addActivityModal">
-                    <i class="bi bi-plus-lg me-1"></i> Add Activity
-                </button>
-                <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#archivesModal">
-                    <i class="bi bi-archive me-1"></i> Archives
-                </button>
+                <?php if (!isViewOnlyOfficer()): ?>
+                    <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addActivityModal">
+                        <i class="bi bi-plus-lg me-1"></i> Add Activity
+                    </button>
+                <?php endif; ?>
+                <?php if (!isViewOnlyOfficer()): ?>
+                    <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#archivesModal">
+                        <i class="bi bi-archive me-1"></i> Archives
+                    </button>
+                <?php endif; ?>
             </div>
             <div class="d-flex flex-wrap gap-2 align-items-center">
                 <select class="form-select form-select-sm" id="activityFilterSelect" style="width:auto;">
@@ -289,8 +299,12 @@ $activeLink = 'EducationActivities';
                                 <td><span class="text-success fw-semibold"><?php echo $act['total_present']; ?></span> / <span class="text-muted"><?php echo $act['total_assigned']; ?></span> <span class="text-muted" style="font-size:11px;">present</span></td>
                                 <td class="d-flex gap-1">
                                     <button class="btn-attendance" data-bs-toggle="modal" data-bs-target="#attendanceModal<?php echo $act['activity_id']; ?>"><i class="bi bi-person-check"></i> Attendance</button>
-                                    <button class="btn-edit" data-bs-toggle="modal" data-bs-target="#editActivityModal<?php echo $act['activity_id']; ?>"><i class="bi bi-pencil"></i> Edit</button>
-                                    <button class="btn-archive" data-bs-toggle="modal" data-bs-target="#archiveActivityModal<?php echo $act['activity_id']; ?>"><i class="bi bi-archive"></i> Archive</button>
+                                    <?php if (!isViewOnlyOfficer()): ?>
+                                        <button class="btn-edit" data-bs-toggle="modal" data-bs-target="#editActivityModal<?php echo $act['activity_id']; ?>"><i class="bi bi-pencil"></i> Edit</button>
+                                    <?php endif; ?>
+                                    <?php if (!isViewOnlyOfficer()): ?>
+                                        <button class="btn-archive" data-bs-toggle="modal" data-bs-target="#archiveActivityModal<?php echo $act['activity_id']; ?>"><i class="bi bi-archive"></i> Archive</button>
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -621,7 +635,14 @@ $activeLink = 'EducationActivities';
                     document.getElementById('qrScanResult').textContent = data.message;
                     if (data.success) {
                         stopScanner();
-                        setTimeout(() => window.location.reload(), 900);
+                        // A plain reload() can be served from the browser's cache on some mobile
+                        // browsers, showing the pre-scan attendance list again — a fresh URL (with
+                        // a cache-busting param) forces a real re-fetch, and reopening the same
+                        // activity's modal afterward means the updated status is what the admin
+                        // actually sees, instead of landing back on the closed activity list.
+                        setTimeout(() => {
+                            window.location.href = window.location.pathname + '?openAttendance=' + encodeURIComponent(scanActivityId) + '&_t=' + Date.now();
+                        }, 900);
                     }
                 }).catch(() => {
                     document.getElementById('qrScanResult').textContent = 'Network error — try again.';
@@ -636,6 +657,18 @@ $activeLink = 'EducationActivities';
         }
 
         document.getElementById('qrScanModal').addEventListener('hidden.bs.modal', stopScanner);
+
+        // After a successful QR scan redirects back here with ?openAttendance=<id>, reopen that
+        // same activity's Attendance modal so the admin lands right back where they were, now
+        // showing the freshly-scanned status instead of the closed activity list.
+        (function() {
+            const openId = new URLSearchParams(window.location.search).get('openAttendance');
+            if (!openId) return;
+            const modalEl = document.getElementById('attendanceModal' + openId);
+            if (modalEl) {
+                new bootstrap.Modal(modalEl).show();
+            }
+        })();
 
         // Attendance modal: filter the scholar list by their current attendance selection
         // (Present/Absent/Pending), including any unsaved changes made in the dropdowns.

@@ -293,6 +293,16 @@ function hasFullCommitteeAccess($user)
     return $user['role'] === 'admin' || !empty($user['is_secretary']) || !empty($user['is_treasurer']);
 }
 
+// A committee_admin flagged Secretary and/or Treasurer: sees every committee but is read-only on
+// the Applicants pages (View only — no approve/decline/edit/archive/add) and can't add, edit or
+// archive Activities (scanning/marking attendance is still allowed). Enforced server-side too.
+function isViewOnlyOfficer($user = null)
+{
+    $user = $user ?? currentUser();
+    return $user && ($user['role'] ?? '') === 'committee_admin'
+        && (!empty($user['is_secretary']) || !empty($user['is_treasurer']));
+}
+
 // 'committee_admin' is the only role that gets an "Assigned Committees" picker in User Management
 // and is scoped to just those committees elsewhere (Applicants/Scholars/Assistance/Reports) unless
 // also flagged Secretary/Treasurer (see hasFullCommitteeAccess()) — as opposed to 'admin' (sees
@@ -598,7 +608,7 @@ function renderDynamicFormFields($committeeId, $existingAnswers = [], $existingF
 
             case 'file':
                 if (!empty($existingFiles[$field['field_id']])) {
-                    echo '<div class="mb-1 small text-success"><i class="bi bi-check-circle-fill"></i> On file: ' . e($existingFiles[$field['field_id']]['original_name']) . '</div>';
+                    echo '<div class="mb-1 small text-success"><i class="bi bi-check-circle-fill"></i> On file: <a href="' . APP_BASE . '/' . e($existingFiles[$field['field_id']]['path']) . '" target="_blank" rel="noopener" class="text-success">' . e($existingFiles[$field['field_id']]['original_name']) . '</a></div>';
                 }
                 $fileRequired = (!empty($existingFiles[$field['field_id']])) ? '' : $required;
                 echo '<input type="file" class="form-control" name="' . $name . '" accept=".jpg,.jpeg,.png,.pdf" ' . $fileRequired . '>';
