@@ -755,7 +755,26 @@ function answerByKey($app, $fields, $key, $default = '')
 {
     foreach ($fields as $f) {
         if ($f['field_key'] === $key) {
-            return $app['answers'][$f['field_id']] ?? $default;
+            $value = $app['answers'][$f['field_id']] ?? '';
+            if ($value !== '' && $value !== null) {
+                return $value;
+            }
+            break;
+        }
+    }
+    // Fall back to an answer stored under a removed (archived) copy of the same field — e.g. the
+    // form's "Type of Assistance" was removed and re-added after the applicant applied, so their
+    // answer still points at the old field_id and would otherwise show as blank in the lists.
+    if (!empty($app['application_id'])) {
+        global $conn;
+        $stmt = $conn->prepare("SELECT aa.value FROM application_answers aa JOIN form_fields f ON f.field_id = aa.field_id
+            WHERE aa.application_id = ? AND f.field_key = ? AND aa.value IS NOT NULL AND aa.value <> '' ORDER BY aa.answer_id DESC LIMIT 1");
+        $stmt->bind_param('is', $app['application_id'], $key);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if ($row) {
+            return $row['value'];
         }
     }
     return $default;

@@ -260,7 +260,6 @@ $activeLink = 'SportsApplicants';
                             <th>Applicant ID</th>
                             <th>Full Name</th>
                             <th>Address</th>
-                            <?php if (!empty($committeePrograms)): ?><th>Program</th><?php endif; ?>
                             <th>Type of Assistance</th>
                             <th>Status</th>
                             <th>Actions</th>
@@ -269,7 +268,7 @@ $activeLink = 'SportsApplicants';
                     <tbody>
                         <?php if (empty($pagedApplications)): ?>
                             <tr>
-                                <td colspan="<?php echo !empty($committeePrograms) ? 7 : 6; ?>">
+                                <td colspan="6">
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
                                         <p>No <?php echo e($activeProgram ? $activeProgram['name'] : 'Sports Committee'); ?> assistance applications found.</p>
@@ -282,7 +281,6 @@ $activeLink = 'SportsApplicants';
                                 <td><?php echo str_pad($app['application_id'], 3, '0', STR_PAD_LEFT); ?></td>
                                 <td><?php echo e($app['full_name']); ?></td>
                                 <td><?php echo e($app['address']); ?></td>
-                                <?php if (!empty($committeePrograms)): ?><td><?php echo e(programLabel($app['program_id'])); ?></td><?php endif; ?>
                                 <td><?php echo e($app['assistance_type']); ?></td>
                                 <td><span class="badge text-bg-<?php echo $app['status'] === 'approved' ? 'success' : ($app['status'] === 'declined' ? 'danger' : 'warning'); ?>"><?php echo ucfirst($app['status']); ?></span></td>
                                 <td class="d-flex gap-1">
