@@ -225,6 +225,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setFlash('success', 'Field removed.');
     }
 
+    // Rename a form/program from the Forms tab. The title shown here is the program_tabs label; a
+    // catalog program also keeps its own name in `programs`, so both are updated to stay in sync.
+    if (isset($_POST['rename_form'])) {
+        $renameTabId = (int)($_POST['form_tab_id'] ?? 0);
+        $newTitle = trim($_POST['form_title'] ?? '');
+        $redirectTab = 'formsTab';
+        $redirectFtab = $renameTabId;
+
+        $tabRow = getProgramTabById($renameTabId);
+        if (!$tabRow) {
+            setFlash('error', 'Form not found.');
+        } elseif ($newTitle === '') {
+            setFlash('error', 'Form title cannot be blank.');
+        } elseif (mb_strlen($newTitle) > 100) {
+            setFlash('error', 'Form title must be 100 characters or fewer.');
+        } else {
+            $stmt = $conn->prepare("UPDATE program_tabs SET label = ? WHERE tab_id = ?");
+            $stmt->bind_param('si', $newTitle, $renameTabId);
+            $stmt->execute();
+            $stmt->close();
+            if (!empty($tabRow['program_id'])) {
+                $stmt = $conn->prepare("UPDATE programs SET name = ? WHERE program_id = ?");
+                $stmt->bind_param('si', $newTitle, $tabRow['program_id']);
+                $stmt->execute();
+                $stmt->close();
+            }
+            logAudit('Renamed Form', '"' . $tabRow['label'] . '" -> "' . $newTitle . '" (tab #' . $renameTabId . ')');
+            setFlash('success', 'Form title updated.');
+        }
+    }
+
     if (isset($_POST['move_field'])) {
         $formCommitteeId = (int)($_POST['form_committee_id'] ?? 0);
         $formTrack = ($_POST['form_track'] ?? '') === 'scholarship' ? 'scholarship' : 'assistance';
@@ -943,7 +974,31 @@ $activeLink = 'AdminConfiguration';
                             <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
                                 <span class="committee-tag"><?php echo e($panel['committee_name']); ?></span>
                                 <h6 class="mb-0 fw-bold"><?php echo e($panel['label']); ?></h6>
+                                <button type="button" class="btn btn-sm btn-light py-0 px-1" title="Rename form" data-bs-toggle="modal" data-bs-target="#renameFormModal<?php echo $tabId; ?>"><i class="bi bi-pencil"></i></button>
                                 <span class="text-muted" style="font-size:12px; font-weight:500;">(<?php echo count($fields); ?> field<?php echo count($fields) === 1 ? '' : 's'; ?>)</span>
+                            </div>
+
+                            <div class="modal fade" id="renameFormModal<?php echo $tabId; ?>" tabindex="-1" aria-hidden="true">
+                                <div class="modal-dialog modal-dialog-centered">
+                                    <div class="modal-content">
+                                        <form method="POST">
+                                            <input type="hidden" name="form_tab_id" value="<?php echo $tabId; ?>">
+                                            <div class="modal-header">
+                                                <h6 class="modal-title fw-bold"><i class="bi bi-pencil me-2"></i>Rename Form</h6>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <label class="form-label">Form title</label>
+                                                <input type="text" class="form-control" name="form_title" value="<?php echo e($panel['label']); ?>" maxlength="100" required>
+                                                <div class="form-text" style="font-size:11.5px;">This also renames the program everywhere it appears (sidebar, applications, reports).</div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Cancel</button>
+                                                <button type="submit" name="rename_form" class="btn btn-success btn-sm">Save</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
                             </div>
 
                             <div class="d-flex gap-2 align-items-center mb-3 flex-wrap">
