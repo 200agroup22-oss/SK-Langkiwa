@@ -52,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute();
         $stmt->close();
         logAudit($newStatus === 'approved' ? 'Approved Allowance Payout' : 'Declined Allowance Payout', 'Scholar #' . $scholarId);
-        setFlash('success', 'Allowance payout ' . $newStatus . '.');
+        setFlash('success', 'Allowance payout ' . ($newStatus === 'approved' ? 'released' : $newStatus) . '.');
     }
     header("Location: EducationAllowanceDistribution.php");
     exit();
@@ -228,7 +228,7 @@ $activeLink = 'EducationAllowanceDistribution';
                                 <td><?php echo $yearLevelLabel($sch['year_level']); ?></td>
                                 <td><?php echo $sch['allowance']['activities_completed']; ?> / <?php echo $sch['allowance']['activities_required']; ?></td>
                                 <td><span class="<?php echo $eligibilityBadge($sch['allowance']['eligibility']); ?>"><?php echo $eligibilityLabel($sch['allowance']['eligibility']); ?></span></td>
-                                <td><span class="badge text-bg-<?php echo $sch['allowance']['status'] === 'approved' ? 'success' : ($sch['allowance']['status'] === 'declined' ? 'danger' : 'secondary'); ?>"><?php echo ucfirst($sch['allowance']['status']); ?></span></td>
+                                <td><span class="badge text-bg-<?php echo $sch['allowance']['status'] === 'approved' ? 'success' : ($sch['allowance']['status'] === 'declined' ? 'danger' : 'secondary'); ?>"><?php echo $sch['allowance']['status'] === 'approved' ? 'Released' : ucfirst($sch['allowance']['status']); ?></span></td>
                                 <td class="d-flex gap-1">
                                     <button class="btn-view" data-bs-toggle="modal" data-bs-target="#viewModal<?php echo $sch['scholar_id']; ?>"><i class="bi bi-eye"></i> View</button>
                                     <?php if ($isCurrentTerm && $sch['allowance']['status'] === 'pending'): ?>
