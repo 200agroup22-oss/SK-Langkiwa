@@ -334,7 +334,7 @@ switch ($type) {
                 $totalPrograms = ($programId > 0 || $trackCode !== '') ? 1 : (int)($stmt->get_result()->fetch_assoc()['c'] ?? 0);
                 $stmt->close();
 
-                $stmt = $conn->prepare("SELECT COUNT(*) c FROM applications WHERE committee_id = ? AND status = 'approved' AND archived_at IS NULL AND submitted_at BETWEEN ? AND ? AND (? = 0 OR program_id = ?) AND (? = '' OR (program_track = ? AND program_id IS NULL))");
+                $stmt = $conn->prepare("SELECT COUNT(*) c FROM applications WHERE committee_id = ? AND status = 'approved' AND archived_at IS NULL AND COALESCE(decided_at, submitted_at) BETWEEN ? AND ? AND (? = 0 OR program_id = ?) AND (? = '' OR (program_track = ? AND program_id IS NULL))");
                 $stmt->bind_param('issiiss', $cid, $fromInclusive, $toInclusive, $programId, $programId, $trackCode, $trackCode);
                 $stmt->execute();
                 $benCount = (int)($stmt->get_result()->fetch_assoc()['c'] ?? 0);
@@ -352,7 +352,7 @@ switch ($type) {
                 $inKindQty = (int)($stmt->get_result()->fetch_assoc()['q'] ?? 0);
                 $stmt->close();
 
-                $stmt = $conn->prepare("SELECT status, COUNT(*) c FROM applications WHERE committee_id = ? AND archived_at IS NULL AND submitted_at BETWEEN ? AND ? AND (? = 0 OR program_id = ?) AND (? = '' OR (program_track = ? AND program_id IS NULL)) GROUP BY status");
+                $stmt = $conn->prepare("SELECT status, COUNT(*) c FROM applications WHERE committee_id = ? AND archived_at IS NULL AND COALESCE(decided_at, submitted_at) BETWEEN ? AND ? AND (? = 0 OR program_id = ?) AND (? = '' OR (program_track = ? AND program_id IS NULL)) GROUP BY status");
                 $stmt->bind_param('issiiss', $cid, $fromInclusive, $toInclusive, $programId, $programId, $trackCode, $trackCode);
                 $stmt->execute();
                 $decided = ['approved' => 0, 'declined' => 0];

@@ -202,7 +202,7 @@ foreach ($committees as $c) {
     $totalPrograms = (int)($stmt->get_result()->fetch_assoc()['c'] ?? 0);
     $stmt->close();
 
-    $stmt = $conn->prepare("SELECT COUNT(*) c FROM applications WHERE committee_id = ? AND status = 'approved' AND archived_at IS NULL AND submitted_at BETWEEN ? AND ?");
+    $stmt = $conn->prepare("SELECT COUNT(*) c FROM applications WHERE committee_id = ? AND status = 'approved' AND archived_at IS NULL AND COALESCE(decided_at, submitted_at) BETWEEN ? AND ?");
     $stmt->bind_param('iss', $cid, $periodStart, $periodEnd);
     $stmt->execute();
     $benCount = (int)($stmt->get_result()->fetch_assoc()['c'] ?? 0);
@@ -221,7 +221,7 @@ foreach ($committees as $c) {
     $stmt->close();
     $inKindSummary = implode(', ', array_map(fn($r) => $r['items'] . ' (' . (int)$r['qty'] . ')', $itemRows));
 
-    $stmt = $conn->prepare("SELECT status, COUNT(*) c FROM applications WHERE committee_id = ? AND archived_at IS NULL AND submitted_at BETWEEN ? AND ? GROUP BY status");
+    $stmt = $conn->prepare("SELECT status, COUNT(*) c FROM applications WHERE committee_id = ? AND archived_at IS NULL AND COALESCE(decided_at, submitted_at) BETWEEN ? AND ? GROUP BY status");
     $stmt->bind_param('iss', $cid, $periodStart, $periodEnd);
     $stmt->execute();
     $decided = ['approved' => 0, 'declined' => 0];
