@@ -352,7 +352,6 @@ $activeLink = 'EducationApplicants';
                                 <th>School</th>
                                 <th>Course</th>
                                 <th>Year Level</th>
-                                <th>Date Submitted</th>
                                 <th>Status</th>
                                 <th>Action</th>
                             </tr>
@@ -360,7 +359,7 @@ $activeLink = 'EducationApplicants';
                         <tbody>
                             <?php if (empty($pagedApplications)): ?>
                                 <tr>
-                                    <td colspan="8" class="text-center text-muted py-4">No applicants found.</td>
+                                    <td colspan="7" class="text-center text-muted py-4">No applicants found.</td>
                                 </tr>
                             <?php endif; ?>
                             <?php foreach ($pagedApplications as $app): ?>
@@ -370,7 +369,6 @@ $activeLink = 'EducationApplicants';
                                     <td><?php echo e($app['school']); ?></td>
                                     <td><?php echo e($app['course']); ?></td>
                                     <td><?php echo e($app['year_level_text']); ?></td>
-                                    <td style="white-space:nowrap;"><?php echo date('M j, Y g:i A', strtotime($app['submitted_at'])); ?></td>
                                     <td><span class="badge text-bg-<?php echo $app['status'] === 'approved' ? 'success' : ($app['status'] === 'declined' ? 'danger' : 'warning'); ?>"><?php echo ucfirst($app['status']); ?></span></td>
                                     <td class="d-flex gap-1">
                                         <button class="btn-view" data-bs-toggle="modal" data-bs-target="#viewModal<?php echo $app['application_id']; ?>"><i class="bi bi-eye"></i> View</button>
@@ -495,6 +493,10 @@ $activeLink = 'EducationApplicants';
                     </div>
                     <div class="modal-body p-4">
                         <div class="row g-3 mb-2">
+                            <div class="col-md-6">
+                                <div class="info-label">Date Submitted</div>
+                                <div class="info-value"><?php echo date('F j, Y g:i A', strtotime($app['submitted_at'])); ?></div>
+                            </div>
                             <?php foreach ($fields as $field):
                                 if ($field['input_type'] === 'file') continue;
                                 $val = $app['answers'][$field['field_id']] ?? '';

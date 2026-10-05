@@ -279,7 +279,6 @@ $qs = 'committee=' . $committeeId . ($programId !== null ? '&program_id=' . $pro
                             <th>Address</th>
                             <?php if (!empty($committeePrograms)): ?><th>Program</th><?php endif; ?>
                             <th>Type of Assistance</th>
-                            <th>Date Submitted</th>
                             <th>Status</th>
                             <th>Actions</th>
                         </tr>
@@ -287,7 +286,7 @@ $qs = 'committee=' . $committeeId . ($programId !== null ? '&program_id=' . $pro
                     <tbody>
                         <?php if (empty($pagedApplications)): ?>
                             <tr>
-                                <td colspan="<?php echo !empty($committeePrograms) ? 8 : 7; ?>">
+                                <td colspan="<?php echo !empty($committeePrograms) ? 7 : 6; ?>">
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
                                         <p>No <?php echo e($activeProgram ? $activeProgram['name'] : $committee['name']); ?> assistance applications found.</p>
@@ -302,7 +301,6 @@ $qs = 'committee=' . $committeeId . ($programId !== null ? '&program_id=' . $pro
                                 <td><?php echo e($app['address']); ?></td>
                                 <?php if (!empty($committeePrograms)): ?><td><?php echo e(programLabel($app['program_id'])); ?></td><?php endif; ?>
                                 <td><?php echo e($app['assistance_type']); ?></td>
-                                <td style="white-space:nowrap;"><?php echo date('M j, Y g:i A', strtotime($app['submitted_at'])); ?></td>
                                 <td><span class="badge text-bg-<?php echo $app['status'] === 'approved' ? 'success' : ($app['status'] === 'declined' ? 'danger' : 'warning'); ?>"><?php echo ucfirst($app['status']); ?></span></td>
                                 <td class="d-flex gap-1">
                                     <button class="btn-view" data-bs-toggle="modal" data-bs-target="#viewModal<?php echo $app['application_id']; ?>"><i class="bi bi-eye"></i> View</button>
@@ -359,6 +357,10 @@ $qs = 'committee=' . $committeeId . ($programId !== null ? '&program_id=' . $pro
                     </div>
                     <div class="modal-body p-4">
                         <div class="row g-3 mb-2">
+                            <div class="col-md-6">
+                                <div class="info-label">Date Submitted</div>
+                                <div class="info-value"><?php echo date('F j, Y g:i A', strtotime($app['submitted_at'])); ?></div>
+                            </div>
                             <?php foreach ($appFields as $field):
                                 if ($field['input_type'] === 'file') continue;
                                 $val = $app['answers'][$field['field_id']] ?? '';
