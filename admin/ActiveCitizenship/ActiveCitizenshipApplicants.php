@@ -340,10 +340,6 @@ $activeLink = 'ActiveCitizenshipApplicants';
                     </div>
                     <div class="modal-body p-4">
                         <div class="row g-3 mb-2">
-                            <div class="col-md-6">
-                                <div class="info-label">Date Submitted</div>
-                                <div class="info-value"><?php echo date('F j, Y g:i A', strtotime($app['submitted_at'])); ?></div>
-                            </div>
                             <?php foreach ($appFields as $field):
                                 if ($field['input_type'] === 'file') continue;
                                 $val = $app['answers'][$field['field_id']] ?? '';
@@ -369,6 +365,11 @@ $activeLink = 'ActiveCitizenshipApplicants';
                                     <?php endif; ?>
                                 </div>
                             <?php endforeach; ?>
+                        </div>
+
+                        <div class="mt-3">
+                            <div class="info-label">Date Submitted</div>
+                            <div class="info-value"><?php echo date('F j, Y g:i A', strtotime($app['submitted_at'])); ?></div>
                         </div>
 
                         <?php if ($app['status'] === 'pending'): ?>
