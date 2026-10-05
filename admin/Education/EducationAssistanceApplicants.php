@@ -25,6 +25,11 @@ foreach ($committeePrograms as $cp) {
 
 // ---- POST handlers (redirect-after-POST) ----
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isViewOnlyOfficer()) {
+        setFlash('error', 'Your role has view-only access on this page.');
+        header('Location: ' . basename($_SERVER['PHP_SELF']));
+        exit();
+    }
 
     if (isset($_POST['add_applicant'])) {
         $errors = validateDynamicSubmission($committeeId, $_POST, $_FILES, [], $track, $programId);
@@ -201,12 +206,16 @@ $activeLink = 'EducationAssistanceApplicants';
             <!-- Table Header -->
             <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
                 <div class="d-flex gap-2 align-items-center flex-wrap">
-                    <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addApplicantModal">
-                        <i class="bi bi-plus-lg me-1"></i> Add Applicant
-                    </button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#archivesApplicantModal">
-                        <i class="bi bi-archive me-1"></i> Archives
-                    </button>
+                    <?php if (!isViewOnlyOfficer()): ?>
+                        <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addApplicantModal">
+                            <i class="bi bi-plus-lg me-1"></i> Add Applicant
+                        </button>
+                    <?php endif; ?>
+                    <?php if (!isViewOnlyOfficer()): ?>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#archivesApplicantModal">
+                            <i class="bi bi-archive me-1"></i> Archives
+                        </button>
+                    <?php endif; ?>
                 </div>
                 <div class="search-box">
                     <input type="text" name="q" value="<?php echo e($search); ?>" placeholder="Search...">
@@ -253,6 +262,7 @@ $activeLink = 'EducationAssistanceApplicants';
                             <th>Address</th>
                             <?php if (!empty($committeePrograms)): ?><th>Program</th><?php endif; ?>
                             <th>Type of Assistance</th>
+                            <th>Date Submitted</th>
                             <th>Status</th>
                             <th>Actions</th>
                         </tr>
@@ -260,7 +270,7 @@ $activeLink = 'EducationAssistanceApplicants';
                     <tbody>
                         <?php if (empty($pagedApplications)): ?>
                             <tr>
-                                <td colspan="<?php echo !empty($committeePrograms) ? 7 : 6; ?>">
+                                <td colspan="<?php echo !empty($committeePrograms) ? 8 : 7; ?>">
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
                                         <p>No <?php echo e($activeProgram ? $activeProgram['name'] : 'education assistance'); ?> applications found.</p>
@@ -275,11 +285,16 @@ $activeLink = 'EducationAssistanceApplicants';
                                 <td><?php echo e($app['address']); ?></td>
                                 <?php if (!empty($committeePrograms)): ?><td><?php echo e(programLabel($app['program_id'])); ?></td><?php endif; ?>
                                 <td><?php echo e($app['assistance_type']); ?></td>
+                                <td style="white-space:nowrap;"><?php echo date('M j, Y g:i A', strtotime($app['submitted_at'])); ?></td>
                                 <td><span class="badge text-bg-<?php echo $app['status'] === 'approved' ? 'success' : ($app['status'] === 'declined' ? 'danger' : 'warning'); ?>"><?php echo ucfirst($app['status']); ?></span></td>
                                 <td class="d-flex gap-1">
                                     <button class="btn-view" data-bs-toggle="modal" data-bs-target="#viewModal<?php echo $app['application_id']; ?>"><i class="bi bi-eye"></i> View</button>
-                                    <button class="btn-edit" data-bs-toggle="modal" data-bs-target="#editModal<?php echo $app['application_id']; ?>"><i class="bi bi-pencil"></i> Edit</button>
-                                    <button class="btn-archive" data-bs-toggle="modal" data-bs-target="#archiveModal<?php echo $app['application_id']; ?>"><i class="bi bi-archive"></i> Archive</button>
+                                    <?php if (!isViewOnlyOfficer()): ?>
+                                        <button class="btn-edit" data-bs-toggle="modal" data-bs-target="#editModal<?php echo $app['application_id']; ?>"><i class="bi bi-pencil"></i> Edit</button>
+                                    <?php endif; ?>
+                                    <?php if (!isViewOnlyOfficer()): ?>
+                                        <button class="btn-archive" data-bs-toggle="modal" data-bs-target="#archiveModal<?php echo $app['application_id']; ?>"><i class="bi bi-archive"></i> Archive</button>
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -359,8 +374,12 @@ $activeLink = 'EducationAssistanceApplicants';
                                 <div class="decision-title"><i class="bi bi-clipboard2-check me-1"></i> Application Decision</div>
                                 <div class="decision-sub">Review the applicant's information and submitted documents before making a decision.</div>
                                 <div class="d-flex gap-2 flex-wrap">
-                                    <button class="btn-approve" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#approveModal<?php echo $app['application_id']; ?>"><i class="bi bi-check-circle-fill"></i> Approve</button>
-                                    <button class="btn-decline" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#declineModal<?php echo $app['application_id']; ?>"><i class="bi bi-x-circle"></i> Decline</button>
+                                    <?php if (!isViewOnlyOfficer()): ?>
+                                        <button class="btn-approve" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#approveModal<?php echo $app['application_id']; ?>"><i class="bi bi-check-circle-fill"></i> Approve</button>
+                                    <?php endif; ?>
+                                    <?php if (!isViewOnlyOfficer()): ?>
+                                        <button class="btn-decline" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#declineModal<?php echo $app['application_id']; ?>"><i class="bi bi-x-circle"></i> Decline</button>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         <?php elseif ($app['status'] === 'declined' && $app['decline_reason']): ?>

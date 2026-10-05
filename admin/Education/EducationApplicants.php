@@ -352,6 +352,7 @@ $activeLink = 'EducationApplicants';
                                 <th>School</th>
                                 <th>Course</th>
                                 <th>Year Level</th>
+                                <th>Date Submitted</th>
                                 <th>Status</th>
                                 <th>Action</th>
                             </tr>
@@ -359,7 +360,7 @@ $activeLink = 'EducationApplicants';
                         <tbody>
                             <?php if (empty($pagedApplications)): ?>
                                 <tr>
-                                    <td colspan="7" class="text-center text-muted py-4">No applicants found.</td>
+                                    <td colspan="8" class="text-center text-muted py-4">No applicants found.</td>
                                 </tr>
                             <?php endif; ?>
                             <?php foreach ($pagedApplications as $app): ?>
@@ -369,6 +370,7 @@ $activeLink = 'EducationApplicants';
                                     <td><?php echo e($app['school']); ?></td>
                                     <td><?php echo e($app['course']); ?></td>
                                     <td><?php echo e($app['year_level_text']); ?></td>
+                                    <td style="white-space:nowrap;"><?php echo date('M j, Y g:i A', strtotime($app['submitted_at'])); ?></td>
                                     <td><span class="badge text-bg-<?php echo $app['status'] === 'approved' ? 'success' : ($app['status'] === 'declined' ? 'danger' : 'warning'); ?>"><?php echo ucfirst($app['status']); ?></span></td>
                                     <td class="d-flex gap-1">
                                         <button class="btn-view" data-bs-toggle="modal" data-bs-target="#viewModal<?php echo $app['application_id']; ?>"><i class="bi bi-eye"></i> View</button>

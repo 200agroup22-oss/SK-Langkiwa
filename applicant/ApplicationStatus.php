@@ -265,7 +265,7 @@ function statusLabel($status)
                             <tr>
                                 <td style="padding: 12px 14px; vertical-align: middle;"><?php echo e($app['committee_name']); ?></td>
                                 <td style="padding: 12px 14px; vertical-align: middle;"><?php echo e($app['program_name'] ?: ($app['track_label'] ?: '—')); ?></td>
-                                <td style="padding: 12px 14px; vertical-align: middle;"><?php echo date('F j, Y', strtotime($app['submitted_at'])); ?></td>
+                                <td style="padding: 12px 14px; vertical-align: middle;"><?php echo date('F j, Y g:i A', strtotime($app['submitted_at'])); ?></td>
                                 <td style="padding: 12px 14px; vertical-align: middle;">
                                     <span class="<?php echo statusBadgeClass($app['status']); ?>"><?php echo statusLabel($app['status']); ?></span>
                                 </td>

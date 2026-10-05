@@ -262,6 +262,7 @@ $activeLink = 'ActiveCitizenshipApplicants';
                             <th>Address</th>
                             <?php if (!empty($committeePrograms)): ?><th>Program</th><?php endif; ?>
                             <th>Type of Assistance</th>
+                            <th>Date Submitted</th>
                             <th>Status</th>
                             <th>Actions</th>
                         </tr>
@@ -269,7 +270,7 @@ $activeLink = 'ActiveCitizenshipApplicants';
                     <tbody>
                         <?php if (empty($pagedApplications)): ?>
                             <tr>
-                                <td colspan="<?php echo !empty($committeePrograms) ? 7 : 6; ?>">
+                                <td colspan="<?php echo !empty($committeePrograms) ? 8 : 7; ?>">
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
                                         <p>No <?php echo e($activeProgram ? $activeProgram['name'] : 'Active Citizenship'); ?> assistance applications found.</p>
@@ -284,6 +285,7 @@ $activeLink = 'ActiveCitizenshipApplicants';
                                 <td><?php echo e($app['address']); ?></td>
                                 <?php if (!empty($committeePrograms)): ?><td><?php echo e(programLabel($app['program_id'])); ?></td><?php endif; ?>
                                 <td><?php echo e($app['assistance_type']); ?></td>
+                                <td style="white-space:nowrap;"><?php echo date('M j, Y g:i A', strtotime($app['submitted_at'])); ?></td>
                                 <td><span class="badge text-bg-<?php echo $app['status'] === 'approved' ? 'success' : ($app['status'] === 'declined' ? 'danger' : 'warning'); ?>"><?php echo ucfirst($app['status']); ?></span></td>
                                 <td class="d-flex gap-1">
                                     <button class="btn-view" data-bs-toggle="modal" data-bs-target="#viewModal<?php echo $app['application_id']; ?>"><i class="bi bi-eye"></i> View</button>

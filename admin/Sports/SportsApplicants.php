@@ -261,6 +261,7 @@ $activeLink = 'SportsApplicants';
                             <th>Full Name</th>
                             <th>Address</th>
                             <th>Type of Assistance</th>
+                            <th>Date Submitted</th>
                             <th>Status</th>
                             <th>Actions</th>
                         </tr>
@@ -268,7 +269,7 @@ $activeLink = 'SportsApplicants';
                     <tbody>
                         <?php if (empty($pagedApplications)): ?>
                             <tr>
-                                <td colspan="6">
+                                <td colspan="7">
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
                                         <p>No <?php echo e($activeProgram ? $activeProgram['name'] : 'Sports Committee'); ?> assistance applications found.</p>
@@ -282,6 +283,7 @@ $activeLink = 'SportsApplicants';
                                 <td><?php echo e($app['full_name']); ?></td>
                                 <td><?php echo e($app['address']); ?></td>
                                 <td><?php echo e($app['assistance_type']); ?></td>
+                                <td style="white-space:nowrap;"><?php echo date('M j, Y g:i A', strtotime($app['submitted_at'])); ?></td>
                                 <td><span class="badge text-bg-<?php echo $app['status'] === 'approved' ? 'success' : ($app['status'] === 'declined' ? 'danger' : 'warning'); ?>"><?php echo ucfirst($app['status']); ?></span></td>
                                 <td class="d-flex gap-1">
                                     <button class="btn-view" data-bs-toggle="modal" data-bs-target="#viewModal<?php echo $app['application_id']; ?>"><i class="bi bi-eye"></i> View</button>

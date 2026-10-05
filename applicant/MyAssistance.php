@@ -196,7 +196,7 @@ function benStatusBadge($status)
                 <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
                     <div>
                         <div class="committee-name"><?php echo e($app['committee_name']); ?> Assistance</div>
-                        <div class="text-muted" style="font-size:12px;">Submitted <?php echo date('F j, Y', strtotime($app['submitted_at'])); ?></div>
+                        <div class="text-muted" style="font-size:12px;">Submitted <?php echo date('F j, Y g:i A', strtotime($app['submitted_at'])); ?></div>
                     </div>
                     <span class="<?php echo statusBadgeClass($app['status']); ?>"><?php echo statusLabel($app['status']); ?></span>
                 </div>
