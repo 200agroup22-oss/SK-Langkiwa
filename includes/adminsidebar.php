@@ -472,6 +472,74 @@ function collapseAttrs($expanded)
     </div>
 </div>
 
+<!-- GENERIC CONFIRMATION MODAL — replaces the browser's native confirm() popup. Any <form> with a
+     data-confirm="message" attribute shows this before submitting; optional attributes:
+     data-confirm-title, data-confirm-ok (button label), data-confirm-variant (danger | success).
+     Kept outside .topbar/.sidebar for the same stacking-context reason as the log out modal. -->
+<div class="modal fade" id="confirmActionModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 400px;">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header" id="confirmActionHeader">
+                <h6 class="modal-title fw-bold text-white"><i class="bi bi-exclamation-triangle-fill me-2" id="confirmActionIcon"></i><span id="confirmActionTitle">Are you sure?</span></h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter: brightness(0) invert(1);"></button>
+            </div>
+            <div class="modal-body p-4 text-center">
+                <p class="mb-0" id="confirmActionMessage" style="font-size: 14px; white-space: pre-line;"></p>
+            </div>
+            <div class="modal-footer border-0 justify-content-center gap-2">
+                <button type="button" class="btn btn-sm btn-secondary px-4" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm px-4" id="confirmActionOk">Yes, Continue</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function() {
+        let pendingForm = null;
+        let pendingSubmitter = null;
+
+        document.addEventListener('submit', function(e) {
+            const form = e.target;
+            if (!(form instanceof HTMLFormElement) || !form.dataset.confirm || form.dataset.confirmed === '1') return;
+            const modalEl = document.getElementById('confirmActionModal');
+            if (!modalEl || typeof bootstrap === 'undefined') return; // can't show the dialog — don't block the action
+
+            e.preventDefault();
+            pendingForm = form;
+            pendingSubmitter = e.submitter || null;
+
+            const variant = form.dataset.confirmVariant === 'success' ? 'success' : 'danger';
+            document.getElementById('confirmActionHeader').style.background = variant === 'success' ?
+                'linear-gradient(90deg, #45b84d, #aadaad)' :
+                'linear-gradient(90deg, #e53935, #ef9a9a)';
+            document.getElementById('confirmActionIcon').className = 'bi me-2 ' + (variant === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill');
+            document.getElementById('confirmActionTitle').textContent = form.dataset.confirmTitle || 'Are you sure?';
+            document.getElementById('confirmActionMessage').textContent = form.dataset.confirm;
+            const okBtn = document.getElementById('confirmActionOk');
+            okBtn.textContent = form.dataset.confirmOk || 'Yes, Continue';
+            okBtn.className = 'btn btn-sm px-4 btn-' + variant;
+            bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        });
+
+        document.getElementById('confirmActionOk').addEventListener('click', function() {
+            if (!pendingForm) return;
+            const form = pendingForm;
+            // form.submit() leaves out the clicked button's name/value, which these handlers rely on.
+            if (pendingSubmitter && pendingSubmitter.name) {
+                const hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.name = pendingSubmitter.name;
+                hidden.value = pendingSubmitter.value;
+                form.appendChild(hidden);
+            }
+            form.dataset.confirmed = '1';
+            pendingForm = null;
+            form.submit();
+        });
+    })();
+</script>
+
 <script>
     (function() {
         const menuToggle = document.getElementById('menuToggle');

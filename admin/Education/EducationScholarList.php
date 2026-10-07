@@ -628,7 +628,7 @@ $activeLink = 'EducationScholarList';
                                                         <button type="submit" name="move_requirement_field" class="btn btn-sm btn-light py-0 px-1" <?php echo $i === count($requirementDocFields) - 1 ? 'disabled' : ''; ?>><i class="bi bi-arrow-down"></i></button>
                                                     </form>
                                                     <button type="button" class="btn btn-sm btn-light py-0 px-1" title="Edit" onclick='openEditRequirementField(<?php echo json_encode($rf); ?>)' data-bs-toggle="modal" data-bs-target="#requirementFieldModal"><i class="bi bi-pencil"></i></button>
-                                                    <form method="post" class="d-inline" onsubmit="return confirm('Remove this requirement? Already-submitted files stay on file, but it will no longer show on this form.');">
+                                                    <form method="post" class="d-inline" data-confirm="Already-submitted files stay on file, but it will no longer show on this form." data-confirm-title="Remove Requirement" data-confirm-ok="Yes, Remove">
                                                         <input type="hidden" name="field_id" value="<?php echo $rf['field_id']; ?>">
                                                         <button type="submit" name="archive_requirement_field" class="btn btn-sm btn-light py-0 px-1 text-danger" title="Remove"><i class="bi bi-trash"></i></button>
                                                     </form>
@@ -685,7 +685,7 @@ $activeLink = 'EducationScholarList';
                     <h6 class="modal-title fw-bold"><i class="bi bi-calendar-check me-2"></i> End Semester</h6>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <form method="post" onsubmit="return confirm('End the current semester and move to <?php echo e(addslashes($nextTerm['academic_year'] . ' ' . $nextTerm['semester'])); ?>?');">
+                <form method="post" data-confirm="End the current semester and move to <?php echo e($nextTerm['academic_year'] . ' ' . $nextTerm['semester']); ?>?" data-confirm-title="End Semester" data-confirm-ok="Yes, Continue">
                     <div class="modal-body p-4">
                         <div class="d-flex align-items-center justify-content-center gap-3 mb-3" style="font-size:14px;">
                             <span class="fw-semibold text-muted"><?php echo e($term['current_academic_year']); ?><br><?php echo e($term['current_semester']); ?></span>

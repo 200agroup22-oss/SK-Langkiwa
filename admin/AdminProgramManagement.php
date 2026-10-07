@@ -1032,7 +1032,7 @@ $activeLink = 'AdminProgramManagement';
                                     <button type="button" class="action-btn btn-edit" data-bs-toggle="modal" data-bs-target="#manageTabsModal<?php echo $cid; ?>"><i class="bi bi-layout-sidebar-inset"></i> Manage Tabs</button>
                                 <?php endif; ?>
                                 <?php if ($isSuperAdmin): ?>
-                                    <form method="post" class="d-inline" onsubmit="return confirm('Archive this committee? Its programs will stay as-is, but the committee will be hidden from this list.');">
+                                    <form method="post" class="d-inline" data-confirm="Its programs will stay as-is, but the committee will be hidden from this list." data-confirm-title="Archive Committee" data-confirm-ok="Yes, Archive">
                                         <input type="hidden" name="committee_id" value="<?php echo $cid; ?>">
                                         <button type="submit" name="archive_committee" class="action-btn btn-archive-program"><i class="bi bi-archive"></i> Archive</button>
                                     </form>
@@ -1116,7 +1116,7 @@ $activeLink = 'AdminProgramManagement';
                                                 <?php echo $p['status'] === 'active' ? 'Deactivate' : 'Activate'; ?>
                                             </button>
                                         </form>
-                                        <form method="post" class="d-inline" onsubmit="return confirm('Archive this program?');">
+                                        <form method="post" class="d-inline" data-confirm="Are you sure you want to archive this program?" data-confirm-title="Archive Program" data-confirm-ok="Yes, Archive">
                                             <input type="hidden" name="program_id" value="<?php echo $pid; ?>">
                                             <button type="submit" name="archive_program" class="action-btn btn-archive-program"><i class="bi bi-archive"></i> Archive</button>
                                         </form>
@@ -1217,7 +1217,7 @@ $activeLink = 'AdminProgramManagement';
                                         <td class="d-flex gap-1">
                                             <button type="button" class="btn-view" data-bs-toggle="modal" data-bs-target="#viewAnnouncementModal<?php echo $a['announcement_id']; ?>"><i class="bi bi-eye"></i> View</button>
                                             <button type="button" class="btn-edit" onclick='openEditAnnouncement(<?php echo json_encode($a); ?>)' data-bs-toggle="modal" data-bs-target="#addAnnouncementModal"><i class="bi bi-pencil"></i> Edit</button>
-                                            <form method="post" class="d-inline" onsubmit="return confirm('Archive this announcement? It will no longer be shown to applicants/scholars.');">
+                                            <form method="post" class="d-inline" data-confirm="It will no longer be shown to applicants/scholars." data-confirm-title="Archive Announcement" data-confirm-ok="Yes, Archive">
                                                 <input type="hidden" name="announcement_id" value="<?php echo $a['announcement_id']; ?>">
                                                 <button type="submit" name="archive_announcement" class="action-btn btn-archive-program"><i class="bi bi-archive"></i> Archive</button>
                                             </form>
@@ -2060,8 +2060,13 @@ $activeLink = 'AdminProgramManagement';
             siteSettingsForm.addEventListener('submit', function(e) {
                 const yearChanged = document.getElementById('settingAcademicYear').value.trim() !== this.dataset.origYear;
                 const semesterChanged = document.getElementById('settingSemester').value !== this.dataset.origSemester;
-                if ((yearChanged || semesterChanged) && !confirm('Change the active Academic Term to "' + document.getElementById('settingAcademicYear').value.trim() + ', ' + document.getElementById('settingSemester').value + '"?\n\nThis starts a fresh activity/allowance tracking period for every scholar going forward. Past terms stay intact.')) {
-                    e.preventDefault();
+                // The shared confirm modal (includes/adminsidebar.php) shows this before the form submits.
+                if (yearChanged || semesterChanged) {
+                    this.dataset.confirm = 'Change the active Academic Term to "' + document.getElementById('settingAcademicYear').value.trim() + ', ' + document.getElementById('settingSemester').value + '"?\n\nThis starts a fresh activity/allowance tracking period for every scholar going forward. Past terms stay intact.';
+                    this.dataset.confirmTitle = 'Change Academic Term';
+                    this.dataset.confirmOk = 'Yes, Change Term';
+                } else {
+                    delete this.dataset.confirm;
                 }
             });
         }

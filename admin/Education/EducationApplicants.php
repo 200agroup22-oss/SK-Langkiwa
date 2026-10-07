@@ -438,13 +438,13 @@ $activeLink = 'EducationApplicants';
                                     <?php endforeach; ?>
                                     <td class="text-center">
                                         <div class="d-flex gap-1 justify-content-center">
-                                            <form method="post" onsubmit="return confirm('Approve renewal for <?php echo e(addslashes($ps['first_name'] . ' ' . $ps['last_name'])); ?>? They will go back on the active Scholars list.');">
+                                            <form method="post" data-confirm="Approve renewal for <?php echo e($ps['first_name'] . ' ' . $ps['last_name']); ?>? They will go back on the active Scholars list." data-confirm-title="Approve Renewal" data-confirm-ok="Yes, Approve" data-confirm-variant="success">
                                                 <input type="hidden" name="scholar_id" value="<?php echo $ps['scholar_id']; ?>">
                                                 <?php if (!isViewOnlyOfficer()): ?>
                                                     <button type="submit" name="approve_renewal" class="btn btn-sm btn-outline-success py-0 px-2" style="font-size:11px;"><i class="bi bi-check-lg"></i> Approve</button>
                                                 <?php endif; ?>
                                             </form>
-                                            <form method="post" onsubmit="return confirm('Decline renewal for <?php echo e(addslashes($ps['first_name'] . ' ' . $ps['last_name'])); ?>? They will be archived and lose scholar-portal access.');">
+                                            <form method="post" data-confirm="Decline renewal for <?php echo e($ps['first_name'] . ' ' . $ps['last_name']); ?>? They will be archived and lose scholar-portal access." data-confirm-title="Decline Renewal" data-confirm-ok="Yes, Decline">
                                                 <input type="hidden" name="scholar_id" value="<?php echo $ps['scholar_id']; ?>">
                                                 <?php if (!isViewOnlyOfficer()): ?>
                                                     <button type="submit" name="decline_renewal" class="btn btn-sm btn-outline-danger py-0 px-2" style="font-size:11px;"><i class="bi bi-x-lg"></i> Decline</button>

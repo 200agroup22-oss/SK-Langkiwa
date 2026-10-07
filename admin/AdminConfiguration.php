@@ -1053,7 +1053,7 @@ $activeLink = 'AdminConfiguration';
                                                             <button type="submit" name="move_field" class="btn btn-sm btn-light py-0 px-1" <?php echo $i === count($fields) - 1 ? 'disabled' : ''; ?>><i class="bi bi-arrow-down"></i></button>
                                                         </form>
                                                         <button type="button" class="btn btn-sm btn-light py-0 px-1" title="Edit" onclick='openEditField(<?php echo $tabId; ?>, <?php echo json_encode($f); ?>)' data-bs-toggle="modal" data-bs-target="#fieldModal<?php echo $tabId; ?>"><i class="bi bi-pencil"></i></button>
-                                                        <form method="post" class="d-inline" onsubmit="return confirm('Remove this field? Existing submitted answers stay, but it will no longer show on the form.');">
+                                                        <form method="post" class="d-inline" data-confirm="Existing submitted answers stay, but it will no longer show on the form." data-confirm-title="Remove Field" data-confirm-ok="Yes, Remove">
                                                             <input type="hidden" name="form_committee_id" value="<?php echo $panel['committee_id']; ?>">
                                                             <input type="hidden" name="form_track" value="<?php echo e($panel['track']); ?>">
                                                             <input type="hidden" name="form_tab_id" value="<?php echo $tabId; ?>">
