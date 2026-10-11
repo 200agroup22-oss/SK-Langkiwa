@@ -39,6 +39,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $email = trim($_POST['email'] ?? '');
         $role = $_POST['role'] ?? 'applicant';
         $positionTitle = trim($_POST['position_title'] ?? '');
+        if (!in_array($role, ['admin', 'committee_admin'], true)) {
+            $positionTitle = ''; // applicants/scholars have no position
+        }
         $password = $_POST['password'] ?? '';
         $committeeIds = (array)($_POST['committee_ids'] ?? []);
 
@@ -93,6 +96,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $email = trim($_POST['email'] ?? '');
         $role = $_POST['role'] ?? 'applicant';
         $positionTitle = trim($_POST['position_title'] ?? '');
+        if (!in_array($role, ['admin', 'committee_admin'], true)) {
+            $positionTitle = ''; // applicants/scholars have no position
+        }
         $status = $_POST['status'] ?? 'active';
         $password = $_POST['password'] ?? '';
         $committeeIds = (array)($_POST['committee_ids'] ?? []);
@@ -585,7 +591,7 @@ $activeLink = 'AdminUserManagement';
                                 </div>
                                 <div class="col-12">
                                     <label class="form-label" style="font-size:13px; font-weight:600;">Position / Sub-role Title <span class="text-muted fw-normal">(e.g. SK Treasurer, Committee Chair on Education)</span></label>
-                                    <input type="text" class="form-control form-control-sm" name="position_title" value="<?php echo e($u['position_title']); ?>" placeholder="Optional display title">
+                                    <input type="text" class="form-control form-control-sm position-input" name="position_title" value="<?php echo e($u['position_title']); ?>" placeholder="Optional display title" <?php echo in_array($u['role'], ['admin', 'committee_admin'], true) ? '' : 'disabled'; ?>>
                                 </div>
                                 <div class="col-12">
                                     <label class="form-label" style="font-size:13px; font-weight:600;">New Password <span class="text-muted fw-normal">(leave blank to keep current)</span></label>
@@ -708,8 +714,8 @@ $activeLink = 'AdminUserManagement';
                                 </div>
                             </div>
                             <div class="col-12">
-                                <label class="form-label" style="font-size:13px; font-weight:600;">Position / Sub-role Title <span class="text-muted fw-normal">(e.g. SK Treasurer)</span></label>
-                                <input type="text" class="form-control form-control-sm" name="position_title" placeholder="Optional display title">
+                                <label class="form-label" style="font-size:13px; font-weight:600;">Position / Sub-role Title <span class="text-muted fw-normal">(e.g. SK Treasurer — Super Admin / Committee Admin only)</span></label>
+                                <input type="text" class="form-control form-control-sm position-input" name="position_title" placeholder="Optional display title" disabled>
                             </div>
                             <div class="col-12">
                                 <label class="form-label" style="font-size:13px; font-weight:600;">Password</label>
@@ -791,6 +797,9 @@ $activeLink = 'AdminUserManagement';
         function toggleCommitteePicker(select) {
             const picker = select.closest('form').querySelector('.committee-picker');
             if (picker) picker.style.display = select.value === 'committee_admin' ? '' : 'none';
+            // A position title only applies to Super Admins and Committee Admins.
+            const position = select.closest('form').querySelector('.position-input');
+            if (position) position.disabled = !(select.value === 'admin' || select.value === 'committee_admin');
         }
 
         function togglePasswordVisibility(btn) {
