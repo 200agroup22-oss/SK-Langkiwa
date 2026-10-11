@@ -14,7 +14,7 @@ $myCommitteeIds = $isSuperAdmin ? [] : getUserCommitteeIds($me['user_id']);
 $isFullAdmin = $me['role'] === 'admin';
 
 // ---- Validate report type ----
-$allowedTypes = ['consolidated', 'applicants', 'beneficiaries', 'financial', 'in-kind', 'disbursement', 'application-status', 'scholars', 'activity-log', 'audit-log'];
+$allowedTypes = ['consolidated', 'applicants', 'beneficiaries', 'financial', 'in-kind', 'disbursement', 'scholars', 'activity-log', 'audit-log'];
 $type = $_GET['type'] ?? '';
 if (!in_array($type, $allowedTypes, true)) {
     http_response_code(400);
@@ -607,66 +607,6 @@ switch ($type) {
 
             renderTable($pdf, $headers, $widths, $rows);
             renderTotalLine($pdf, 'Total Beneficiaries: ' . count($rows));
-            break;
-        }
-
-    case 'application-status': {
-            $headers = ['Committee', 'Pending', 'Approved', 'Declined', 'Total'];
-            $widths = [95, 45, 45, 45, 47];
-
-            $committeesStmt = $conn->prepare("SELECT * FROM committees WHERE (? = 0 OR committee_id = ?) ORDER BY committee_id ASC");
-            $committeesStmt->bind_param('ii', $committeeId, $committeeId);
-            $committeesStmt->execute();
-            $committeeRows = $committeesStmt->get_result()->fetch_all(MYSQLI_ASSOC);
-            $committeesStmt->close();
-
-            $rows = [];
-            $grandApproved = 0;
-            foreach ($committeeRows as $c) {
-                $cid = (int)$c['committee_id'];
-                $stmt = $conn->prepare("SELECT status, COUNT(*) c FROM applications WHERE committee_id = ? AND archived_at IS NULL AND submitted_at BETWEEN ? AND ? AND (? = 0 OR program_id = ?) AND (? = '' OR (program_track = ? AND program_id IS NULL)) GROUP BY status");
-                $stmt->bind_param('issiiss', $cid, $fromInclusive, $toInclusive, $programId, $programId, $trackCode, $trackCode);
-                $stmt->execute();
-                $counts = ['pending' => 0, 'approved' => 0, 'declined' => 0];
-                foreach ($stmt->get_result() as $row) {
-                    if (isset($counts[$row['status']])) $counts[$row['status']] = (int)$row['c'];
-                }
-                $stmt->close();
-                $total = $counts['pending'] + $counts['approved'] + $counts['declined'];
-                $rows[] = [$c['name'], $counts['pending'], $counts['approved'], $counts['declined'], $total];
-                $grandApproved += $counts['approved'];
-            }
-
-            renderTable($pdf, $headers, $widths, $rows);
-            renderTotalLine($pdf, 'Total Beneficiaries (Approved): ' . $grandApproved);
-
-            // ---- Appendix: full applicant list (every status) behind the counts above ----
-            sectionTitle($pdf, 'Applicant List (All Statuses)');
-            $detailHeaders = ['Application ID', 'Full Name', 'Committee', 'Status', 'Submitted At', 'Decided At'];
-            $detailWidths = [28, 60, 50, 33, 53, 53];
-
-            $stmt = $conn->prepare("SELECT a.application_id, u.first_name, u.last_name, c.name AS committee_name, a.status, a.submitted_at, a.decided_at
-            FROM applications a
-            JOIN users u ON u.user_id = a.user_id
-            JOIN committees c ON c.committee_id = a.committee_id
-            WHERE a.archived_at IS NULL AND a.submitted_at BETWEEN ? AND ? AND (? = 0 OR a.committee_id = ?) AND (? = 0 OR a.program_id = ?) AND (? = '' OR (a.program_track = ? AND a.program_id IS NULL))
-            ORDER BY a.committee_id ASC, a.submitted_at ASC");
-            $stmt->bind_param('ssiiiiss', $fromInclusive, $toInclusive, $committeeId, $committeeId, $programId, $programId, $trackCode, $trackCode);
-            $stmt->execute();
-            $detailRows = [];
-            foreach ($stmt->get_result() as $row) {
-                $detailRows[] = [
-                    $row['application_id'],
-                    trim($row['first_name'] . ' ' . $row['last_name']),
-                    $row['committee_name'],
-                    ucfirst($row['status']),
-                    $row['submitted_at'],
-                    $row['decided_at'] ?: '—',
-                ];
-            }
-            $stmt->close();
-
-            renderTable($pdf, $detailHeaders, $detailWidths, $detailRows);
             break;
         }
 
