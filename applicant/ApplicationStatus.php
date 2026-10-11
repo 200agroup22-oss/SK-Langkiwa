@@ -66,7 +66,7 @@ function statusLabel($status)
 {
     if ($status === 'approved') return 'Approved';
     if ($status === 'declined') return 'Declined';
-    return '⏳ Pending';
+    return '<i class="bi bi-hourglass-split me-1"></i>Pending';
 }
 ?>
 <!DOCTYPE html>
@@ -370,7 +370,7 @@ function statusLabel($status)
                             <?php if ($app['status'] !== 'pending'): ?>
                                 <div class="p-3 mb-3" style="background:#fff3cd; border-left:4px solid #ffc107; border-radius:6px; font-size:13px; color:#664d03;">
                                     <i class="bi bi-exclamation-triangle-fill me-1"></i>
-                                    This application has already been <?php echo e(strtolower(statusLabel($app['status']))); ?>. Saving changes here updates your submitted information but does not change that decision — contact your committee if you need it reviewed again.
+                                    This application has already been <?php echo e(strtolower(strip_tags(statusLabel($app['status'])))); ?>. Saving changes here updates your submitted information but does not change that decision — contact your committee if you need it reviewed again.
                                 </div>
                             <?php endif; ?>
 

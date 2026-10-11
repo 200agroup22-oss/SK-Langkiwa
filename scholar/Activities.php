@@ -222,13 +222,13 @@ $absent = count(array_filter($rows, fn($r) => $r['status'] === 'absent'));
                 <div class="col-lg-4 col-md-6">
                     <div class="activities">
                         <div class="d-flex justify-content-between align-items-start mb-2">
-                            <div class="activity-title">🟢 <?php echo e($r['title']); ?></div>
+                            <div class="activity-title"><i class="bi bi-circle-fill text-success me-1" style="font-size:10px;"></i><?php echo e($r['title']); ?></div>
                             <?php if ($r['status'] === 'present'): ?>
-                                <span class="badge-submitted">✅ Present</span>
+                                <span class="badge-submitted"><i class="bi bi-check-circle-fill me-1"></i>Present</span>
                             <?php elseif ($r['status'] === 'absent'): ?>
-                                <span class="badge-absent">❌ Absent</span>
+                                <span class="badge-absent"><i class="bi bi-x-circle-fill me-1"></i>Absent</span>
                             <?php else: ?>
-                                <span class="badge-pending"><strong>⏳ Pending</strong></span>
+                                <span class="badge-pending"><strong><i class="bi bi-hourglass-split me-1"></i>Pending</strong></span>
                             <?php endif; ?>
                         </div>
                         <div class="detail"><i class="bi bi-calendar2 text-success"></i> &nbsp;<strong>When:</strong> <?php echo date('F j, Y', strtotime($r['activity_date'])); ?><?php echo $r['activity_time'] ? ', ' . date('g:i A', strtotime($r['activity_time'])) : ''; ?></div>

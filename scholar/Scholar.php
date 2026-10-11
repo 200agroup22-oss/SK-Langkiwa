@@ -203,10 +203,10 @@ usort($archivedAnnouncements, fn($a, $b) => strtotime($b['archived_at']) <=> str
 
         <!-- Welcome Banner -->
         <div class="welcome mb-4">
-            <h4 class="fw-bold mb-1">Welcome back, <?php echo e($me['first_name']); ?>! 👋</h4>
+            <h4 class="fw-bold mb-1">Welcome back, <?php echo e($me['first_name']); ?>! <i class="bi bi-emoji-smile text-success ms-1"></i></h4>
             <p class="text-muted mb-3" style="font-size: 12px; font-weight: 600; letter-spacing: 0.5px;">ACADEMIC YEAR <?php echo e($term['current_academic_year']); ?> · <?php echo mb_strtoupper(e($term['current_semester'])); ?></p>
             <a href="Activities.php" style="background-color: #45b84d; color: #fff; border-radius: 20px; padding: 7px 20px; font-size: 13px; font-weight: 600; text-decoration: none;">
-                🎓 View my Activities &nbsp;→
+                <i class="bi bi-mortarboard-fill me-1"></i> View my Activities &nbsp;→
             </a>
         </div>
 
@@ -229,7 +229,7 @@ usort($archivedAnnouncements, fn($a, $b) => strtotime($b['archived_at']) <=> str
                     <hr class="my-2">
                     <?php if ($upcoming): ?>
                         <div class="activity-card">
-                            <div class="activity-title">🔴 <u><?php echo e($upcoming['title']); ?></u></div>
+                            <div class="activity-title"><i class="bi bi-circle-fill text-danger me-1" style="font-size:10px;"></i><u><?php echo e($upcoming['title']); ?></u></div>
                             <p><strong>WHEN:</strong> <?php echo date('F j, Y', strtotime($upcoming['activity_date'])); ?><?php echo $upcoming['activity_time'] ? ', ' . date('g:i A', strtotime($upcoming['activity_time'])) : ''; ?></p>
                             <p><strong>WHERE:</strong> <?php echo e($upcoming['venue']); ?></p>
                             <?php if ($upcoming['note']): ?><p><strong>Note:</strong> <?php echo e($upcoming['note']); ?></p><?php endif; ?>

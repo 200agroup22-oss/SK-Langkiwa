@@ -228,10 +228,10 @@ usort($archivedAnnouncements, fn($a, $b) => strtotime($b['archived_at']) <=> str
 
         <!-- Welcome Banner -->
         <div class="welcome-banner mb-4">
-            <h4 class="fw-bold mb-1">Hello, <?php echo e($me['first_name']); ?>! 👋</h4>
+            <h4 class="fw-bold mb-1">Hello, <?php echo e($me['first_name']); ?>! <i class="bi bi-emoji-smile text-success ms-1"></i></h4>
             <p class="text-muted mb-3" style="font-size: 12px; font-weight: 600; letter-spacing: 0.5px;">FINANCIAL ASSISTANCE PROGRAM · <?php echo e($settings['current_academic_year'] ?? ''); ?></p>
             <a href="ApplicationForm.php" class="btn-appform">
-                📋 Apply for Financial Assistance &nbsp;→
+                <i class="bi bi-clipboard-check me-1"></i> Apply for Financial Assistance &nbsp;→
             </a>
         </div>
 

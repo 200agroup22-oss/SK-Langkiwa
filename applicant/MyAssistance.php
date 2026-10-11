@@ -30,7 +30,7 @@ function statusLabel($status)
 {
     if ($status === 'approved') return 'Approved';
     if ($status === 'declined') return 'Declined';
-    return '⏳ Pending';
+    return '<i class="bi bi-hourglass-split me-1"></i>Pending';
 }
 
 function benStatusBadge($status)
