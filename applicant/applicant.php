@@ -45,7 +45,7 @@ $dates = $conn->query("SELECT event_name, event_date FROM important_dates ORDER 
 // announcement_archives, since the same announcement is shown to everyone it was sent to) and this
 // applicant's own personal notifications (e.g. application decisions, archivable outright since
 // those are theirs alone) — merged and sorted so the most recent of either kind shows first.
-$stmt = $conn->prepare("SELECT a.announcement_id, a.title, a.message, a.posted_at FROM announcements a
+$stmt = $conn->prepare("SELECT a.announcement_id, a.title, a.message, a.event_date, a.event_time, a.event_where, a.notes, a.posted_at FROM announcements a
     WHERE a.archived_at IS NULL AND a.sent_to IN ('all','applicants')
     AND NOT EXISTS (SELECT 1 FROM announcement_archives aa WHERE aa.announcement_id = a.announcement_id AND aa.user_id = ?)
     ORDER BY a.posted_at DESC LIMIT 20");
@@ -62,10 +62,10 @@ $stmt->close();
 
 $announcements = [];
 foreach ($broadcastAnnouncements as $a) {
-    $announcements[] = ['type' => 'announcement', 'id' => (int)$a['announcement_id'], 'title' => $a['title'], 'message' => $a['message'], 'posted_at' => $a['posted_at']];
+    $announcements[] = ['type' => 'announcement', 'id' => (int)$a['announcement_id'], 'title' => $a['title'], 'message' => $a['message'], 'event_date' => $a['event_date'], 'event_time' => $a['event_time'], 'event_where' => $a['event_where'], 'notes' => $a['notes'], 'posted_at' => $a['posted_at']];
 }
 foreach ($personalNotifications as $n) {
-    $announcements[] = ['type' => 'notification', 'id' => (int)$n['notification_id'], 'title' => $n['title'], 'message' => $n['message'], 'posted_at' => $n['created_at']];
+    $announcements[] = ['type' => 'notification', 'id' => (int)$n['notification_id'], 'title' => $n['title'], 'message' => $n['message'], 'event_date' => null, 'event_time' => null, 'event_where' => null, 'notes' => null, 'posted_at' => $n['created_at']];
 }
 usort($announcements, fn($a, $b) => strtotime($b['posted_at']) <=> strtotime($a['posted_at']));
 $announcements = array_slice($announcements, 0, 20);
@@ -103,6 +103,25 @@ usort($archivedAnnouncements, fn($a, $b) => strtotime($b['archived_at']) <=> str
     <title>iSKolar ng Langkiwa</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons has no waving-hand glyph; this one icon comes from Google's Material Symbols (only waving_hand is downloaded) -->
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0&icon_names=waving_hand&display=block" rel="stylesheet">
+    <style>
+        .wave-icon {
+            font-family: 'Material Symbols Rounded';
+            font-weight: 400;
+            font-style: normal;
+            font-size: 1em;
+            line-height: 1;
+            display: inline-block;
+            width: 1em;
+            overflow: hidden;
+            white-space: nowrap;
+            vertical-align: -0.12em;
+            margin-left: 4px;
+            color: #f5b301;
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
     <style>
         body {
             background-color: #f0f0f0;
@@ -228,7 +247,7 @@ usort($archivedAnnouncements, fn($a, $b) => strtotime($b['archived_at']) <=> str
 
         <!-- Welcome Banner -->
         <div class="welcome-banner mb-4">
-            <h4 class="fw-bold mb-1">Hello, <?php echo e($me['first_name']); ?>! <i class="bi bi-emoji-smile text-success ms-1"></i></h4>
+            <h4 class="fw-bold mb-1">Hello, <?php echo e($me['first_name']); ?>! <span class="wave-icon" aria-hidden="true">waving_hand</span></h4>
             <p class="text-muted mb-3" style="font-size: 12px; font-weight: 600; letter-spacing: 0.5px;">FINANCIAL ASSISTANCE PROGRAM · <?php echo e($settings['current_academic_year'] ?? ''); ?></p>
             <a href="ApplicationForm.php" class="btn-appform">
                 <i class="bi bi-clipboard-check me-1"></i> Apply for Financial Assistance &nbsp;→
@@ -333,7 +352,10 @@ usort($archivedAnnouncements, fn($a, $b) => strtotime($b['archived_at']) <=> str
                             <div class="announcement-item d-flex justify-content-between align-items-start gap-2">
                                 <div>
                                     <p class="fw-semibold mb-1" style="font-size: 13px;"><?php echo e($a['title']); ?></p>
-                                    <p class="mb-0" style="font-size: 12px; color: #444;"><?php echo e($a['message']); ?></p>
+                                    <p class="mb-1" style="font-size: 12px; color: #444;"><?php echo nl2br(e($a['message'])); ?></p>
+                                    <?php if (!empty($a['event_date'])): ?><div style="font-size: 12px; color: #333; margin-bottom: 2px;"><strong>When:</strong> <?php echo date('F j, Y', strtotime($a['event_date'])); ?><?php echo !empty($a['event_time']) ? ' — ' . date('g:i A', strtotime($a['event_time'])) : ''; ?></div><?php endif; ?>
+                                    <?php if (!empty($a['event_where'])): ?><div style="font-size: 12px; color: #333; margin-bottom: 2px;"><strong>Where:</strong> <?php echo e($a['event_where']); ?></div><?php endif; ?>
+                                    <?php if (!empty($a['notes'])): ?><div style="font-size: 12px; color: #333; margin-bottom: 2px;"><strong>Note:</strong> <?php echo e($a['notes']); ?></div><?php endif; ?>
                                     <p class="text-muted mb-0 mt-1" style="font-size: 11px;">Posted: <?php echo date('F j, Y', strtotime($a['posted_at'])); ?></p>
                                 </div>
                                 <button type="button" class="btn btn-sm p-0 text-muted" style="font-size:14px; line-height:1;" title="Archive" onclick="confirmArchiveAnnouncement('<?php echo $a['type']; ?>', <?php echo $a['id']; ?>)">
