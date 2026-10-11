@@ -32,6 +32,11 @@ if (!$isFullAdmin && in_array($type, ['activity-log', 'audit-log'], true)) {
 
 // ---- Validate committee (must be 'all' or a real committee code) ----
 $committeeCode = $_GET['committee'] ?? 'all';
+// The Activity Participation Report only covers Education's iSKolar scholars, whatever was sent.
+if ($type === 'scholars') {
+    $committeeCode = 'education';
+    $_GET['program'] = 'track:scholarship';
+}
 $committeeId = 0; // sentinel for "all"
 $committeeLabel = 'All Committees';
 if ($committeeCode !== 'all') {
@@ -134,7 +139,7 @@ if ($from > $to) {
 $toInclusive = $to . ' 23:59:59';
 $fromInclusive = $from . ' 00:00:00';
 
-$reportLabelOverrides = ['activity-log' => 'Activity Log', 'audit-log' => 'Audit Trail'];
+$reportLabelOverrides = ['activity-log' => 'Activity Log', 'audit-log' => 'Audit Trail', 'scholars' => 'Activity Participation'];
 $reportLabel = $reportLabelOverrides[$type] ?? ucfirst(str_replace('-', ' ', $type));
 $scopeLabel = $committeeLabel . ($programLabel !== null ? ' — ' . $programLabel : '') . ($termLabel !== '' ? ' — ' . $termLabel : '');
 logAudit('Generated Report', $reportLabel . ' / ' . $scopeLabel . ' / ' . $from . ' to ' . $to);

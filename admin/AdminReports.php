@@ -977,7 +977,7 @@ $activeLink = 'AdminReports';
                                 <option value="financial">Financial / Funds Released Report</option>
                                 <option value="in-kind">In-Kind Assistance Report</option>
                                 <option value="disbursement">Disbursement Report</option>
-                                <option value="scholars">Scholars Report (incl. Activity Participation)</option>
+                                <option value="scholars">Activity Participation Report</option>
                                 <?php if ($isFullAdmin): ?>
                                     <option value="activity-log">Activity Log Report</option>
                                     <option value="audit-log">Audit Trail Report</option>
@@ -1008,7 +1008,7 @@ $activeLink = 'AdminReports';
                                     <option value="<?php echo e($t['academic_year'] . '|' . $t['semester']); ?>"><?php echo e($t['academic_year'] . ' - ' . $t['semester']); ?><?php echo $i === 0 ? ' (Current)' : ''; ?></option>
                                 <?php endforeach; ?>
                             </select>
-                            <div class="form-text" style="font-size:11.5px;" id="reportTermHint">Only applies to Education (Scholars Report) — pick a specific academic term, or leave as N/A for other committees.</div>
+                            <div class="form-text" style="font-size:11.5px;" id="reportTermHint">Only applies to Education (Activity Participation Report) — pick a specific academic term, or leave as N/A for other committees.</div>
                         </div>
                         <div class="row g-2">
                             <div class="col-6">
@@ -1267,7 +1267,7 @@ $activeLink = 'AdminReports';
         // Term only ever applies to Education (scholarship allowance is tracked per academic
         // term; nothing else in the app is) — every other committee shows it locked on "N/A".
         function updateTermAvailability() {
-            const isEducation = reportCommitteeSelect.value === 'education' && !reportCommitteeSelect.disabled;
+            const isEducation = reportCommitteeSelect.value === 'education' && !logReportTypes.includes(reportTypeSelect.value);
             reportTermSelect.disabled = !isEducation;
             reportTermSelect.value = isEducation ? reportTermSelect.options[1].value : '';
         }
@@ -1288,8 +1288,13 @@ $activeLink = 'AdminReports';
         });
 
         // Activity/Audit logs aren't scoped to a committee or program, so lock those filters out when picked.
+        // The Activity Participation Report only exists for Education's iSKolar scholars, so picking it
+        // fills in (and locks) Education + iSKolar ng Langkiwa automatically.
         reportTypeSelect.addEventListener('change', function() {
             const isLogReport = logReportTypes.includes(this.value);
+            const isParticipation = this.value === 'scholars';
+            const educationOption = Array.from(reportCommitteeSelect.options).find(o => o.value === 'education');
+
             reportCommitteeSelect.value = 'all';
             reportCommitteeSelect.disabled = isLogReport;
             reportProgramSelect.innerHTML = '<option value="all" selected>All Programs</option>';
@@ -1297,6 +1302,15 @@ $activeLink = 'AdminReports';
             reportProgramHint.textContent = isLogReport ?
                 'Not applicable to this report — activity and audit logs are system-wide.' :
                 'Pick a committee to filter by a specific program, or leave it on "All Programs".';
+
+            if (isParticipation && educationOption) {
+                reportCommitteeSelect.value = 'education';
+                reportCommitteeSelect.dispatchEvent(new Event('change')); // fills in Education's programs
+                reportProgramSelect.value = 'track:scholarship';
+                reportCommitteeSelect.disabled = true;
+                reportProgramSelect.disabled = true;
+                reportProgramHint.textContent = 'Set automatically — this report covers Education scholars (iSKolar ng Langkiwa) only.';
+            }
             updateTermAvailability();
         });
 
@@ -1306,8 +1320,12 @@ $activeLink = 'AdminReports';
         document.getElementById('generateReportForm').addEventListener('submit', function(e) {
             e.preventDefault();
             const reportType = document.getElementById('reportType').value;
-            const committee = reportCommitteeSelect.disabled ? 'all' : document.getElementById('reportCommittee').value;
-            const program = reportProgramSelect.disabled ? 'all' : reportProgramSelect.value;
+            const isLogReport = logReportTypes.includes(reportType);
+            const isParticipation = reportType === 'scholars' && reportCommitteeSelect.value === 'education';
+            // Locked-on-purpose selects (Activity Participation) still send their value; a disabled
+            // committee/program otherwise means "not applicable", i.e. all.
+            const committee = isLogReport ? 'all' : reportCommitteeSelect.value;
+            const program = (reportProgramSelect.disabled && !isParticipation) ? 'all' : reportProgramSelect.value;
             const term = reportTermSelect.disabled ? '' : reportTermSelect.value;
             const dateFrom = document.getElementById('reportDateFrom').value;
             const dateTo = document.getElementById('reportDateTo').value;
