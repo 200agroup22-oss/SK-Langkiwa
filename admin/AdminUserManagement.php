@@ -390,7 +390,7 @@ $activeLink = 'AdminUserManagement';
         <!-- Table -->
         <div class="table-card">
             <div class="table-responsive-wrap">
-                <table class="table mb-0">
+                <table class="table table-stack mb-0">
                     <thead>
                         <tr>
                             <th>User ID</th>
@@ -409,17 +409,17 @@ $activeLink = 'AdminUserManagement';
                         <?php endif; ?>
                         <?php foreach ($pagedUsers as $u): ?>
                             <tr>
-                                <td><?php echo str_pad($u['user_id'], 3, '0', STR_PAD_LEFT); ?></td>
-                                <td><?php echo e($u['full_name']); ?></td>
-                                <td><?php echo e($u['email']); ?></td>
-                                <td>
+                                <td data-label="User ID"><?php echo str_pad($u['user_id'], 3, '0', STR_PAD_LEFT); ?></td>
+                                <td data-label="Full Name"><?php echo e($u['full_name']); ?></td>
+                                <td data-label="Email"><?php echo e($u['email']); ?></td>
+                                <td data-label="Role">
                                     <span class="badge-role"><?php echo e(roleLabel($u['role'], $u['position_title'], $u['is_secretary'] ?? false, $u['is_treasurer'] ?? false)); ?></span>
                                     <?php if (isCommitteeScopedRole($u['role']) && empty($u['position_title'])): ?>
                                         <div class="text-muted mt-1" style="font-size:11px;"><?php echo (!empty($u['is_secretary']) || !empty($u['is_treasurer'])) ? 'All committees' : e(implode(', ', $committeeNamesByUser[(int)$u['user_id']] ?? []) ?: 'No committees assigned yet'); ?></div>
                                     <?php endif; ?>
                                 </td>
-                                <td><span class="<?php echo $u['status'] === 'active' ? 'badge-active' : 'badge-inactive'; ?>"><?php echo ucfirst(e($u['status'])); ?></span></td>
-                                <td class="d-flex gap-1">
+                                <td data-label="Status"><span class="<?php echo $u['status'] === 'active' ? 'badge-active' : 'badge-inactive'; ?>"><?php echo ucfirst(e($u['status'])); ?></span></td>
+                                <td data-label="Action" class="d-flex gap-1 flex-wrap">
                                     <button class="btn-view" data-bs-toggle="modal" data-bs-target="#viewUserModal<?php echo $u['user_id']; ?>"><i class="bi bi-eye"></i> View</button>
                                     <button class="btn-edit" data-bs-toggle="modal" data-bs-target="#editUserModal<?php echo $u['user_id']; ?>"><i class="bi bi-pencil"></i> Edit</button>
                                     <button class="btn-archive" data-bs-toggle="modal" data-bs-target="#archiveUserModal<?php echo $u['user_id']; ?>"><i class="bi bi-archive"></i> Archive</button>

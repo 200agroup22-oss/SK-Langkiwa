@@ -684,6 +684,89 @@ a.doc-item:hover {
   }
 }
 
+.role-badge {
+  white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+  .topbar {
+    padding: 0 12px;
+  }
+
+  .topbar > .d-flex {
+    gap: 8px !important;
+    flex-shrink: 0;
+  }
+
+  .role-badge {
+    font-size: 11px;
+    padding: 3px 10px;
+  }
+
+  .main-content {
+    padding: 14px;
+  }
+
+  .filter-select {
+    flex: 1 1 140px;
+    min-width: 0;
+  }
+
+  /* Stack rows as cards for tables marked .table-stack (cells need data-label) */
+  .table-stack {
+    min-width: 0;
+  }
+
+  .table-stack thead {
+    display: none;
+  }
+
+  .table-stack,
+  .table-stack tbody,
+  .table-stack tr,
+  .table-stack td {
+    display: block;
+    width: 100%;
+  }
+
+  .table-stack tbody tr {
+    padding: 8px 4px;
+    border-bottom: 1px solid #e3e3e3;
+  }
+
+  .table-stack tbody tr:last-child {
+    border-bottom: none;
+  }
+
+  .table-stack tbody td {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    border-bottom: none;
+    padding: 5px 10px;
+    text-align: right;
+    word-break: break-word;
+  }
+
+  .table-stack tbody td[data-label]::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    font-weight: 600;
+    color: #1b5e20;
+    text-align: left;
+  }
+
+  .table-stack tbody td.d-flex {
+    justify-content: flex-end;
+  }
+
+  .table-stack tbody td[colspan] {
+    display: table-cell;
+    text-align: center;
+  }
+}
+
 @media (max-width: 576px) {
   .search-box {
     width: 100%;
