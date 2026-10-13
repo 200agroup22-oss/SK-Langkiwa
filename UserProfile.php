@@ -392,7 +392,7 @@ if (!empty($user['is_treasurer'])) {
                         <label class="form-label">New Password</label>
                         <div class="input-group">
                             <span class="input-group-text"><i class="bi bi-lock-fill"></i></span>
-                            <input type="password" name="new_password" class="form-control" placeholder="Enter new password" minlength="8" pattern="(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}" title="At least 8 characters, including one uppercase letter, one number, and one special character.">
+                            <input type="password" name="new_password" class="form-control" placeholder="Enter new password" minlength="8" maxlength="72" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9])\S{8,72}" title="8-72 characters, no spaces, with at least one lowercase letter, one uppercase letter, one number, and one special character.">
                             <span class="input-group-text" style="cursor:pointer;" onclick="togglePasswordVisibility(this)"><i class="bi bi-eye-fill"></i></span>
                         </div>
                         <div class="form-text" style="font-size:11.5px;">At least 8 characters, with one uppercase letter, one number, and one special character.</div>

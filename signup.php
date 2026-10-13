@@ -22,8 +22,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $old = ['last_name' => $lastName, 'first_name' => $firstName, 'middle_name' => $middleName, 'age' => $age, 'gender' => $gender, 'email' => $email];
 
     $errors = [];
-    if ($lastName === '' || $firstName === '') {
-        $errors[] = 'Last name and first name are required.';
+    foreach (
+        [
+            validatePersonName($lastName, 'Last name'),
+            validatePersonName($firstName, 'First name'),
+            validatePersonName($middleName, 'Middle name', false),
+        ] as $nameError
+    ) {
+        if ($nameError) {
+            $errors[] = $nameError;
+        }
     }
     if (!in_array($gender, ['Male', 'Female'], true)) {
         $errors[] = 'Please select a gender.';
@@ -31,8 +39,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($age === '' || !ctype_digit($age) || (int)$age < 15 || (int)$age > 30) {
         $errors[] = 'Age must be between 15 and 30 — this system is for the Sangguniang Kabataan (youth).';
     }
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $errors[] = 'Please enter a valid email address.';
+    if ($emailError = validateEmailAddress($email)) {
+        $errors[] = $emailError;
     }
     $passwordError = validatePasswordStrength($password);
     if ($passwordError) {
@@ -130,21 +138,21 @@ $privacyText = $settings['privacy_policy'] ?? '';
                             <label class="form-label">Last Name</label>
                             <div class="input-group">
                                 <span class="input-group-text"><i class="bi bi-person-fill"></i></span>
-                                <input type="text" name="last_name" class="form-control" placeholder="Last name" value="<?php echo e($old['last_name']); ?>" required>
+                                <input type="text" name="last_name" class="form-control" pattern="\p{L}[\p{L} .'\-]*" maxlength="50" title="Letters, spaces, hyphens, apostrophes, and periods only." placeholder="Last name" value="<?php echo e($old['last_name']); ?>" required>
                             </div>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">First Name</label>
                             <div class="input-group">
                                 <span class="input-group-text"><i class="bi bi-person-fill"></i></span>
-                                <input type="text" name="first_name" class="form-control" placeholder="First name" value="<?php echo e($old['first_name']); ?>" required>
+                                <input type="text" name="first_name" class="form-control" pattern="\p{L}[\p{L} .'\-]*" maxlength="50" title="Letters, spaces, hyphens, apostrophes, and periods only." placeholder="First name" value="<?php echo e($old['first_name']); ?>" required>
                             </div>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Middle Name</label>
                             <div class="input-group">
                                 <span class="input-group-text"><i class="bi bi-person-fill"></i></span>
-                                <input type="text" name="middle_name" class="form-control" placeholder="Middle name" value="<?php echo e($old['middle_name']); ?>">
+                                <input type="text" name="middle_name" class="form-control" pattern="\p{L}[\p{L} .'\-]*" maxlength="50" title="Letters, spaces, hyphens, apostrophes, and periods only." placeholder="Middle name" value="<?php echo e($old['middle_name']); ?>">
                             </div>
                         </div>
                     </div>
@@ -174,7 +182,7 @@ $privacyText = $settings['privacy_policy'] ?? '';
                         <label class="form-label">Email</label>
                         <div class="input-group">
                             <span class="input-group-text"><i class="bi bi-envelope-fill"></i></span>
-                            <input type="email" name="email" class="form-control" placeholder="Enter your email" value="<?php echo e($old['email']); ?>" required>
+                            <input type="email" name="email" class="form-control" maxlength="100" placeholder="Enter your email" value="<?php echo e($old['email']); ?>" required>
                         </div>
                     </div>
 
@@ -183,10 +191,10 @@ $privacyText = $settings['privacy_policy'] ?? '';
                             <label class="form-label">Password</label>
                             <div class="input-group">
                                 <span class="input-group-text"><i class="bi bi-lock-fill"></i></span>
-                                <input type="password" name="password" class="form-control" placeholder="Enter your password" minlength="8" pattern="(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}" title="At least 8 characters, including one uppercase letter, one number, and one special character." required>
+                                <input type="password" name="password" class="form-control" placeholder="Enter your password" minlength="8" maxlength="72" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9])\S{8,72}" title="8-72 characters, no spaces, with at least one lowercase letter, one uppercase letter, one number, and one special character." required>
                                 <span class="input-group-text" style="cursor:pointer;" onclick="togglePasswordVisibility(this)"><i class="bi bi-eye-fill"></i></span>
                             </div>
-                            <div class="form-text" style="font-size:11.5px;">At least 8 characters, with one uppercase letter, one number, and one special character.</div>
+                            <div class="form-text" style="font-size:11.5px;">At least 8 characters, with one lowercase letter, one uppercase letter, one number, and one special character. No spaces.</div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Confirm Password</label>

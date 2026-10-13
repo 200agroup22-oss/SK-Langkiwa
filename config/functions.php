@@ -49,6 +49,15 @@ function validatePasswordStrength($password)
     if (strlen($password) < 8) {
         return 'Password must be at least 8 characters.';
     }
+    if (strlen($password) > 72) {
+        return 'Password must be at most 72 characters.';
+    }
+    if (preg_match('/\s/', $password)) {
+        return 'Password must not contain spaces.';
+    }
+    if (!preg_match('/[a-z]/', $password)) {
+        return 'Password must contain at least one lowercase letter.';
+    }
     if (!preg_match('/[A-Z]/', $password)) {
         return 'Password must contain at least one uppercase letter.';
     }
@@ -57,6 +66,32 @@ function validatePasswordStrength($password)
     }
     if (!preg_match('/[^A-Za-z0-9]/', $password)) {
         return 'Password must contain at least one special character.';
+    }
+    return null;
+}
+
+// Name rule: letters (incl. accented), spaces, hyphens, apostrophes, and periods only — no digits
+// or other special characters — up to 50 characters. Returns an error message, or null if valid.
+// An empty value is valid unless $required.
+function validatePersonName($value, $label, $required = true)
+{
+    if ($value === '') {
+        return $required ? "$label is required." : null;
+    }
+    if (mb_strlen($value) > 50) {
+        return "$label must be at most 50 characters.";
+    }
+    if (!preg_match("/^\p{L}[\p{L} .'\-]*$/u", $value)) {
+        return "$label may only contain letters, spaces, hyphens, apostrophes, and periods.";
+    }
+    return null;
+}
+
+// Email rule: valid format, up to 100 characters. Returns an error message, or null if valid.
+function validateEmailAddress($email)
+{
+    if (strlen($email) > 100 || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return 'Please enter a valid email address.';
     }
     return null;
 }

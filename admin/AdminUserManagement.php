@@ -61,8 +61,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $isSecretary = ($role === 'committee_admin' && isset($_POST['is_secretary'])) ? 1 : 0;
         $isTreasurer = ($role === 'committee_admin' && isset($_POST['is_treasurer'])) ? 1 : 0;
 
-        if ($lastName === '' || $firstName === '' || $email === '' || $password === '') {
-            setFlash('error', 'Last name, first name, email, and password are required.');
+        $validationError = validatePersonName($lastName, 'Last name')
+            ?? validatePersonName($firstName, 'First name')
+            ?? validatePersonName($middleName, 'Middle name', false)
+            ?? validateEmailAddress($email)
+            ?? ($password === '' ? 'Password is required.' : validatePasswordStrength($password));
+        if ($validationError === null && $ageRaw !== '' && (!ctype_digit($ageRaw) || (int)$ageRaw < 1 || (int)$ageRaw > 120)) {
+            $validationError = 'Please enter a valid age.';
+        }
+
+        if ($validationError !== null) {
+            setFlash('error', $validationError);
         } elseif (isCommitteeScopedRole($role) && empty($committeeIds) && !$isSecretary && !$isTreasurer) {
             setFlash('error', 'Select at least one committee, or check Secretary/Treasurer, for a Committee Admin.');
         } else {
@@ -128,8 +137,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $isSelf = $targetId === (int)$me['user_id'];
         if ($isSelf && $role !== 'admin') {
             setFlash('error', 'You cannot change your own role away from admin.');
-        } elseif ($lastName === '' || $firstName === '' || $email === '') {
-            setFlash('error', 'Last name, first name, and email are required.');
+        } elseif ($validationError = validatePersonName($lastName, 'Last name')
+            ?? validatePersonName($firstName, 'First name')
+            ?? validatePersonName($middleName, 'Middle name', false)
+            ?? validateEmailAddress($email)
+            ?? ($password !== '' ? validatePasswordStrength($password) : null)
+            ?? (($ageRaw !== '' && (!ctype_digit($ageRaw) || (int)$ageRaw < 1 || (int)$ageRaw > 120)) ? 'Please enter a valid age.' : null)
+        ) {
+            setFlash('error', $validationError);
         } elseif (isCommitteeScopedRole($role) && empty($committeeIds) && !$isSecretary && !$isTreasurer) {
             setFlash('error', 'Select at least one committee, or check Secretary/Treasurer, for a Committee Admin.');
         } else {
@@ -527,19 +542,19 @@ $activeLink = 'AdminUserManagement';
                             <div class="row g-3">
                                 <div class="col-md-6">
                                     <label class="form-label" style="font-size:13px; font-weight:600;">First Name</label>
-                                    <input type="text" class="form-control form-control-sm" name="first_name" value="<?php echo e($u['first_name']); ?>" required>
+                                    <input type="text" class="form-control form-control-sm" name="first_name" pattern="\p{L}[\p{L} .'\-]*" maxlength="50" title="Letters, spaces, hyphens, apostrophes, and periods only." value="<?php echo e($u['first_name']); ?>" required>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label" style="font-size:13px; font-weight:600;">Last Name</label>
-                                    <input type="text" class="form-control form-control-sm" name="last_name" value="<?php echo e($u['last_name']); ?>" required>
+                                    <input type="text" class="form-control form-control-sm" name="last_name" pattern="\p{L}[\p{L} .'\-]*" maxlength="50" title="Letters, spaces, hyphens, apostrophes, and periods only." value="<?php echo e($u['last_name']); ?>" required>
                                 </div>
                                 <div class="col-12">
                                     <label class="form-label" style="font-size:13px; font-weight:600;">Middle Name</label>
-                                    <input type="text" class="form-control form-control-sm" name="middle_name" value="<?php echo e($u['middle_name']); ?>" placeholder="Optional">
+                                    <input type="text" class="form-control form-control-sm" name="middle_name" pattern="\p{L}[\p{L} .'\-]*" maxlength="50" title="Letters, spaces, hyphens, apostrophes, and periods only." value="<?php echo e($u['middle_name']); ?>" placeholder="Optional">
                                 </div>
                                 <div class="col-12">
                                     <label class="form-label" style="font-size:13px; font-weight:600;">Email</label>
-                                    <input type="email" class="form-control form-control-sm" name="email" value="<?php echo e($u['email']); ?>" required>
+                                    <input type="email" class="form-control form-control-sm" maxlength="100" name="email" value="<?php echo e($u['email']); ?>" required>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label" style="font-size:13px; font-weight:600;">Age</label>
@@ -596,7 +611,7 @@ $activeLink = 'AdminUserManagement';
                                 <div class="col-12">
                                     <label class="form-label" style="font-size:13px; font-weight:600;">New Password <span class="text-muted fw-normal">(leave blank to keep current)</span></label>
                                     <div class="input-group input-group-sm">
-                                        <input type="password" class="form-control" name="password" placeholder="Enter new password">
+                                        <input type="password" class="form-control" name="password" minlength="8" maxlength="72" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9])\S{8,72}" title="8-72 characters, no spaces, with at least one lowercase letter, one uppercase letter, one number, and one special character." placeholder="Enter new password">
                                         <span class="input-group-text" style="cursor:pointer;" onclick="togglePasswordVisibility(this)"><i class="bi bi-eye-fill"></i></span>
                                     </div>
                                 </div>
@@ -657,19 +672,19 @@ $activeLink = 'AdminUserManagement';
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <label class="form-label" style="font-size:13px; font-weight:600;">First Name</label>
-                                <input type="text" class="form-control form-control-sm" name="first_name" placeholder="First name" required>
+                                <input type="text" class="form-control form-control-sm" name="first_name" pattern="\p{L}[\p{L} .'\-]*" maxlength="50" title="Letters, spaces, hyphens, apostrophes, and periods only." placeholder="First name" required>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label" style="font-size:13px; font-weight:600;">Last Name</label>
-                                <input type="text" class="form-control form-control-sm" name="last_name" placeholder="Last name" required>
+                                <input type="text" class="form-control form-control-sm" name="last_name" pattern="\p{L}[\p{L} .'\-]*" maxlength="50" title="Letters, spaces, hyphens, apostrophes, and periods only." placeholder="Last name" required>
                             </div>
                             <div class="col-12">
                                 <label class="form-label" style="font-size:13px; font-weight:600;">Middle Name</label>
-                                <input type="text" class="form-control form-control-sm" name="middle_name" placeholder="Optional">
+                                <input type="text" class="form-control form-control-sm" name="middle_name" pattern="\p{L}[\p{L} .'\-]*" maxlength="50" title="Letters, spaces, hyphens, apostrophes, and periods only." placeholder="Optional">
                             </div>
                             <div class="col-12">
                                 <label class="form-label" style="font-size:13px; font-weight:600;">Email</label>
-                                <input type="email" class="form-control form-control-sm" name="email" placeholder="Enter email address" required>
+                                <input type="email" class="form-control form-control-sm" maxlength="100" name="email" placeholder="Enter email address" required>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label" style="font-size:13px; font-weight:600;">Age</label>
@@ -720,7 +735,7 @@ $activeLink = 'AdminUserManagement';
                             <div class="col-12">
                                 <label class="form-label" style="font-size:13px; font-weight:600;">Password</label>
                                 <div class="input-group input-group-sm">
-                                    <input type="password" class="form-control" name="password" placeholder="Set password" required>
+                                    <input type="password" class="form-control" name="password" minlength="8" maxlength="72" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9])\S{8,72}" title="8-72 characters, no spaces, with at least one lowercase letter, one uppercase letter, one number, and one special character." placeholder="Set password" required>
                                     <span class="input-group-text" style="cursor:pointer;" onclick="togglePasswordVisibility(this)"><i class="bi bi-eye-fill"></i></span>
                                 </div>
                             </div>
