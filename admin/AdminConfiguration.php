@@ -38,6 +38,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    if (isset($_POST['save_theme']) || isset($_POST['reset_theme'])) {
+        $redirectTab = 'themeTab';
+        if (isset($_POST['reset_theme'])) {
+            $primary = null;
+            $secondary = null;
+        } else {
+            $primary = strtolower(trim($_POST['theme_primary'] ?? ''));
+            $secondary = strtolower(trim($_POST['theme_secondary'] ?? ''));
+        }
+        if (isset($_POST['save_theme']) && (!themeIsHex($primary) || !themeIsHex($secondary))) {
+            setFlash('error', 'Please choose valid colors.');
+        } else {
+            themeEnsureColumns();
+            $stmt = $conn->prepare("UPDATE site_settings SET theme_primary = ?, theme_secondary = ? WHERE id = 1");
+            $stmt->bind_param('ss', $primary, $secondary);
+            $stmt->execute();
+            $stmt->close();
+            logAudit('Updated Site Settings', isset($_POST['reset_theme']) ? 'Color theme reset to default' : 'Color theme: ' . $primary . ' / ' . $secondary);
+            setFlash('success', isset($_POST['reset_theme']) ? 'Colors reset to default.' : 'Color theme updated.');
+        }
+    }
+
     if (isset($_POST['save_site_name'])) {
         $siteName = trim($_POST['site_name'] ?? '');
         if ($siteName === '') {
@@ -717,7 +739,99 @@ $activeLink = 'AdminConfiguration';
             <button class="content-tab-btn active" data-tab="settingsTab"><i class="bi bi-gear-fill"></i> Settings</button>
             <button class="content-tab-btn" data-tab="programSettingsTab"><i class="bi bi-ui-checks-grid"></i> Application / Program Settings</button>
             <button class="content-tab-btn" data-tab="formsTab"><i class="bi bi-file-earmark-text"></i> Forms</button>
+            <button class="content-tab-btn" data-tab="themeTab"><i class="bi bi-palette-fill"></i> Appearance</button>
         </div>
+
+        <!-- ==============================
+             SECTION: APPEARANCE (system colors)
+        ============================== -->
+        <div class="tab-pane-custom" id="themeTab">
+            <?php $theme = themeColors(); ?>
+            <div class="config-card">
+                <div class="card-section-title"><i class="bi bi-palette-fill"></i> Appearance</div>
+                <div class="card-section-sub">Choose the colors used across the whole system — header, buttons, tables, and highlights for every user role.</div>
+
+                <form method="post">
+                    <div class="row g-4 align-items-start">
+                        <div class="col-lg-6">
+                            <div class="mb-3">
+                                <div class="setting-label">Primary color</div>
+                                <div class="setting-desc mb-2">Buttons, active tabs, links, and accents.</div>
+                                <div class="d-flex align-items-center gap-2">
+                                    <input type="color" id="themePrimary" name="theme_primary" class="form-control form-control-color" value="<?php echo e($theme['primary']); ?>">
+                                    <code id="themePrimaryText"><?php echo e($theme['primary']); ?></code>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <div class="setting-label">Header gradient color</div>
+                                <div class="setting-desc mb-2">The lighter color the top header fades into.</div>
+                                <div class="d-flex align-items-center gap-2">
+                                    <input type="color" id="themeSecondary" name="theme_secondary" class="form-control form-control-color" value="<?php echo e($theme['secondary']); ?>">
+                                    <code id="themeSecondaryText"><?php echo e($theme['secondary']); ?></code>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <div class="setting-label mb-2">Presets</div>
+                                <div class="d-flex flex-wrap gap-2" id="themePresets">
+                                    <?php foreach ([['Green (default)', '#45b8' . '4d', '#aada' . 'ad'] /* split so the theme color swap doesn't rewrite the default preset */, ['Blue', '#2f80ed', '#a9cdf8'], ['Purple', '#8e44ad', '#d2b4de'], ['Red', '#d9433b', '#f1b5b1'], ['Orange', '#f08c1a', '#f8d3a0'], ['Teal', '#16a39a', '#a3e0db']] as $pr): ?>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-2" data-p="<?php echo $pr[1]; ?>" data-s="<?php echo $pr[2]; ?>">
+                                            <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:linear-gradient(90deg,<?php echo $pr[1]; ?>,<?php echo $pr[2]; ?>);"></span><?php echo e($pr[0]); ?>
+                                        </button>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="setting-label mb-2">Preview</div>
+                            <div style="border:1px solid #ddd;border-radius:10px;overflow:hidden;">
+                                <div id="themePrevBar" style="height:44px;display:flex;align-items:center;padding:0 14px;color:#fff;font-weight:700;">Header</div>
+                                <div style="padding:14px;background:#fff;">
+                                    <button type="button" id="themePrevBtn" class="btn btn-sm text-white me-2">Primary button</button>
+                                    <span id="themePrevTag" style="font-size:12px;font-weight:600;padding:4px 10px;border-radius:8px;">Highlight</span>
+                                </div>
+                            </div>
+                            <div class="text-muted mt-2" style="font-size:12px;">Shades for hover states and tints are generated automatically from the primary color. Pick a medium-dark color so white text stays readable.</div>
+                        </div>
+                    </div>
+                    <div class="mt-3 d-flex gap-2">
+                        <button type="submit" name="save_theme" class="btn btn-sm btn-success"><i class="bi bi-save me-1"></i> Save Colors</button>
+                        <button type="submit" name="reset_theme" class="btn btn-sm btn-outline-secondary" onclick="return confirm('Reset colors to the default green?');"><i class="bi bi-arrow-counterclockwise me-1"></i> Reset to Default</button>
+                    </div>
+                </form>
+            </div>
+        </div><!-- /themeTab -->
+        <script>
+            (function() {
+                const p = document.getElementById('themePrimary'),
+                    s = document.getElementById('themeSecondary');
+
+                function mix(hex, t, to) {
+                    const n = parseInt(hex.slice(1), 16),
+                        c = [n >> 16 & 255, n >> 8 & 255, n & 255];
+                    return 'rgb(' + c.map(v => Math.round(v + (to - v) * t)).join(',') + ')';
+                }
+
+                function update() {
+                    document.getElementById('themePrimaryText').textContent = p.value;
+                    document.getElementById('themeSecondaryText').textContent = s.value;
+                    document.getElementById('themePrevBar').style.background = 'linear-gradient(90deg,' + p.value + ',' + s.value + ')';
+                    document.getElementById('themePrevBtn').style.background = p.value;
+                    const tag = document.getElementById('themePrevTag');
+                    tag.style.background = mix(p.value, 0.88, 255);
+                    tag.style.color = mix(p.value, 0.49, 0);
+                }
+                p.addEventListener('input', update);
+                s.addEventListener('input', update);
+                document.querySelectorAll('#themePresets button').forEach(function(b) {
+                    b.addEventListener('click', function() {
+                        p.value = b.dataset.p;
+                        s.value = b.dataset.s;
+                        update();
+                    });
+                });
+                update();
+            })();
+        </script>
 
         <!-- ==============================
              SECTION 1: SETTINGS

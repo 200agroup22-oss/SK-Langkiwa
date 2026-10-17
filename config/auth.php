@@ -10,6 +10,10 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// Apply the Super Admin's chosen color theme (Configuration > Appearance) to every page.
+require_once __DIR__ . '/theme.php';
+themeStart();
+
 function isLoggedIn()
 {
     return isset($_SESSION['user_id']);
