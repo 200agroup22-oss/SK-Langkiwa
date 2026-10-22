@@ -498,6 +498,7 @@ function collapseAttrs($expanded)
     (function() {
         let pendingForm = null;
         let pendingSubmitter = null;
+        let parentModalEl = null;
 
         document.addEventListener('submit', function(e) {
             const form = e.target;
@@ -519,7 +520,31 @@ function collapseAttrs($expanded)
             const okBtn = document.getElementById('confirmActionOk');
             okBtn.textContent = form.dataset.confirmOk || 'Yes, Continue';
             okBtn.className = 'btn btn-sm px-4 btn-' + variant;
-            bootstrap.Modal.getOrCreateInstance(modalEl).show();
+            // A form inside another modal (e.g. End Semester): both modals share one z-index and this
+            // one sits earlier in the DOM, so it would open hidden behind the form's modal. Close the
+            // form's modal first, show the confirmation, and reopen the form's modal if cancelled.
+            const parentEl = form.closest('.modal.show');
+            const confirmModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            if (parentEl) {
+                parentModalEl = parentEl;
+                parentEl.addEventListener('hidden.bs.modal', function() {
+                    confirmModal.show();
+                }, {
+                    once: true
+                });
+                bootstrap.Modal.getOrCreateInstance(parentEl).hide();
+            } else {
+                parentModalEl = null;
+                confirmModal.show();
+            }
+        });
+
+        document.getElementById('confirmActionModal').addEventListener('hidden.bs.modal', function() {
+            // Dismissed without confirming — put the form's own modal back.
+            if (pendingForm && parentModalEl) {
+                bootstrap.Modal.getOrCreateInstance(parentModalEl).show();
+            }
+            if (!pendingForm) parentModalEl = null;
         });
 
         document.getElementById('confirmActionOk').addEventListener('click', function() {

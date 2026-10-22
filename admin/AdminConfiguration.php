@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (isset($_POST['save_theme']) || isset($_POST['reset_theme'])) {
-        $redirectTab = 'themeTab';
+        $redirectTab = 'settingsTab';
         if (isset($_POST['reset_theme'])) {
             $primary = null;
             $secondary = null;
@@ -739,19 +739,58 @@ $activeLink = 'AdminConfiguration';
             <button class="content-tab-btn active" data-tab="settingsTab"><i class="bi bi-gear-fill"></i> Settings</button>
             <button class="content-tab-btn" data-tab="programSettingsTab"><i class="bi bi-ui-checks-grid"></i> Application / Program Settings</button>
             <button class="content-tab-btn" data-tab="formsTab"><i class="bi bi-file-earmark-text"></i> Forms</button>
-            <button class="content-tab-btn" data-tab="themeTab"><i class="bi bi-palette-fill"></i> Appearance</button>
         </div>
 
         <!-- ==============================
-             SECTION: APPEARANCE (system colors)
+             SECTION 1: SETTINGS
         ============================== -->
-        <div class="tab-pane-custom" id="themeTab">
-            <?php $theme = themeColors(); ?>
+        <div class="tab-pane-custom active" id="settingsTab">
             <div class="config-card">
-                <div class="card-section-title"><i class="bi bi-palette-fill"></i> Appearance</div>
-                <div class="card-section-sub">Choose the colors used across the whole system — header, buttons, tables, and highlights for every user role.</div>
+                <div class="card-section-title"><i class="bi bi-gear-fill"></i> Settings</div>
+                <div class="card-section-sub">Configure system-wide settings that apply across all pages and modules.</div>
 
+                <!-- System Name -->
                 <form method="post">
+                    <div class="setting-item">
+                        <div>
+                            <div class="setting-label"><i class="bi bi-card-heading text-success me-1"></i> System Name</div>
+                            <div class="setting-desc">The site/barangay name shown in the header, sidebar, and everywhere else the system identifies itself.</div>
+                        </div>
+                        <div class="setting-control gap-3">
+                            <input type="text" name="site_name" class="form-control form-control-sm" style="max-width:280px;" value="<?php echo e($settings['site_name']); ?>" required>
+                            <button type="submit" name="save_site_name" class="btn btn-sm btn-outline-success"><i class="bi bi-save me-1"></i> Save</button>
+                        </div>
+                    </div>
+                </form>
+
+                <div class="divider"></div>
+
+                <!-- Logo -->
+                <form method="post" enctype="multipart/form-data">
+                    <div class="setting-item">
+                        <div>
+                            <div class="setting-label"><i class="bi bi-image text-success me-1"></i> System Logo</div>
+                            <div class="setting-desc">Upload a new logo that will appear across all pages of the system.</div>
+                        </div>
+                        <div class="setting-control gap-3">
+                            <div class="logo-preview">
+                                <img src="<?php echo $settings['logo_path'] ? APP_BASE . '/' . e($settings['logo_path']) : APP_BASE . '/admin/photos/logo.jpg'; ?>" alt="Current Logo">
+                            </div>
+                            <input type="file" name="logo" class="form-control form-control-sm" accept="image/*" style="max-width:220px;">
+                            <button type="submit" name="save_logo" class="btn btn-sm btn-outline-success"><i class="bi bi-upload me-1"></i> Upload</button>
+                        </div>
+                    </div>
+                </form>
+
+                <div class="divider"></div>
+
+                <!-- System Colors -->
+                <?php $theme = themeColors(); ?>
+                <form method="post">
+                    <div class="mb-2">
+                        <div class="setting-label"><i class="bi bi-palette-fill text-success me-1"></i> System Colors</div>
+                        <div class="setting-desc mt-1 mb-3">Choose the colors used across the whole system — header, buttons, tables, and highlights for every user role.</div>
+                    </div>
                     <div class="row g-4 align-items-start">
                         <div class="col-lg-6">
                             <div class="mb-3">
@@ -798,78 +837,50 @@ $activeLink = 'AdminConfiguration';
                         <button type="submit" name="reset_theme" class="btn btn-sm btn-outline-secondary" onclick="return confirm('Reset colors to the default green?');"><i class="bi bi-arrow-counterclockwise me-1"></i> Reset to Default</button>
                     </div>
                 </form>
-            </div>
-        </div><!-- /themeTab -->
-        <script>
-            (function() {
-                const p = document.getElementById('themePrimary'),
-                    s = document.getElementById('themeSecondary');
+                <script>
+                    (function() {
+                        const p = document.getElementById('themePrimary'),
+                            s = document.getElementById('themeSecondary');
 
-                function mix(hex, t, to) {
-                    const n = parseInt(hex.slice(1), 16),
-                        c = [n >> 16 & 255, n >> 8 & 255, n & 255];
-                    return 'rgb(' + c.map(v => Math.round(v + (to - v) * t)).join(',') + ')';
-                }
+                        function mix(hex, t, to) {
+                            const n = parseInt(hex.slice(1), 16),
+                                c = [n >> 16 & 255, n >> 8 & 255, n & 255];
+                            return 'rgb(' + c.map(v => Math.round(v + (to - v) * t)).join(',') + ')';
+                        }
 
-                function update() {
-                    document.getElementById('themePrimaryText').textContent = p.value;
-                    document.getElementById('themeSecondaryText').textContent = s.value;
-                    document.getElementById('themePrevBar').style.background = 'linear-gradient(90deg,' + p.value + ',' + s.value + ')';
-                    document.getElementById('themePrevBtn').style.background = p.value;
-                    const tag = document.getElementById('themePrevTag');
-                    tag.style.background = mix(p.value, 0.88, 255);
-                    tag.style.color = mix(p.value, 0.49, 0);
-                }
-                p.addEventListener('input', update);
-                s.addEventListener('input', update);
-                document.querySelectorAll('#themePresets button').forEach(function(b) {
-                    b.addEventListener('click', function() {
-                        p.value = b.dataset.p;
-                        s.value = b.dataset.s;
+                        function update() {
+                            document.getElementById('themePrimaryText').textContent = p.value;
+                            document.getElementById('themeSecondaryText').textContent = s.value;
+                            document.getElementById('themePrevBar').style.background = 'linear-gradient(90deg,' + p.value + ',' + s.value + ')';
+                            document.getElementById('themePrevBtn').style.background = p.value;
+                            const tag = document.getElementById('themePrevTag');
+                            tag.style.background = mix(p.value, 0.88, 255);
+                            tag.style.color = mix(p.value, 0.49, 0);
+                        }
+                        p.addEventListener('input', update);
+                        s.addEventListener('input', update);
+                        document.querySelectorAll('#themePresets button').forEach(function(b) {
+                            b.addEventListener('click', function() {
+                                p.value = b.dataset.p;
+                                s.value = b.dataset.s;
+                                update();
+                            });
+                        });
                         update();
-                    });
-                });
-                update();
-            })();
-        </script>
-
-        <!-- ==============================
-             SECTION 1: SETTINGS
-        ============================== -->
-        <div class="tab-pane-custom active" id="settingsTab">
-            <div class="config-card">
-                <div class="card-section-title"><i class="bi bi-gear-fill"></i> Settings</div>
-                <div class="card-section-sub">Configure system-wide settings that apply across all pages and modules.</div>
-
-                <!-- System Name -->
-                <form method="post">
-                    <div class="setting-item">
-                        <div>
-                            <div class="setting-label"><i class="bi bi-card-heading text-success me-1"></i> System Name</div>
-                            <div class="setting-desc">The site/barangay name shown in the header, sidebar, and everywhere else the system identifies itself.</div>
-                        </div>
-                        <div class="setting-control gap-3">
-                            <input type="text" name="site_name" class="form-control form-control-sm" style="max-width:280px;" value="<?php echo e($settings['site_name']); ?>" required>
-                            <button type="submit" name="save_site_name" class="btn btn-sm btn-outline-success"><i class="bi bi-save me-1"></i> Save</button>
-                        </div>
-                    </div>
-                </form>
+                    })();
+                </script>
 
                 <div class="divider"></div>
 
-                <!-- Logo -->
-                <form method="post" enctype="multipart/form-data">
+                <!-- Database Backup -->
+                <form method="post" action="DownloadBackup.php">
                     <div class="setting-item">
                         <div>
-                            <div class="setting-label"><i class="bi bi-image text-success me-1"></i> System Logo</div>
-                            <div class="setting-desc">Upload a new logo that will appear across all pages of the system.</div>
+                            <div class="setting-label"><i class="bi bi-database-down text-success me-1"></i> Database Backup</div>
+                            <div class="setting-desc">Download a full copy of the system database (.sql) — all users, applications, programs, and settings. Keep the file somewhere safe; it contains personal data.</div>
                         </div>
                         <div class="setting-control gap-3">
-                            <div class="logo-preview">
-                                <img src="<?php echo $settings['logo_path'] ? APP_BASE . '/' . e($settings['logo_path']) : APP_BASE . '/admin/photos/logo.jpg'; ?>" alt="Current Logo">
-                            </div>
-                            <input type="file" name="logo" class="form-control form-control-sm" accept="image/*" style="max-width:220px;">
-                            <button type="submit" name="save_logo" class="btn btn-sm btn-outline-success"><i class="bi bi-upload me-1"></i> Upload</button>
+                            <button type="submit" class="btn btn-sm btn-outline-success"><i class="bi bi-download me-1"></i> Download Backup</button>
                         </div>
                     </div>
                 </form>
