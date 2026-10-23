@@ -1251,7 +1251,7 @@ $activeLink = 'AdminConfiguration';
                                             </div>
                                             <div class="form-check">
                                                 <input class="form-check-input" type="checkbox" name="required" id="fieldRequiredCheck<?php echo $tabId; ?>">
-                                                <label class="form-check-label" for="fieldRequiredCheck<?php echo $tabId; ?>" style="font-size:13px;">Required field</label>
+                                                <label class="form-check-label" for="fieldRequiredCheck<?php echo $tabId; ?>" style="font-size:13px;">Required fiel</label>
                                             </div>
                                         </div>
                                         <div class="modal-footer border-0">
