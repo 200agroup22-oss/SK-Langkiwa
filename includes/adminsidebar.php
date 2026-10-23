@@ -283,7 +283,7 @@ function collapseAttrs($expanded)
                                 <a href="<?php echo APP_BASE; ?>/admin/Education/EducationAssistanceApplicants.php" class="nav-link-item nav-sub-sub<?php echo $isBaseProgramView ? navActive('EducationAssistanceApplicants') : ''; ?>"><i class="bi bi-pencil-square"></i> Applications</a>
 
                                 <a href="#educationAssistanceRequestsMenu" class="nav-link-item nav-sub-sub nav-sub-sub-parent" data-bs-toggle="collapse" role="button" aria-expanded="<?php echo $eduAssistReqExpanded ? 'true' : 'false'; ?>" aria-controls="educationAssistanceRequestsMenu">
-                                    <i class="bi bi-cash-coin"></i> Assistance Request
+                                    <i class="bi bi-cash-coin"></i> Assistance Requests
                                     <i class="bi bi-chevron-down toggle-icon-sub-sub"></i>
                                 </a>
                                 <div class="collapse<?php echo $eduAssistReqExpanded ? ' show' : ''; ?>" id="educationAssistanceRequestsMenu">
