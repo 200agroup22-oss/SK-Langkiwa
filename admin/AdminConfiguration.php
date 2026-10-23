@@ -872,21 +872,6 @@ $activeLink = 'AdminConfiguration';
 
                 <div class="divider"></div>
 
-                <!-- Database Backup -->
-                <form method="post" action="DownloadBackup.php">
-                    <div class="setting-item">
-                        <div>
-                            <div class="setting-label"><i class="bi bi-database-down text-success me-1"></i> Database Backup</div>
-                            <div class="setting-desc">Download a full copy of the system database (.sql) — all users, applications, programs, and settings. Keep the file somewhere safe; it contains personal data.</div>
-                        </div>
-                        <div class="setting-control gap-3">
-                            <button type="submit" class="btn btn-sm btn-outline-success"><i class="bi bi-download me-1"></i> Download Backup</button>
-                        </div>
-                    </div>
-                </form>
-
-                <div class="divider"></div>
-
                 <!-- About the Program -->
                 <form method="post">
                     <div class="mb-2">
