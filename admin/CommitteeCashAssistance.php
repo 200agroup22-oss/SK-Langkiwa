@@ -127,7 +127,7 @@ $sql = "SELECT a.application_id, a.user_id, a.program_id, ab.beneficiary_id, ab.
         FROM applications a
         LEFT JOIN assistance_beneficiaries ab ON ab.application_id = a.application_id AND ab.type = 'cash'
         WHERE a.committee_id = ? AND a.program_track = ? AND a.status = 'approved' AND a.archived_at IS NULL AND (ab.beneficiary_id IS NULL OR ab.archived_at IS NULL)"
-    . ($programId !== null ? " AND a.program_id = ?" : "") . "
+    . ($programId !== null ? " AND a.program_id = ?" : " AND a.program_id IS NULL") . "
         ORDER BY a.application_id ASC";
 $stmt = $conn->prepare($sql);
 if ($programId !== null) {
@@ -174,6 +174,8 @@ $archivedStmt->bind_param('is', $committeeId, $track);
 $archivedStmt->execute();
 $archivedBeneficiaries = $archivedStmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $archivedStmt->close();
+// Only this program's own archived beneficiaries (the base Assistance Program tab = those with no program).
+$archivedBeneficiaries = array_values(array_filter($archivedBeneficiaries, fn($b) => $programId === null ? empty($b['program_id']) : (int)$b['program_id'] === $programId));
 foreach ($archivedBeneficiaries as &$ab) {
     $abAnswers = getApplicationAnswers($ab['application_id']);
     $abFields = getFormFields($committeeId, $track, $ab['program_id']);
@@ -324,7 +326,7 @@ $activeLink = 'CommitteeCashAssistance_' . $committeeId;
                 <span style="font-size:12px; color:#666; font-weight:600;"><i class="bi bi-funnel me-1"></i>Filter:</span>
                 <?php if (!empty($committeePrograms)): ?>
                     <select class="filter-select" name="program_id" onchange="this.form.submit()">
-                        <option value="">All Programs</option>
+                        <option value="">General (no program)</option>
                         <?php foreach ($committeePrograms as $cp): ?>
                             <option value="<?php echo $cp['program_id']; ?>" <?php echo $programId === (int)$cp['program_id'] ? 'selected' : ''; ?>><?php echo e($cp['name']); ?></option>
                         <?php endforeach; ?>

@@ -809,7 +809,7 @@ function listApplications($committeeId, $programTrack, $programId = null)
     $sql = "SELECT a.*, u.email AS user_email FROM applications a
         JOIN users u ON u.user_id = a.user_id
         WHERE a.committee_id = ? AND a.program_track = ? AND a.archived_at IS NULL"
-        . ($programId !== null ? " AND a.program_id = ?" : "")
+        . ($programId !== null ? " AND a.program_id = ?" : " AND a.program_id IS NULL")
         . " ORDER BY a.application_id ASC";
     $stmt = $conn->prepare($sql);
     if ($programId !== null) {
@@ -835,7 +835,7 @@ function listArchivedApplications($committeeId, $programTrack, $programId = null
     $sql = "SELECT a.*, u.email AS user_email FROM applications a
         JOIN users u ON u.user_id = a.user_id
         WHERE a.committee_id = ? AND a.program_track = ? AND a.archived_at IS NOT NULL"
-        . ($programId !== null ? " AND a.program_id = ?" : "")
+        . ($programId !== null ? " AND a.program_id = ?" : " AND a.program_id IS NULL")
         . " ORDER BY a.archived_at DESC";
     $stmt = $conn->prepare($sql);
     if ($programId !== null) {
