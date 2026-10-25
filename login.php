@@ -63,33 +63,19 @@ $loginSuccess = getFlash('success');
 
     <!-- Poppins Font -->
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        .card-header {
-            font-family: 'Poppins', sans-serif;
-            font-size: 17px;
-            color: #409D42;
-
-        }
-
-        /* Edge/IE inject their own built-in "reveal password" eye icon inside password fields —
-           hide it so it doesn't double up with this app's own toggle button. */
-        input[type="password"]::-ms-reveal,
-        input[type="password"]::-ms-clear {
-            display: none;
-        }
-    </style>
+    <?php include __DIR__ . '/includes/auth_style.php'; ?>
 </head>
 
-<body style="background-color: #b4ebc0;">
+<body class="auth-body">
     <div class="container-fluid d-flex justify-content-center align-items-center vh-100">
 
-        <div class="card" style="width: 450px; max-width: 92vw;">
+        <div class="card auth-card" style="width: 450px; max-width: 94vw;">
             <div class="card-header text-center">
-                <img src="<?php echo siteLogoUrl(); ?>" alt="logo" height="70px" style="border-radius:100%;">
+                <img src="<?php echo siteLogoUrl(); ?>" alt="logo">
                 <?php echo e(siteName()); ?>
             </div>
             <div class="card-body">
-                <h5 class="card-title" style="font-family: 'Poppins', sans-serif; color: #409D42;font-weight: 800;"><i class="bi bi-person-fill"></i> Log in</h5>
+                <h5 class="card-title"><i class="bi bi-person-fill"></i> Log in</h5>
                 <p>Enter your credentials to access your account.</p>
 
                 <?php if ($loginSuccess): ?>
@@ -118,13 +104,13 @@ $loginSuccess = getFlash('success');
                     </div>
 
                     <div class="text-end mb-3">
-                        <a href="ForgotPassword.php" style="font-size: 13px; color: #409D42; text-decoration: none;">
+                        <a href="ForgotPassword.php" class="auth-link" style="font-size: 13px;">
                             Forgot Password?
                         </a>
                     </div>
 
                     <div class="d-grid mb-2">
-                        <button type="submit" class="btn" style="background-color:#409D42; color:white;">
+                        <button type="submit" class="btn btn-auth">
                             Log in
                         </button>
                     </div>
@@ -132,7 +118,7 @@ $loginSuccess = getFlash('success');
                     <div class="text-center">
                         <small>
                             Don't have an account?
-                            <a href="signup.php" style="color:#409D42; font-weight:500; text-decoration:none;">
+                            <a href="signup.php" class="auth-link">
                                 Register here
                             </a>
                         </small>
@@ -140,7 +126,7 @@ $loginSuccess = getFlash('success');
 
                 </form>
             </div>
-            <div class="card-footer text-center text-body-secondary" style="font-size: 12px;">
+            <div class="card-footer">
                 <?php echo e(siteName()); ?>.
             </div>
         </div>
