@@ -214,7 +214,7 @@ $statusFilter = $_GET['status'] ?? '';
 $sortBy = $_GET['sort'] ?? '';
 $search = trim($_GET['q'] ?? '');
 
-$result = $conn->query("SELECT * FROM users WHERE status != 'archived' ORDER BY user_id ASC");
+$result = $conn->query("SELECT * FROM users WHERE status != 'archived' AND email NOT LIKE '%@walkin.local' ORDER BY user_id ASC");
 $users = $result->fetch_all(MYSQLI_ASSOC);
 foreach ($users as &$u) {
     $u['full_name'] = trim($u['first_name'] . ' ' . $u['last_name']);
@@ -249,7 +249,7 @@ switch ($sortBy) {
         break;
 }
 
-$archivedResult = $conn->query("SELECT * FROM users WHERE status = 'archived' ORDER BY archived_at DESC");
+$archivedResult = $conn->query("SELECT * FROM users WHERE status = 'archived' AND email NOT LIKE '%@walkin.local' ORDER BY archived_at DESC");
 $archivedUsers = $archivedResult->fetch_all(MYSQLI_ASSOC);
 
 $allCommittees = $conn->query("SELECT * FROM committees WHERE archived_at IS NULL ORDER BY name ASC")->fetch_all(MYSQLI_ASSOC);
