@@ -592,6 +592,11 @@ $activeLink = 'HealthCashAssistance';
                             </div>
                             <p class="fw-bold mb-1" style="font-size:14px;">Mark this beneficiary as released?</p>
                             <p class="text-muted" style="font-size:12px; margin-bottom:14px;">This confirms the cash assistance amount has been given to the beneficiary.</p>
+                            <div style="background:#e8f5e9;border-radius:8px;padding:10px 12px;margin-bottom:14px;">
+                                <div style="font-size:11px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.4px;">Amount to release</div>
+                                <div style="font-size:24px;font-weight:700;color:#2e7d32;">&#8369;<?php echo number_format((float)$row['amount'], 2); ?></div>
+                                <div style="font-size:12px;color:#555;"><?php echo e($row['full_name']); ?></div>
+                            </div>
                             <div class="text-start">
                                 <label style="font-size:12px;font-weight:600;color:#555;">Date Released</label>
                                 <input type="date" class="form-control form-control-sm mt-1" name="date_released" value="<?php echo date('Y-m-d'); ?>" required>
