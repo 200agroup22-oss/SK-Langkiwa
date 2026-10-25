@@ -9,7 +9,7 @@
 
     .auth-card {
         border: 0;
-        border-radius: 20px;
+        border-radius: 8px;
         overflow: hidden;
         background: #fff;
         box-shadow: 0 20px 50px rgba(27, 94, 32, 0.18), 0 4px 12px rgba(0, 0, 0, 0.06);
@@ -18,23 +18,23 @@
     .auth-card .card-header {
         background: linear-gradient(100deg, #45b84d, #aadaad);
         border: 0;
-        padding: 26px 20px 22px;
+        padding: 14px 20px 12px;
         text-align: center;
         color: #fff;
         font-family: 'Poppins', sans-serif;
-        font-size: 18px;
+        font-size: 16px;
         font-weight: 600;
-        line-height: 1.3;
+        line-height: 1.25;
     }
 
     .auth-card .card-header img {
         display: block;
-        margin: 0 auto 10px;
-        height: 78px;
-        width: 78px;
+        margin: 0 auto 6px;
+        height: 56px;
+        width: 56px;
         object-fit: cover;
         border-radius: 50%;
-        border: 4px solid #fff;
+        border: 3px solid #fff;
         background: #fff;
         box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
     }
@@ -78,13 +78,13 @@
     }
 
     .auth-card .input-group>:first-child {
-        border-top-left-radius: 10px;
-        border-bottom-left-radius: 10px;
+        border-top-left-radius: 6px;
+        border-bottom-left-radius: 6px;
     }
 
     .auth-card .input-group>:last-child {
-        border-top-right-radius: 10px;
-        border-bottom-right-radius: 10px;
+        border-top-right-radius: 6px;
+        border-bottom-right-radius: 6px;
     }
 
     .auth-card .form-control:focus,
@@ -106,8 +106,8 @@
         background: linear-gradient(90deg, #45b84d, #409d42);
         color: #fff;
         border: 0;
-        border-radius: 10px;
-        padding: 0.7rem 1rem;
+        border-radius: 6px;
+        padding: 0.65rem 1rem;
         font-weight: 600;
         letter-spacing: 0.2px;
         box-shadow: 0 6px 14px rgba(69, 184, 77, 0.3);
@@ -143,7 +143,7 @@
     }
 
     .auth-card .alert {
-        border-radius: 10px;
+        border-radius: 6px;
         font-size: 13px;
     }
 
