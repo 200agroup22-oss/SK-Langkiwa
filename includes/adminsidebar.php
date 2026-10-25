@@ -117,6 +117,7 @@ function renderExtraProgramTabLinks($committeeId, $tabs, $pages)
             || (navActive($pages['inkind_active'] ?? '') !== '')
             || (navActive($pages['form_active'] ?? '') !== '')
             || (!empty($t['has_activities']) && navActive(programActivitiesActiveName($committeeId)) !== '')
+            || (!empty($t['has_activities']) && navActive(programBeneficiariesActiveName($committeeId)) !== '')
         );
         $reqExpanded = $isThisPtab && ((navActive($pages['cash_active'] ?? '') !== '') || (navActive($pages['inkind_active'] ?? '') !== ''));
 
@@ -126,6 +127,10 @@ function renderExtraProgramTabLinks($committeeId, $tabs, $pages)
 
         if (!empty($pages['applications'])) {
             echo '<a href="' . APP_BASE . '/admin/' . e(withProgramParams($pages['applications'], $ptab, $programId)) . '" class="nav-link-item nav-sub-sub' . ($isThisPtab ? navActive($pages['applications_active']) : '') . '"><i class="bi bi-pencil-square"></i> Applications</a>';
+        }
+
+        if (!empty($t['has_activities'])) {
+            echo '<a href="' . e(programBeneficiariesUrl($t)) . '" class="nav-link-item nav-sub-sub' . ($isThisPtab ? navActive(programBeneficiariesActiveName($committeeId)) : '') . '"><i class="bi bi-people-fill"></i> Beneficiaries</a>';
         }
 
         if ($hasReq) {
@@ -254,7 +259,7 @@ function collapseAttrs($expanded)
             <?php
             $eduExpanded = groupExpanded('Education');
             $iskolarExpanded = groupExpanded(['EducationApplicants', 'EducationScholarList', 'EducationAllowanceDistribution', 'EducationActivities']);
-            $eduAssistExpanded = $isBaseProgramView && groupExpanded(['EducationAssistanceApplicants', 'EducationCashAssistance', 'EducationInKindAssistance', 'EducationProgramActivities']);
+            $eduAssistExpanded = $isBaseProgramView && groupExpanded(['EducationAssistanceApplicants', 'EducationCashAssistance', 'EducationInKindAssistance', 'EducationProgramActivities', 'EducationProgramBeneficiaries']);
             $eduAssistReqExpanded = $isBaseProgramView && groupExpanded(['EducationCashAssistance', 'EducationInKindAssistance']);
             ?>
             <a href="#educationMenu" class="nav-link-item nav-parent" data-bs-toggle="collapse" role="button" aria-expanded="<?php echo $eduExpanded ? 'true' : 'false'; ?>" aria-controls="educationMenu">
@@ -286,6 +291,9 @@ function collapseAttrs($expanded)
                         <div class="collapse<?php echo $eduAssistExpanded ? ' show' : ''; ?>" id="assistanceProgramMenu">
                             <div class="submenu-nested program-sub">
                                 <a href="<?php echo APP_BASE; ?>/admin/Education/EducationAssistanceApplicants.php" class="nav-link-item nav-sub-sub<?php echo $isBaseProgramView ? navActive('EducationAssistanceApplicants') : ''; ?>"><i class="bi bi-pencil-square"></i> Applications</a>
+                                <?php if (!empty($eduTabs['assistance']['has_activities'])): ?>
+                                    <a href="<?php echo e(programBeneficiariesUrl($eduTabs['assistance'])); ?>" class="nav-link-item nav-sub-sub<?php echo $isBaseProgramView ? navActive('EducationProgramBeneficiaries') : ''; ?>"><i class="bi bi-people-fill"></i> Beneficiaries</a>
+                                <?php endif; ?>
 
                                 <a href="#educationAssistanceRequestsMenu" class="nav-link-item nav-sub-sub nav-sub-sub-parent" data-bs-toggle="collapse" role="button" aria-expanded="<?php echo $eduAssistReqExpanded ? 'true' : 'false'; ?>" aria-controls="educationAssistanceRequestsMenu">
                                     <i class="bi bi-cash-coin"></i> Assistance Requests
@@ -311,7 +319,7 @@ function collapseAttrs($expanded)
         <!-- HEALTH COMMITTEE -->
         <?php
         $healthExpanded = groupExpanded('Health');
-        $healthAssistExpanded = $isBaseProgramView && groupExpanded(['HealthApplicants', 'HealthCashAssistance', 'HealthInKindAssistance', 'HealthProgramActivities']);
+        $healthAssistExpanded = $isBaseProgramView && groupExpanded(['HealthApplicants', 'HealthCashAssistance', 'HealthInKindAssistance', 'HealthProgramActivities', 'HealthProgramBeneficiaries']);
         $healthReqExpanded = $isBaseProgramView && groupExpanded(['HealthCashAssistance', 'HealthInKindAssistance']);
         ?>
         <?php if (committeeAllowed($healthCommitteeId) && !empty($healthTabs['assistance']['is_visible'])): ?>
@@ -328,6 +336,9 @@ function collapseAttrs($expanded)
                     <div class="collapse<?php echo $healthAssistExpanded ? ' show' : ''; ?>" id="healthAssistanceProgramMenu">
                         <div class="submenu-nested program-sub">
                             <a href="<?php echo APP_BASE; ?>/admin/Health/HealthApplicants.php" class="nav-link-item nav-sub-sub<?php echo $isBaseProgramView ? navActive('HealthApplicants') : ''; ?>"><i class="bi bi-pencil-square"></i> Applications</a>
+                            <?php if (!empty($healthTabs['assistance']['has_activities'])): ?>
+                                <a href="<?php echo e(programBeneficiariesUrl($healthTabs['assistance'])); ?>" class="nav-link-item nav-sub-sub<?php echo $isBaseProgramView ? navActive('HealthProgramBeneficiaries') : ''; ?>"><i class="bi bi-people-fill"></i> Beneficiaries</a>
+                            <?php endif; ?>
 
                             <a href="#healthAssistanceMenu" class="nav-link-item nav-sub-sub nav-sub-sub-parent" data-bs-toggle="collapse" role="button" aria-expanded="<?php echo $healthReqExpanded ? 'true' : 'false'; ?>" aria-controls="healthAssistanceMenu">
                                 <i class="bi bi-cash-coin"></i> Assistance Requests
@@ -352,7 +363,7 @@ function collapseAttrs($expanded)
         <!-- SPORTS COMMITTEE -->
         <?php
         $sportsExpanded = groupExpanded('Sports');
-        $sportsAssistExpanded = $isBaseProgramView && groupExpanded(['SportsApplicants', 'SportsCashAssistance', 'SportsInkindAssistance', 'SportsProgramActivities']);
+        $sportsAssistExpanded = $isBaseProgramView && groupExpanded(['SportsApplicants', 'SportsCashAssistance', 'SportsInkindAssistance', 'SportsProgramActivities', 'SportsProgramBeneficiaries']);
         $sportsReqExpanded = $isBaseProgramView && groupExpanded(['SportsCashAssistance', 'SportsInkindAssistance']);
         ?>
         <?php if (committeeAllowed($sportsCommitteeId) && !empty($sportsTabs['assistance']['is_visible'])): ?>
@@ -369,6 +380,9 @@ function collapseAttrs($expanded)
                     <div class="collapse<?php echo $sportsAssistExpanded ? ' show' : ''; ?>" id="sportsAssistanceProgramMenu">
                         <div class="submenu-nested program-sub">
                             <a href="<?php echo APP_BASE; ?>/admin/Sports/SportsApplicants.php" class="nav-link-item nav-sub-sub<?php echo $isBaseProgramView ? navActive('SportsApplicants') : ''; ?>"><i class="bi bi-pencil-square"></i> Applications</a>
+                            <?php if (!empty($sportsTabs['assistance']['has_activities'])): ?>
+                                <a href="<?php echo e(programBeneficiariesUrl($sportsTabs['assistance'])); ?>" class="nav-link-item nav-sub-sub<?php echo $isBaseProgramView ? navActive('SportsProgramBeneficiaries') : ''; ?>"><i class="bi bi-people-fill"></i> Beneficiaries</a>
+                            <?php endif; ?>
 
                             <a href="#sportsAssistanceMenu" class="nav-link-item nav-sub-sub nav-sub-sub-parent" data-bs-toggle="collapse" role="button" aria-expanded="<?php echo $sportsReqExpanded ? 'true' : 'false'; ?>" aria-controls="sportsAssistanceMenu">
                                 <i class="bi bi-cash-coin"></i> Assistance Requests
@@ -393,7 +407,7 @@ function collapseAttrs($expanded)
         <!-- ACTIVE CITIZENSHIP -->
         <?php
         $citizenshipExpanded = groupExpanded('ActiveCitizenship');
-        $citizenshipAssistExpanded = $isBaseProgramView && groupExpanded(['ActiveCitizenshipApplicants', 'ActiveCitizenshipCashAssistance', 'ActiveCitizenshipInKindAssistance', 'ActiveCitizenshipProgramActivities']);
+        $citizenshipAssistExpanded = $isBaseProgramView && groupExpanded(['ActiveCitizenshipApplicants', 'ActiveCitizenshipCashAssistance', 'ActiveCitizenshipInKindAssistance', 'ActiveCitizenshipProgramActivities', 'ActiveCitizenshipProgramBeneficiaries']);
         $citizenshipReqExpanded = $isBaseProgramView && groupExpanded(['ActiveCitizenshipCashAssistance', 'ActiveCitizenshipInKindAssistance']);
         ?>
         <?php if (committeeAllowed($citizenshipCommitteeId) && !empty($citizenshipTabs['assistance']['is_visible'])): ?>
@@ -410,6 +424,9 @@ function collapseAttrs($expanded)
                     <div class="collapse<?php echo $citizenshipAssistExpanded ? ' show' : ''; ?>" id="citizenshipAssistanceProgramMenu">
                         <div class="submenu-nested program-sub">
                             <a href="<?php echo APP_BASE; ?>/admin/ActiveCitizenship/ActiveCitizenshipApplicants.php" class="nav-link-item nav-sub-sub<?php echo $isBaseProgramView ? navActive('ActiveCitizenshipApplicants') : ''; ?>"><i class="bi bi-pencil-square"></i> Applications</a>
+                            <?php if (!empty($citizenshipTabs['assistance']['has_activities'])): ?>
+                                <a href="<?php echo e(programBeneficiariesUrl($citizenshipTabs['assistance'])); ?>" class="nav-link-item nav-sub-sub<?php echo $isBaseProgramView ? navActive('ActiveCitizenshipProgramBeneficiaries') : ''; ?>"><i class="bi bi-people-fill"></i> Beneficiaries</a>
+                            <?php endif; ?>
 
                             <a href="#citizenshipAssistanceRequestsMenu" class="nav-link-item nav-sub-sub nav-sub-sub-parent" data-bs-toggle="collapse" role="button" aria-expanded="<?php echo $citizenshipReqExpanded ? 'true' : 'false'; ?>" aria-controls="citizenshipAssistanceRequestsMenu">
                                 <i class="bi bi-cash-coin"></i> Assistance Requests

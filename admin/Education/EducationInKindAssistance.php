@@ -133,6 +133,7 @@ foreach ($rows as &$row) {
     $row['full_name'] = trim(answerByKey($app, $row['fields'], 'last_name') . ' ' . answerByKey($app, $row['fields'], 'first_name'));
     $row['address'] = answerByKey($app, $row['fields'], 'complete_address');
     $row['files'] = getApplicationFiles($row['application_id']);
+    $row['compliance'] = programActivityCompliance($row['application_id']);
     $row['answers'] = $answers;
 }
 unset($row);
@@ -147,6 +148,10 @@ $rows = array_values(array_filter($rows, function ($row) use ($type) {
     }
     return assistanceTypeAnswerMatches(answerByKey(['answers' => $row['answers']], $row['fields'], 'assistance_type'), $type);
 }));
+
+// Programs with Activities: only beneficiaries who completed them (eligible) are listed here; everyone
+// else stays on the program's Beneficiaries tab until they do. Existing records are always kept.
+$rows = array_values(array_filter($rows, fn($r) => !empty($r['beneficiary_id']) || empty($r['compliance']) || $r['compliance']['ok']));
 
 // ---- Archived beneficiaries (for the Archives modal) ----
 $archivedStmt = $conn->prepare("SELECT ab.beneficiary_id, ab.application_id, ab.items, ab.quantity, ab.archived_at, a.program_id

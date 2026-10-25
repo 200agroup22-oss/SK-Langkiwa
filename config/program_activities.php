@@ -87,6 +87,18 @@ function programActivitiesActiveName($committeeId)
     return 'CommitteeProgramActivities_' . (int)$committeeId;
 }
 
+// Same idea for the Beneficiaries page (approved applicants and their activity progress).
+function programBeneficiariesActiveName($committeeId)
+{
+    return str_replace('ProgramActivities', 'ProgramBeneficiaries', programActivitiesActiveName($committeeId));
+}
+
+function programBeneficiariesUrl(array $tab)
+{
+    $param = !empty($tab['program_id']) ? 'ptab' : 'tab';
+    return APP_BASE . '/admin/ProgramBeneficiaries.php?' . $param . '=' . (int)$tab['tab_id'];
+}
+
 // URL of a program tab's admin Activities page. Custom programs carry ptab (so the sidebar keeps
 // that program's submenu open); a committee's base Assistance tab uses ?tab= so it doesn't.
 function programActivitiesUrl(array $tab)
