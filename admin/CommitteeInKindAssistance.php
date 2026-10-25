@@ -285,7 +285,7 @@ $activeLink = 'CommitteeInKindAssistance_' . $committeeId;
         <h4 class="fw-bold mb-1"><?php echo e($activeProgram ? $activeProgram['name'] : $committee['name']); ?> In-Kind Assistance Beneficiaries</h4>
         <p class="text-muted mb-2" style="font-size: 13px;">
             <?php if ($activeProgram): ?>
-                Viewing beneficiaries for the <?php echo e($activeProgram['name']); ?> program only. <a href="CommitteeInKindAssistance.php?committee=<?php echo $committeeId; ?>">View all <?php echo e($committee['name']); ?> programs</a>.
+                Viewing beneficiaries for the <?php echo e($activeProgram['name']); ?> program only.
             <?php else: ?>
                 Monitor beneficiaries approved for <?php echo e($committee['name']); ?> in-kind assistance.
             <?php endif; ?>

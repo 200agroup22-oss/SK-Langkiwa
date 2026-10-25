@@ -194,7 +194,7 @@ $activeLink = 'EducationAssistanceApplicants';
         <h4 class="fw-bold mb-1"><?php echo e($activeProgram ? $activeProgram['name'] : 'Education Assistance'); ?> Applicants</h4>
         <p class="text-muted mb-2" style="font-size: 13px;">
             <?php if ($activeProgram): ?>
-                Viewing applications for the <?php echo e($activeProgram['name']); ?> program only. <a href="EducationAssistanceApplicants.php">View all Education Assistance programs</a>.
+                Viewing applications for the <?php echo e($activeProgram['name']); ?> program only.
             <?php else: ?>
                 View applications for Education financial assistance.
             <?php endif; ?>

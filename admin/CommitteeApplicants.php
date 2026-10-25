@@ -210,7 +210,7 @@ $qs = 'committee=' . $committeeId . ($programId !== null ? '&program_id=' . $pro
         <h4 class="fw-bold mb-1"><?php echo e($activeProgram ? $activeProgram['name'] : $committee['name']); ?> Applicants</h4>
         <p class="text-muted mb-2" style="font-size: 13px;">
             <?php if ($activeProgram): ?>
-                Viewing applications for the <?php echo e($activeProgram['name']); ?> program only. <a href="CommitteeApplicants.php?committee=<?php echo $committeeId; ?>">View all <?php echo e($committee['name']); ?> programs</a>.
+                Viewing applications for the <?php echo e($activeProgram['name']); ?> program only.
             <?php else: ?>
                 View applications for <?php echo e($committee['name']); ?> financial assistance.
             <?php endif; ?>

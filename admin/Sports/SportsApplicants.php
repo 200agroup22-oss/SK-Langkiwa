@@ -194,7 +194,7 @@ $activeLink = 'SportsApplicants';
         <h4 class="fw-bold mb-1"><?php echo e($activeProgram ? $activeProgram['name'] : 'Sports Committee Financial Assistance'); ?> Applicants</h4>
         <p class="text-muted mb-2" style="font-size: 13px;">
             <?php if ($activeProgram): ?>
-                Viewing applications for the <?php echo e($activeProgram['name']); ?> program only. <a href="SportsApplicants.php">View all Sports Committee programs</a>.
+                Viewing applications for the <?php echo e($activeProgram['name']); ?> program only.
             <?php else: ?>
                 View applications for Sports Committee financial assistance.
             <?php endif; ?>
