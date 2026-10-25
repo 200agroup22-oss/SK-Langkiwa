@@ -97,32 +97,19 @@ $privacyText = $settings['privacy_policy'] ?? '';
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        .card-header {
-            font-family: 'Poppins', sans-serif;
-            font-size: 20px;
-            color: #409D42;
-        }
-
-        /* Edge/IE inject their own built-in "reveal password" eye icon inside password fields —
-           hide it so it doesn't double up with this app's own toggle button. */
-        input[type="password"]::-ms-reveal,
-        input[type="password"]::-ms-clear {
-            display: none;
-        }
-    </style>
+    <?php include __DIR__ . '/includes/auth_style.php'; ?>
 </head>
 
-<body style="background-color: #b4ebc0;">
+<body class="auth-body">
     <div class="container-fluid d-flex justify-content-center align-items-center min-vh-100 py-4">
 
-        <div class="card" style="width: 600px; max-width: 92vw;">
+        <div class="card auth-card" style="width: 640px; max-width: 94vw;">
             <div class="card-header">
-                <img src="<?php echo siteLogoUrl(); ?>" alt="logo" height="60px" style="border-radius:100%;">
+                <img src="<?php echo siteLogoUrl(); ?>" alt="logo">
                 <?php echo e(siteName()); ?>
             </div>
             <div class="card-body">
-                <h5 class="card-title" style="font-family: 'Poppins', sans-serif; color: #409D42; font-weight: 800;">
+                <h5 class="card-title">
                     <i class="bi bi-person-plus-fill"></i> Create an Account
                 </h5>
                 <p>Fill in the details below to register your account.</p>
@@ -210,18 +197,18 @@ $privacyText = $settings['privacy_policy'] ?? '';
                         <input type="checkbox" class="form-check-input" id="agreeTerms" name="agree_terms" required>
                         <label class="form-check-label" for="agreeTerms" style="font-size: 13px;">
                             I have read and agree to the
-                            <a href="#" data-bs-toggle="modal" data-bs-target="#termsModal" style="color:#409D42; font-weight:600; text-decoration:none;">
+                            <a href="#" data-bs-toggle="modal" data-bs-target="#termsModal" class="auth-link">
                                 Terms and Conditions
                             </a>
                             and
-                            <a href="#" data-bs-toggle="modal" data-bs-target="#privacyModal" style="color:#409D42; font-weight:600; text-decoration:none;">
+                            <a href="#" data-bs-toggle="modal" data-bs-target="#privacyModal" class="auth-link">
                                 Privacy Policy
                             </a>
                         </label>
                     </div>
 
                     <div class="d-grid mb-2">
-                        <button type="submit" class="btn" style="background-color:#409D42; color:white;">
+                        <button type="submit" class="btn btn-auth">
                             Register
                         </button>
                     </div>
@@ -229,7 +216,7 @@ $privacyText = $settings['privacy_policy'] ?? '';
                     <div class="text-center">
                         <small>
                             Already have an account?
-                            <a href="login.php" style="color:#409D42; font-weight:500; text-decoration:none;">
+                            <a href="login.php" class="auth-link">
                                 Log in here
                             </a>
                         </small>
@@ -237,7 +224,7 @@ $privacyText = $settings['privacy_policy'] ?? '';
 
                 </form>
             </div>
-            <div class="card-footer text-center text-body-secondary" style="font-size: 12px;">
+            <div class="card-footer">
                 <?php echo e(siteName()); ?>
             </div>
         </div>
