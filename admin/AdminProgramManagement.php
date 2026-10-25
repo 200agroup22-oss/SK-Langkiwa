@@ -164,6 +164,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($programTab = getProgramTabByProgramId($programId)) {
                 setProgramTabActivities((int)$programTab['tab_id'], isset($_POST['has_activities']));
             }
+            if ($assistanceType === 'both') {
+                ensureProgramAssistanceTypeField($committeeId, $programId);
+            }
             logAudit('Updated Program', $name . ' (#' . $programId . ')');
             setFlash('success', 'Program updated.');
         } else {
@@ -175,6 +178,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             syncProgramTab($newId, $committeeId, $name, $status === 'active');
             if (isset($_POST['has_activities']) && ($programTab = getProgramTabByProgramId($newId))) {
                 setProgramTabActivities((int)$programTab['tab_id'], true);
+            }
+            if ($assistanceType === 'both') {
+                ensureProgramAssistanceTypeField($committeeId, $newId);
             }
             logAudit('Added Program', $name . ' (#' . $newId . ')');
             setFlash('success', 'Program added.');

@@ -454,6 +454,47 @@ function programClosedState($program)
     return null;
 }
 
+// "Type of Assistance" (Cash vs In-Kind) only means something for a program that offers both. A
+// single-type program has nothing to choose, so its form, Applicants list and Assistance Requests
+// don't need it. The base "Assistance Program" tab (no program selected) keeps it.
+function programShowsAssistanceType($programId)
+{
+    if ($programId === null) {
+        return true;
+    }
+    $program = getProgramById((int)$programId);
+    return !$program || ($program['assistance_type'] ?? '') === 'both';
+}
+
+// Gives a program that offers both Cash and In-Kind the "Type of Assistance" radio field on its
+// application form (so applicants can say which one they want). Does nothing if it already has one.
+function ensureProgramAssistanceTypeField($committeeId, $programId)
+{
+    global $conn;
+    $stmt = $conn->prepare("SELECT field_id FROM form_fields WHERE committee_id = ? AND program_track = 'assistance' AND program_id = ? AND archived_at IS NULL AND (field_key = 'assistance_type' OR LOWER(TRIM(label)) = 'type of assistance') LIMIT 1");
+    $stmt->bind_param('ii', $committeeId, $programId);
+    $stmt->execute();
+    $exists = (bool)$stmt->get_result()->fetch_row();
+    $stmt->close();
+    if ($exists) {
+        return;
+    }
+
+    $stmt = $conn->prepare("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM form_fields WHERE committee_id = ? AND program_track = 'assistance' AND program_id = ?");
+    $stmt->bind_param('ii', $committeeId, $programId);
+    $stmt->execute();
+    $sortOrder = (int)$stmt->get_result()->fetch_row()[0];
+    $stmt->close();
+
+    $label = 'Type of Assistance';
+    $key = 'assistance_type';
+    $options = json_encode(['Cash Assistance', 'In-kind Assistance']);
+    $stmt = $conn->prepare("INSERT INTO form_fields (committee_id, program_track, program_id, label, field_key, input_type, icon, width, is_required, options, sort_order) VALUES (?, 'assistance', ?, ?, ?, 'radio', 'bi-cash-coin', 'full', 1, ?, ?)");
+    $stmt->bind_param('iisssi', $committeeId, $programId, $label, $key, $options, $sortOrder);
+    $stmt->execute();
+    $stmt->close();
+}
+
 // Turns a field label into a unique, DB-safe field_key within its committee+track(+program) scope
 // (e.g. "Full Name" -> "full_name", "full_name_2" if that key is already taken). Shared by every
 // place that lets an admin add a custom form field.

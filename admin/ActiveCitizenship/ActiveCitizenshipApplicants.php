@@ -11,6 +11,7 @@ $me = currentUser();
 // sidebar link, instead of pooling every program under the committee together — lets admins tell
 // applicants for different programs apart instead of them all landing in one shared list.
 $programId = isset($_GET['program_id']) && $_GET['program_id'] !== '' ? (int)$_GET['program_id'] : null;
+$showAssistanceTypeCol = programShowsAssistanceType($programId);
 $committeePrograms = $conn->prepare("SELECT program_id, name FROM programs WHERE committee_id = ? AND archived_at IS NULL ORDER BY name ASC");
 $committeePrograms->bind_param('i', $committeeId);
 $committeePrograms->execute();
@@ -261,7 +262,7 @@ $activeLink = 'ActiveCitizenshipApplicants';
                             <th>Full Name</th>
                             <th>Address</th>
                             <?php if (!empty($committeePrograms)): ?><th>Program</th><?php endif; ?>
-                            <th>Type of Assistance</th>
+                            <?php if ($showAssistanceTypeCol): ?><th>Type of Assistance</th><?php endif; ?>
                             <th>Status</th>
                             <th>Actions</th>
                         </tr>
@@ -269,7 +270,7 @@ $activeLink = 'ActiveCitizenshipApplicants';
                     <tbody>
                         <?php if (empty($pagedApplications)): ?>
                             <tr>
-                                <td colspan="<?php echo !empty($committeePrograms) ? 7 : 6; ?>">
+                                <td colspan="<?php echo (!empty($committeePrograms) ? 7 : 6) - ($showAssistanceTypeCol ? 0 : 1); ?>">
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
                                         <p>No <?php echo e($activeProgram ? $activeProgram['name'] : 'Active Citizenship'); ?> assistance applications found.</p>
@@ -283,7 +284,7 @@ $activeLink = 'ActiveCitizenshipApplicants';
                                 <td><?php echo e($app['full_name']); ?></td>
                                 <td><?php echo e($app['address']); ?></td>
                                 <?php if (!empty($committeePrograms)): ?><td><?php echo e(programLabel($app['program_id'])); ?></td><?php endif; ?>
-                                <td><?php echo e($app['assistance_type']); ?></td>
+                                <?php if ($showAssistanceTypeCol): ?><td><?php echo e($app['assistance_type']); ?></td><?php endif; ?>
                                 <td><span class="badge text-bg-<?php echo $app['status'] === 'approved' ? 'success' : ($app['status'] === 'declined' ? 'danger' : 'warning'); ?>"><?php echo ucfirst($app['status']); ?></span></td>
                                 <td class="d-flex gap-1">
                                     <button class="btn-view" data-bs-toggle="modal" data-bs-target="#viewModal<?php echo $app['application_id']; ?>"><i class="bi bi-eye"></i> View</button>
