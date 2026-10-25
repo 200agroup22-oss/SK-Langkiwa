@@ -40,25 +40,19 @@ $pageError = getFlash('error');
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        .card-header {
-            font-family: 'Poppins', sans-serif;
-            font-size: 17px;
-            color: #409D42;
-        }
-    </style>
+    <?php include __DIR__ . '/includes/auth_style.php'; ?>
 </head>
 
-<body style="background-color: #b4ebc0;">
+<body class="auth-body">
     <div class="container-fluid d-flex justify-content-center align-items-center vh-100">
 
-        <div class="card" style="width: 450px;">
+        <div class="card auth-card" style="width: 450px; max-width: 94vw;">
             <div class="card-header text-center">
-                <img src="<?php echo siteLogoUrl(); ?>" alt="logo" height="70px" style="border-radius:100%;">
+                <img src="<?php echo siteLogoUrl(); ?>" alt="logo">
                 <?php echo e(siteName()); ?>
             </div>
             <div class="card-body">
-                <h5 class="card-title text-center" style="font-family: 'Poppins', sans-serif; color: #409D42; font-weight: 800;">
+                <h5 class="card-title text-center">
                     <i class="bi bi-key-fill"></i> Forgot Password
                 </h5>
                 <p class="text-center">Enter your account email and we'll send you a verification code to reset your password.</p>
@@ -77,21 +71,21 @@ $pageError = getFlash('error');
                     </div>
 
                     <div class="d-grid mb-2">
-                        <button type="submit" class="btn" style="background-color:#409D42; color:white;">
+                        <button type="submit" class="btn btn-auth">
                             Send Verification Code
                         </button>
                     </div>
 
                     <div class="text-center">
                         <small>
-                            <a href="login.php" style="color:#409D42; font-weight:500; text-decoration:none;">
+                            <a href="login.php" class="auth-link">
                                 <i class="bi bi-arrow-left"></i> Back to Log in
                             </a>
                         </small>
                     </div>
                 </form>
             </div>
-            <div class="card-footer text-center text-body-secondary" style="font-size: 12px;">
+            <div class="card-footer">
                 <?php echo e(siteName()); ?>
             </div>
         </div>

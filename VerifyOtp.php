@@ -91,32 +91,19 @@ $otpSuccess = getFlash('success');
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        .card-header {
-            font-family: 'Poppins', sans-serif;
-            font-size: 17px;
-            color: #409D42;
-        }
-
-        .otp-input {
-            font-size: 28px;
-            letter-spacing: 14px;
-            text-align: center;
-            font-weight: 600;
-        }
-    </style>
+    <?php include __DIR__ . '/includes/auth_style.php'; ?>
 </head>
 
-<body style="background-color: #b4ebc0;">
+<body class="auth-body">
     <div class="container-fluid d-flex justify-content-center align-items-center vh-100">
 
-        <div class="card" style="width: 450px;">
+        <div class="card auth-card" style="width: 450px; max-width: 94vw;">
             <div class="card-header text-center">
-                <img src="<?php echo siteLogoUrl(); ?>" alt="logo" height="70px" style="border-radius:100%;">
+                <img src="<?php echo siteLogoUrl(); ?>" alt="logo">
                 <?php echo e(siteName()); ?>
             </div>
             <div class="card-body">
-                <h5 class="card-title text-center" style="font-family: 'Poppins', sans-serif; color: #409D42; font-weight: 800;">
+                <h5 class="card-title text-center">
                     <i class="bi bi-shield-lock-fill"></i> <?php echo e($pageTitle); ?>
                 </h5>
                 <p class="text-center"><?php echo e($pageDesc); ?></p>
@@ -134,19 +121,19 @@ $otpSuccess = getFlash('success');
                         <input type="text" name="otp_code" class="form-control otp-input" maxlength="6" inputmode="numeric" pattern="\d{6}" placeholder="------" autofocus required>
                     </div>
                     <div class="d-grid mb-2">
-                        <button type="submit" name="verify" class="btn" style="background-color:#409D42; color:white;">
+                        <button type="submit" name="verify" class="btn btn-auth">
                             Verify Code
                         </button>
                     </div>
                 </form>
 
                 <form action="" method="post" class="text-center">
-                    <button type="submit" name="resend" class="btn btn-link" style="color:#409D42; font-size: 13px; text-decoration:none;">
+                    <button type="submit" name="resend" class="btn btn-link auth-link" style="font-size: 13px;">
                         Didn't get a code? Resend
                     </button>
                 </form>
             </div>
-            <div class="card-footer text-center text-body-secondary" style="font-size: 12px;">
+            <div class="card-footer">
                 <?php echo e(siteName()); ?>
             </div>
         </div>

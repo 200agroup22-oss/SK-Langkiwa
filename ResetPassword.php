@@ -48,32 +48,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        .card-header {
-            font-family: 'Poppins', sans-serif;
-            font-size: 17px;
-            color: #409D42;
-        }
-
-        /* Edge/IE inject their own built-in "reveal password" eye icon inside password fields —
-           hide it so it doesn't double up with this app's own toggle button. */
-        input[type="password"]::-ms-reveal,
-        input[type="password"]::-ms-clear {
-            display: none;
-        }
-    </style>
+    <?php include __DIR__ . '/includes/auth_style.php'; ?>
 </head>
 
-<body style="background-color: #b4ebc0;">
+<body class="auth-body">
     <div class="container-fluid d-flex justify-content-center align-items-center vh-100">
 
-        <div class="card" style="width: 450px; max-width: 92vw;">
+        <div class="card auth-card" style="width: 450px; max-width: 94vw;">
             <div class="card-header text-center">
-                <img src="<?php echo siteLogoUrl(); ?>" alt="logo" height="70px" style="border-radius:100%;">
+                <img src="<?php echo siteLogoUrl(); ?>" alt="logo">
                 <?php echo e(siteName()); ?>
             </div>
             <div class="card-body">
-                <h5 class="card-title text-center" style="font-family: 'Poppins', sans-serif; color: #409D42; font-weight: 800;">
+                <h5 class="card-title text-center">
                     <i class="bi bi-lock-fill"></i> Reset Password
                 </h5>
                 <p class="text-center">Set a new password for <strong><?php echo e($resetEmail); ?></strong></p>
@@ -103,13 +90,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
 
                     <div class="d-grid mb-2">
-                        <button type="submit" class="btn" style="background-color:#409D42; color:white;">
+                        <button type="submit" class="btn btn-auth">
                             Reset Password
                         </button>
                     </div>
                 </form>
             </div>
-            <div class="card-footer text-center text-body-secondary" style="font-size: 12px;">
+            <div class="card-footer">
                 <?php echo e(siteName()); ?>
             </div>
         </div>
