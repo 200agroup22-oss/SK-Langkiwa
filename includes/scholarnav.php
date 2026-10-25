@@ -1,4 +1,7 @@
-<?php $me = currentUser(); ?>
+<?php
+require_once __DIR__ . '/../config/program_activities.php';
+$me = currentUser();
+?>
 <!-- Scholar Navbar -->
 <nav class="navbar navbar-expand-lg shadow-sm fixed-top" style="background: linear-gradient(90deg, #45b84d, #aadaad); padding: 8px 0;">
     <div class="container-fluid px-4">

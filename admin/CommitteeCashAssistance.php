@@ -45,6 +45,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['add_beneficiary'])) {
         $applicationId = (int)($_POST['application_id'] ?? 0);
         $amount = (float)($_POST['amount'] ?? 0);
+        if ($amount <= 0) {
+            $amount = (float)getProgramAmountForApplication($applicationId);
+        }
 
         $stmt = $conn->prepare("SELECT a.application_id FROM applications a
             LEFT JOIN assistance_beneficiaries ab ON ab.application_id = a.application_id AND ab.type = ?
@@ -414,7 +417,7 @@ $activeLink = 'CommitteeCashAssistance_' . $committeeId;
                                 <select class="form-select" name="application_id" id="addAppSelect" required>
                                     <option value="" disabled selected>Choose an applicant...</option>
                                     <?php foreach ($eligibleApplications as $ea): ?>
-                                        <option value="<?php echo $ea['application_id']; ?>">#<?php echo str_pad($ea['application_id'], 3, '0', STR_PAD_LEFT); ?> — <?php echo e($ea['full_name']); ?></option>
+                                        <option value="<?php echo $ea['application_id']; ?>" data-amount="<?php echo e((string)getProgramAmount($ea['program_id'])); ?>">#<?php echo str_pad($ea['application_id'], 3, '0', STR_PAD_LEFT); ?> — <?php echo e($ea['full_name']); ?></option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
@@ -425,7 +428,7 @@ $activeLink = 'CommitteeCashAssistance_' . $committeeId;
                                     <label class="info-label">Amount <span class="text-danger">*</span></label>
                                     <div class="input-group input-group-sm">
                                         <span class="input-group-text">&#8369;</span>
-                                        <input type="number" step="0.01" min="0.01" class="form-control" name="amount" required>
+                                        <input type="number" step="0.01" min="0.01" class="form-control" name="amount" id="addAmountInput" placeholder="Program amount">
                                     </div>
                                 </div>
                             </div>
@@ -674,6 +677,25 @@ $activeLink = 'CommitteeCashAssistance_' . $committeeId;
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Fill the amount from the selected applicant's program (set in Content Management) so it isn't typed again.
+        (function() {
+            const sel = document.getElementById('addAppSelect');
+            const amt = document.getElementById('addAmountInput');
+            const modal = document.getElementById('addBeneficiaryModal');
+            if (!sel || !amt) return;
+
+            function syncAmount() {
+                const opt = sel.options[sel.selectedIndex];
+                const programAmount = opt ? (opt.dataset.amount || '') : '';
+                amt.value = programAmount;
+                amt.placeholder = programAmount ? '' : 'Enter amount';
+                amt.required = !programAmount;
+            }
+            sel.addEventListener('change', syncAmount);
+            if (modal) modal.addEventListener('shown.bs.modal', syncAmount);
+        })();
+    </script>
 </body>
 
 </html>

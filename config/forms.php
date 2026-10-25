@@ -454,6 +454,29 @@ function programClosedState($program)
     return null;
 }
 
+// The amount set on a program in Content Management (programs.amount), or null if none/zero. Cash
+// Assistance pages use it as the default amount for a new beneficiary so it isn't typed twice.
+function getProgramAmount($programId)
+{
+    if (empty($programId)) {
+        return null;
+    }
+    $program = getProgramById((int)$programId);
+    $amount = $program['amount'] ?? null;
+    return ($amount !== null && (float)$amount > 0) ? (float)$amount : null;
+}
+
+function getProgramAmountForApplication($applicationId)
+{
+    global $conn;
+    $stmt = $conn->prepare("SELECT program_id FROM applications WHERE application_id = ?");
+    $stmt->bind_param('i', $applicationId);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row ? getProgramAmount($row['program_id']) : null;
+}
+
 // "Type of Assistance" (Cash vs In-Kind) only means something for a program that offers both. A
 // single-type program has nothing to choose, so its form, Applicants list and Assistance Requests
 // don't need it. The base "Assistance Program" tab (no program selected) keeps it.

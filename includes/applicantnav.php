@@ -1,4 +1,7 @@
 <?php
+// Some pages that include this nav (e.g. the applicant Home) don't load config/forms.php, which is
+// what normally brings in this helper — load it directly so the Program Activities link can show.
+require_once __DIR__ . '/../config/program_activities.php';
 $me = currentUser();
 $homeUrl = dashboardUrlForRole($me['role'] ?? 'applicant');
 $roleLabel = ucfirst($me['role'] ?? 'applicant');
