@@ -64,6 +64,16 @@ $roleLabel = ucfirst($me['role'] ?? 'applicant');
                         <i class="bi bi-hand-holding-heart-fill"></i> My Assistance
                     </a>
                 </li>
+                <?php if (function_exists('userHasProgramActivities') && !empty($me['user_id']) && userHasProgramActivities((int)$me['user_id'])): ?>
+                    <li class="nav-item">
+                        <a href="<?php echo APP_BASE; ?>/applicant/ProgramActivities.php" class="nav-link d-flex align-items-center gap-1 fw-semibold px-3 py-1 rounded"
+                            style="font-size: 14px; color: #fff;"
+                            onmouseover="this.style.background='rgba(255,255,255,0.25)';"
+                            onmouseout="this.style.background='';">
+                            <i class="bi bi-calendar-event-fill"></i> Program Activities
+                        </a>
+                    </li>
+                <?php endif; ?>
             </ul>
 
             <!-- Right Side: Role Badge + User Dropdown -->

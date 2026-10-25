@@ -60,6 +60,16 @@
                         <i class="bi bi-clipboard-check-fill"></i> Update Requirements
                     </a>
                 </li>
+                <?php if (function_exists('userHasProgramActivities') && !empty($me['user_id']) && userHasProgramActivities((int)$me['user_id'])): ?>
+                    <li class="nav-item">
+                        <a class="nav-link d-flex align-items-center gap-1 fw-semibold px-3 py-1 rounded" href="<?php echo APP_BASE; ?>/applicant/ProgramActivities.php"
+                            style="font-size: 14px; color: #fff;"
+                            onmouseover="this.style.background='rgba(255,255,255,0.25)';"
+                            onmouseout="this.style.background='';">
+                            <i class="bi bi-calendar-event"></i> Program Activities
+                        </a>
+                    </li>
+                <?php endif; ?>
             </ul>
 
             <!-- Right Side: Role Badge + User Dropdown -->

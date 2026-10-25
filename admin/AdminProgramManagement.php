@@ -161,6 +161,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute();
             $stmt->close();
             syncProgramTab($programId, $committeeId, $name, $status === 'active');
+            if ($programTab = getProgramTabByProgramId($programId)) {
+                setProgramTabActivities((int)$programTab['tab_id'], isset($_POST['has_activities']));
+            }
             logAudit('Updated Program', $name . ' (#' . $programId . ')');
             setFlash('success', 'Program updated.');
         } else {
@@ -170,6 +173,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $newId = $stmt->insert_id;
             $stmt->close();
             syncProgramTab($newId, $committeeId, $name, $status === 'active');
+            if (isset($_POST['has_activities']) && ($programTab = getProgramTabByProgramId($newId))) {
+                setProgramTabActivities((int)$programTab['tab_id'], true);
+            }
             logAudit('Added Program', $name . ' (#' . $newId . ')');
             setFlash('success', 'Program added.');
         }
@@ -1485,6 +1491,10 @@ $activeLink = 'AdminProgramManagement';
                                     <input class="form-check-input" type="checkbox" role="switch" name="status_active" id="programStatusSwitch" checked>
                                     <label class="form-check-label" for="programStatusSwitch" style="font-size:13.5px;">Active (open for applications)</label>
                                 </div>
+                                <div class="form-check form-switch mt-2">
+                                    <input class="form-check-input" type="checkbox" role="switch" name="has_activities" id="programActivitiesSwitch">
+                                    <label class="form-check-label" for="programActivitiesSwitch" style="font-size:13.5px;">Enable Activities tab (activities and QR attendance for approved beneficiaries)</label>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1634,6 +1644,10 @@ $activeLink = 'AdminProgramManagement';
                                     <div class="form-check form-switch">
                                         <input class="form-check-input" type="checkbox" role="switch" name="status_active" id="programStatusSwitch<?php echo $pid; ?>" <?php echo $p['status'] === 'active' ? 'checked' : ''; ?>>
                                         <label class="form-check-label" for="programStatusSwitch<?php echo $pid; ?>" style="font-size:13.5px;">Active (open for applications)</label>
+                                    </div>
+                                    <div class="form-check form-switch mt-2">
+                                        <input class="form-check-input" type="checkbox" role="switch" name="has_activities" id="programActivitiesSwitch<?php echo $pid; ?>" <?php echo !empty((getProgramTabByProgramId($pid) ?? [])['has_activities']) ? 'checked' : ''; ?>>
+                                        <label class="form-check-label" for="programActivitiesSwitch<?php echo $pid; ?>" style="font-size:13.5px;">Enable Activities tab (activities and QR attendance for approved beneficiaries)</label>
                                     </div>
                                 </div>
                             </div>

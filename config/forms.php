@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/functions.php';
 require_once __DIR__ . '/mail.php';
+require_once __DIR__ . '/program_activities.php';
 
 function getCommitteeIdByCode($code)
 {
