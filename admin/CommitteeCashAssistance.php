@@ -54,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $valid = $stmt->get_result()->fetch_assoc();
         $stmt->close();
 
-        if ($valid && $amount > 0 && applicationAssistanceTypeMatches($applicationId, $type)) {
+        if ($valid && $amount > 0 && applicationAssistanceTypeMatches($applicationId, $type) && programActivitiesSatisfied($applicationId)) {
             $stmt = $conn->prepare("INSERT INTO assistance_beneficiaries (application_id, type, amount, status) VALUES (?, ?, ?, 'pending')");
             $stmt->bind_param('isd', $applicationId, $type, $amount);
             $stmt->execute();
@@ -62,7 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             logAudit('Added Cash Beneficiary', $committee['name'] . ' application #' . $applicationId);
             setFlash('success', 'Beneficiary added.');
         } else {
-            setFlash('error', 'Could not add beneficiary. Choose a valid applicant and amount.');
+            setFlash('error', ($valid && !programActivitiesSatisfied($applicationId)) ? 'This applicant has not completed the required program activities yet.' : 'Could not add beneficiary. Choose a valid applicant and amount.');
         }
     }
 
@@ -146,6 +146,7 @@ foreach ($rows as &$row) {
     $row['full_name'] = trim(answerByKey($app, $row['fields'], 'last_name') . ' ' . answerByKey($app, $row['fields'], 'first_name'));
     $row['address'] = answerByKey($app, $row['fields'], 'complete_address');
     $row['files'] = getApplicationFiles($row['application_id']);
+    $row['compliance'] = programActivityCompliance($row['application_id']);
     $row['answers'] = $answers;
 }
 unset($row);
@@ -192,7 +193,9 @@ $eligibleStmt->close();
 $eligibleApplications = [];
 foreach ($rows as $row) {
     if (in_array($row['application_id'], $eligibleIds, true)) {
-        $eligibleApplications[] = $row;
+        if (empty($row['compliance']) || $row['compliance']['ok']) {
+            $eligibleApplications[] = $row;
+        }
     }
 }
 
@@ -380,7 +383,11 @@ $activeLink = 'CommitteeCashAssistance_' . $committeeId;
                                         <button class="btn-edit" data-bs-toggle="modal" data-bs-target="#editModal<?php echo $row['beneficiary_id']; ?>"><i class="bi bi-pencil"></i> Edit</button>
                                         <button class="btn-archive" data-bs-toggle="modal" data-bs-target="#archiveModal<?php echo $row['beneficiary_id']; ?>"><i class="bi bi-archive"></i> Archive</button>
                                     <?php else: ?>
-                                        <button type="button" class="btn-view" onclick="document.getElementById('addAppSelect').value='<?php echo $row['application_id']; ?>';" data-bs-toggle="modal" data-bs-target="#addBeneficiaryModal"><i class="bi bi-plus-lg"></i> Add</button>
+                                        <?php if (!empty($row['compliance']) && !$row['compliance']['ok']): ?>
+                                            <button type="button" class="btn-view" disabled style="opacity:.65;cursor:not-allowed;" title="Must complete the program activities first (<?php echo (int)$row['compliance']['completed']; ?>/<?php echo (int)$row['compliance']['required']; ?> done)"><i class="bi bi-calendar-x"></i> Activities <?php echo (int)$row['compliance']['completed']; ?>/<?php echo (int)$row['compliance']['required']; ?></button>
+                                        <?php else: ?>
+                                            <button type="button" class="btn-view" onclick="document.getElementById('addAppSelect').value='<?php echo $row['application_id']; ?>';" data-bs-toggle="modal" data-bs-target="#addBeneficiaryModal"><i class="bi bi-plus-lg"></i> Add</button>
+                                        <?php endif; ?>
                                     <?php endif; ?>
                                 </td>
                             </tr>

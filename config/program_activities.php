@@ -118,6 +118,83 @@ function programTabParticipants(array $tab)
     return $rows;
 }
 
+// Whether an approved application has met its program's activity requirement — the program-level
+// equivalent of a scholar needing their activities done before their allowance. Returns null when
+// the application's program doesn't have Activities switched on (nothing required), otherwise
+// ['required' => n, 'completed' => m, 'ok' => bool]: n is the program's live (non-archived)
+// activities that apply to the person, m how many of them they were scanned/marked present at.
+// Activities posted for "all beneficiaries" before the person was approved are assigned to them here
+// first, so a later approval isn't stuck owing an activity they never got a QR code for.
+function programActivityCompliance($applicationId)
+{
+    global $conn;
+    try {
+        $stmt = $conn->prepare("SELECT user_id, committee_id, program_track, program_id FROM applications WHERE application_id = ?");
+        $stmt->bind_param('i', $applicationId);
+        $stmt->execute();
+        $app = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!$app) {
+            return null;
+        }
+
+        if (!empty($app['program_id'])) {
+            $stmt = $conn->prepare("SELECT * FROM program_tabs WHERE program_id = ? LIMIT 1");
+            $stmt->bind_param('i', $app['program_id']);
+        } else {
+            $stmt = $conn->prepare("SELECT * FROM program_tabs WHERE committee_id = ? AND track_code = ? AND program_id IS NULL LIMIT 1");
+            $stmt->bind_param('is', $app['committee_id'], $app['program_track']);
+        }
+        $stmt->execute();
+        $tab = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!$tab || empty($tab['has_activities'])) {
+            return null;
+        }
+
+        $tabId = (int)$tab['tab_id'];
+        $userId = (int)$app['user_id'];
+
+        $stmt = $conn->prepare("SELECT a.activity_id FROM program_activities a
+            LEFT JOIN program_attendance att ON att.activity_id = a.activity_id AND att.user_id = ?
+            WHERE a.tab_id = ? AND a.archived_at IS NULL AND a.audience = 'all' AND att.attendance_id IS NULL");
+        $stmt->bind_param('ii', $userId, $tabId);
+        $stmt->execute();
+        $missing = array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'activity_id');
+        $stmt->close();
+        if ($missing) {
+            $ins = $conn->prepare("INSERT INTO program_attendance (activity_id, user_id, status, qr_token) VALUES (?, ?, 'pending', ?)");
+            foreach ($missing as $activityId) {
+                $token = generateQrToken();
+                $ins->bind_param('iis', $activityId, $userId, $token);
+                $ins->execute();
+            }
+            $ins->close();
+        }
+
+        $stmt = $conn->prepare("SELECT COUNT(*) AS required, COALESCE(SUM(att.status = 'present'), 0) AS completed
+            FROM program_attendance att JOIN program_activities a ON a.activity_id = att.activity_id
+            WHERE att.user_id = ? AND a.tab_id = ? AND a.archived_at IS NULL");
+        $stmt->bind_param('ii', $userId, $tabId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        $required = (int)$row['required'];
+        $completed = (int)$row['completed'];
+        return ['required' => $required, 'completed' => $completed, 'ok' => $completed >= $required];
+    } catch (Throwable $ex) {
+        return null;
+    }
+}
+
+// True unless the application's program requires activities that the person hasn't completed yet.
+function programActivitiesSatisfied($applicationId)
+{
+    $c = programActivityCompliance($applicationId);
+    return $c === null || $c['ok'];
+}
+
 // True if the user is an approved beneficiary of any visible program that has Activities switched on
 // — decides whether the applicant/scholar portal shows a "My Program Activities" link.
 function userHasProgramActivities($userId)
