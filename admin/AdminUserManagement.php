@@ -66,6 +66,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ?? validatePersonName($middleName, 'Middle name', false)
             ?? validateEmailAddress($email)
             ?? ($password === '' ? 'Password is required.' : validatePasswordStrength($password));
+        if ($validationError === null && $password !== ($_POST['confirm_password'] ?? '')) {
+            $validationError = 'Passwords do not match.';
+        }
         if ($validationError === null && $ageRaw !== '' && (!ctype_digit($ageRaw) || (int)$ageRaw < 1 || (int)$ageRaw > 120)) {
             $validationError = 'Please enter a valid age.';
         }
@@ -735,7 +738,15 @@ $activeLink = 'AdminUserManagement';
                             <div class="col-12">
                                 <label class="form-label" style="font-size:13px; font-weight:600;">Password</label>
                                 <div class="input-group input-group-sm">
-                                    <input type="password" class="form-control" name="password" minlength="8" maxlength="72" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9])\S{8,72}" title="8-72 characters, no spaces, with at least one lowercase letter, one uppercase letter, one number, and one special character." placeholder="Set password" required>
+                                    <input type="password" class="form-control" name="password" minlength="8" maxlength="72" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9])\S{8,72}" title="8-72 characters, no spaces, with at least one lowercase letter, one uppercase letter, one number, and one special character." placeholder="Set password" required oninput="this.form.confirm_password.dispatchEvent(new Event('input'))">
+                                    <span class="input-group-text" style="cursor:pointer;" onclick="togglePasswordVisibility(this)"><i class="bi bi-eye-fill"></i></span>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label" style="font-size:13px; font-weight:600;">Confirm Password</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="password" class="form-control" name="confirm_password" maxlength="72" placeholder="Re-enter password" required
+                                        oninput="this.setCustomValidity(this.value === this.form.password.value ? '' : 'Passwords do not match.')">
                                     <span class="input-group-text" style="cursor:pointer;" onclick="togglePasswordVisibility(this)"><i class="bi bi-eye-fill"></i></span>
                                 </div>
                             </div>
