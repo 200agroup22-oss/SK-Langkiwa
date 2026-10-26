@@ -43,6 +43,7 @@ $term = getCurrentTerm();
 $activitiesDone = 0;
 $upcoming = null;
 if ($scholar) {
+    syncScholarActivities($scholar['scholar_id']);
     // This semester only — it starts again from 0 when the admin ends the semester.
     $activitiesDone = countPresentActivities($scholar['scholar_id'], $term['current_academic_year'], $term['current_semester']);
 

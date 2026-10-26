@@ -85,6 +85,7 @@ function countAssignedActivities($scholarId, $academicYear, $semester)
 function ensureAllowanceRecord($scholarId)
 {
     global $conn;
+    syncScholarActivities($scholarId);
     $term = getCurrentTerm();
     $ay = $term['current_academic_year'];
     $sem = $term['current_semester'];
@@ -150,4 +151,41 @@ function getScholarByUserId($userId)
     $row = $stmt->get_result()->fetch_assoc();
     $stmt->close();
     return $row;
+}
+
+// Gives an active scholar the activities that were already posted for "all scholars" before they were
+// approved — so a newly approved scholar can see (and attend) any activity that is still upcoming this
+// term, instead of only activities created after their approval. Past activities are not handed out.
+function syncScholarActivities($scholarId)
+{
+    global $conn;
+    $stmt = $conn->prepare("SELECT status FROM scholars WHERE scholar_id = ?");
+    $stmt->bind_param('i', $scholarId);
+    $stmt->execute();
+    $scholar = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$scholar || $scholar['status'] !== 'active') {
+        return;
+    }
+
+    $term = getCurrentTerm();
+    $committeeId = getCommitteeIdByCode('education');
+    $stmt = $conn->prepare("SELECT a.activity_id FROM activities a
+        LEFT JOIN attendance att ON att.activity_id = a.activity_id AND att.scholar_id = ?
+        WHERE a.committee_id = ? AND a.archived_at IS NULL AND a.audience = 'all'
+        AND a.academic_year = ? AND a.semester = ? AND a.activity_date >= CURDATE() AND att.attendance_id IS NULL");
+    $stmt->bind_param('iiss', $scholarId, $committeeId, $term['current_academic_year'], $term['current_semester']);
+    $stmt->execute();
+    $missing = array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'activity_id');
+    $stmt->close();
+
+    if ($missing) {
+        $ins = $conn->prepare("INSERT INTO attendance (activity_id, scholar_id, status, qr_token) VALUES (?, ?, 'pending', ?)");
+        foreach ($missing as $activityId) {
+            $token = generateQrToken();
+            $ins->bind_param('iis', $activityId, $scholarId, $token);
+            $ins->execute();
+        }
+        $ins->close();
+    }
 }

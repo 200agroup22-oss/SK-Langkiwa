@@ -177,7 +177,7 @@ function programActivityCompliance($applicationId)
 
         $stmt = $conn->prepare("SELECT a.activity_id FROM program_activities a
             LEFT JOIN program_attendance att ON att.activity_id = a.activity_id AND att.user_id = ?
-            WHERE a.tab_id = ? AND a.archived_at IS NULL AND a.audience = 'all' AND att.attendance_id IS NULL");
+            WHERE a.tab_id = ? AND a.archived_at IS NULL AND a.audience = 'all' AND a.activity_date >= CURDATE() AND att.attendance_id IS NULL");
         $stmt->bind_param('ii', $userId, $tabId);
         $stmt->execute();
         $missing = array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'activity_id');
@@ -228,6 +228,29 @@ function programActivitiesSatisfied($applicationId)
 {
     $c = programActivityCompliance($applicationId);
     return $c === null || $c['ok'];
+}
+
+// Assigns a beneficiary the activities already posted for "all beneficiaries" of each program they are
+// approved in — only ones still upcoming — so someone approved after an activity was created still sees it.
+function syncProgramActivitiesForUser($userId)
+{
+    global $conn;
+    try {
+        $stmt = $conn->prepare("SELECT DISTINCT a.application_id FROM applications a
+            JOIN program_tabs pt ON pt.committee_id = a.committee_id
+                AND ((pt.program_id IS NOT NULL AND a.program_id = pt.program_id)
+                  OR (pt.program_id IS NULL AND a.program_id IS NULL AND a.program_track = pt.track_code))
+            WHERE a.user_id = ? AND a.status = 'approved' AND a.archived_at IS NULL AND pt.has_activities = 1");
+        $stmt->bind_param('i', $userId);
+        $stmt->execute();
+        $appIds = array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'application_id');
+        $stmt->close();
+        foreach ($appIds as $appId) {
+            programActivityCompliance((int)$appId); // assigns any missing upcoming activities
+        }
+    } catch (Throwable $ex) {
+        // tables not created yet — nothing to sync
+    }
 }
 
 // True if the user is an approved beneficiary of any visible program that has Activities switched on

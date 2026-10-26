@@ -7,6 +7,7 @@ $scholar = getScholarByUserId($me['user_id']);
 
 $rows = [];
 if ($scholar) {
+    syncScholarActivities($scholar['scholar_id']);
     $stmt = $conn->prepare("SELECT att.attendance_id, att.status, att.qr_token, att.scanned_at,
             a.title, a.activity_date, a.activity_time, a.venue, a.note
         FROM attendance att JOIN activities a ON a.activity_id = att.activity_id
