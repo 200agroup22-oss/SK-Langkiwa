@@ -63,14 +63,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $archivedActivityCount = $stmt->affected_rows;
         $stmt->close();
 
+        // The New Applicants list starts fresh for the new term too: this term's decided (approved /
+        // declined) iSKolar applications are archived, not deleted, so their records stay available under
+        // Archives. Undecided (pending) applications are left alone so nobody waiting for a decision is
+        // lost. Scholars themselves are untouched — their renewal runs from the scholars table.
+        $stmt = $conn->prepare("UPDATE applications SET archived_at = NOW() WHERE committee_id = ? AND program_track = 'scholarship' AND status IN ('approved', 'declined') AND archived_at IS NULL");
+        $stmt->bind_param('i', $committeeId);
+        $stmt->execute();
+        $archivedApplicationCount = $stmt->affected_rows;
+        $stmt->close();
+
         $stmt = $conn->prepare("UPDATE site_settings SET current_academic_year = ?, current_semester = ?, requirements_deadline = ?, requirements_open = 1 WHERE id = 1");
         $stmt->bind_param('sss', $next['academic_year'], $next['semester'], $deadline);
         $stmt->execute();
         $stmt->close();
 
         $deadlineNote = $deadline ? (' Requirements deadline: ' . date('M j, Y', strtotime($deadline)) . '.') : '';
-        logAudit('Ended Semester', $term['current_academic_year'] . ' ' . $term['current_semester'] . ' -> ' . $next['academic_year'] . ' ' . $next['semester'] . ' (' . $archivedActivityCount . ' activities archived)' . ($deadline ? ' (deadline ' . $deadline . ')' : ''));
-        setFlash('success', 'Semester ended. Now in ' . $next['academic_year'] . ', ' . $next['semester'] . '. All scholars are now pending renewal — review them on the Applicants page\'s Renewals tab. ' . $archivedActivityCount . ' activities from the ended semester were archived.' . $deadlineNote);
+        logAudit('Ended Semester', $term['current_academic_year'] . ' ' . $term['current_semester'] . ' -> ' . $next['academic_year'] . ' ' . $next['semester'] . ' (' . $archivedActivityCount . ' activities, ' . $archivedApplicationCount . ' applications archived)' . ($deadline ? ' (deadline ' . $deadline . ')' : ''));
+        setFlash('success', 'Semester ended. Now in ' . $next['academic_year'] . ', ' . $next['semester'] . '. All scholars are now pending renewal — review them on the Applicants page\'s Renewals tab. ' . $archivedActivityCount . ' activities from the ended semester were archived.' . ' ' . $archivedApplicationCount . ' decided applications were moved to Archives on the Applicants page.' . $deadlineNote);
     }
 
     if (isset($_POST['archive_scholar'])) {
