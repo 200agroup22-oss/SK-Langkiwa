@@ -188,6 +188,62 @@ $archivedApplications = listArchivedApplications($committeeId, $track);
 
 $settings = $conn->query("SELECT current_academic_year, current_semester FROM site_settings WHERE id = 1")->fetch_assoc();
 
+// ---- Term viewer (same idea as Allowance Distribution): the current term is the live list; picking an
+// earlier term shows everyone who applied that term — including applications archived by End Semester —
+// as a read-only record. Terms come from the applications' own academic year / semester. ----
+$semesterOrder = ['2nd Semester' => 0, '1st Semester' => 1, '3rd Semester' => 2, 'Summer' => 2];
+$availableTerms = $conn->query("SELECT DISTINCT academic_year, semester FROM applications WHERE program_track = 'scholarship' AND academic_year IS NOT NULL AND semester IS NOT NULL")->fetch_all(MYSQLI_ASSOC);
+$hasCurrentTerm = false;
+foreach ($availableTerms as $t) {
+    if ($t['academic_year'] === $settings['current_academic_year'] && $t['semester'] === $settings['current_semester']) {
+        $hasCurrentTerm = true;
+        break;
+    }
+}
+if (!$hasCurrentTerm) {
+    $availableTerms[] = ['academic_year' => $settings['current_academic_year'], 'semester' => $settings['current_semester']];
+}
+usort($availableTerms, function ($a, $b) use ($semesterOrder) {
+    if ($a['academic_year'] !== $b['academic_year']) {
+        return strcmp($b['academic_year'], $a['academic_year']);
+    }
+    return ($semesterOrder[$a['semester']] ?? 9) <=> ($semesterOrder[$b['semester']] ?? 9);
+});
+
+$viewYear = $settings['current_academic_year'];
+$viewSemester = $settings['current_semester'];
+if (!empty($_GET['term']) && strpos($_GET['term'], '|') !== false) {
+    [$reqYear, $reqSemester] = explode('|', $_GET['term'], 2);
+    foreach ($availableTerms as $t) {
+        if ($t['academic_year'] === $reqYear && $t['semester'] === $reqSemester) {
+            $viewYear = $reqYear;
+            $viewSemester = $reqSemester;
+            break;
+        }
+    }
+}
+$isCurrentTerm = ($viewYear === $settings['current_academic_year'] && $viewSemester === $settings['current_semester']);
+
+if (!$isCurrentTerm) {
+    $stmt = $conn->prepare("SELECT a.*, u.email AS user_email FROM applications a JOIN users u ON u.user_id = a.user_id
+        WHERE a.committee_id = ? AND a.program_track = ? AND a.academic_year = ? AND a.semester = ? ORDER BY a.application_id ASC");
+    $stmt->bind_param('isss', $committeeId, $track, $viewYear, $viewSemester);
+    $stmt->execute();
+    $applications = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    foreach ($applications as &$pastApp) {
+        $pastApp['answers'] = getApplicationAnswers($pastApp['application_id']);
+        $pastApp['files'] = getApplicationFiles($pastApp['application_id']);
+    }
+    unset($pastApp);
+}
+
+// The live list is the current term only — leftovers from an ended term (e.g. still-pending applications) live
+// under that term in the dropdown instead of cluttering the new term. Applications with no term recorded stay.
+if ($isCurrentTerm) {
+    $applications = array_values(array_filter($applications, fn($a) => empty($a['academic_year']) || ($a['academic_year'] === $settings['current_academic_year'] && $a['semester'] === $settings['current_semester'])));
+}
+
 // ---- Renewals tab: scholars whose term ended and are awaiting an Approve/Decline decision ----
 $pendingScholars = $conn->query("SELECT s.*, u.first_name, u.last_name, u.email FROM scholars s JOIN users u ON u.user_id = s.user_id WHERE s.status = 'pending' ORDER BY u.last_name ASC")->fetch_all(MYSQLI_ASSOC);
 $renewalDocFields = array_values(array_filter($fields, fn($f) => $f['input_type'] === 'file'));
@@ -297,17 +353,20 @@ $activeLink = 'EducationApplicants';
         </ul>
 
         <?php if ($activeTab === 'new'): ?>
+            <?php if (!$isCurrentTerm): ?>
+                <p class="text-muted mb-2" style="font-size:13px;"><span class="badge text-bg-secondary me-1"><i class="bi bi-clock-history me-1"></i>Past record</span> Everyone who applied for A.Y. <?php echo e($viewYear); ?>, <?php echo e($viewSemester); ?> — read-only.</p>
+            <?php endif; ?>
             <form method="get">
                 <input type="hidden" name="tab" value="new">
                 <!-- Table Header -->
                 <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
                     <div class="d-flex gap-2 align-items-center flex-wrap">
-                        <?php if (!isViewOnlyOfficer()): ?>
+                        <?php if (!isViewOnlyOfficer() && $isCurrentTerm): ?>
                             <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addApplicantModal">
                                 <i class="bi bi-plus-lg me-1"></i> Add Applicant
                             </button>
                         <?php endif; ?>
-                        <?php if (!isViewOnlyOfficer()): ?>
+                        <?php if (!isViewOnlyOfficer() && $isCurrentTerm): ?>
                             <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#archivesApplicantModal">
                                 <i class="bi bi-archive me-1"></i> Archives
                             </button>
@@ -322,6 +381,11 @@ $activeLink = 'EducationApplicants';
                 <!-- Filter Bar -->
                 <div class="filter-bar d-flex gap-2 align-items-center mb-3 flex-wrap">
                     <span style="font-size:12px; color:#666; font-weight:600;"><i class="bi bi-funnel me-1"></i>Filter:</span>
+                    <select class="filter-select" name="term" onchange="this.form.submit()" title="Term">
+                        <?php foreach ($availableTerms as $t): $val = $t['academic_year'] . '|' . $t['semester']; ?>
+                            <option value="<?php echo e($val); ?>" <?php echo ($t['academic_year'] === $viewYear && $t['semester'] === $viewSemester) ? 'selected' : ''; ?>>A.Y. <?php echo e($t['academic_year']); ?>, <?php echo e($t['semester']); ?><?php echo ($t['academic_year'] === $settings['current_academic_year'] && $t['semester'] === $settings['current_semester']) ? ' (Current)' : ''; ?></option>
+                        <?php endforeach; ?>
+                    </select>
                     <select class="filter-select" name="status" onchange="this.form.submit()">
                         <option value="">All Status</option>
                         <option value="pending" <?php echo $statusFilter === 'pending' ? 'selected' : ''; ?>>Pending</option>
@@ -372,10 +436,10 @@ $activeLink = 'EducationApplicants';
                                     <td><span class="badge text-bg-<?php echo $app['status'] === 'approved' ? 'success' : ($app['status'] === 'declined' ? 'danger' : 'warning'); ?>"><?php echo ucfirst($app['status']); ?></span></td>
                                     <td class="d-flex gap-1">
                                         <button class="btn-view" data-bs-toggle="modal" data-bs-target="#viewModal<?php echo $app['application_id']; ?>"><i class="bi bi-eye"></i> View</button>
-                                        <?php if (!isViewOnlyOfficer()): ?>
+                                        <?php if (!isViewOnlyOfficer() && $isCurrentTerm): ?>
                                             <button class="btn-edit" data-bs-toggle="modal" data-bs-target="#editModal<?php echo $app['application_id']; ?>"><i class="bi bi-pencil"></i> Edit</button>
                                         <?php endif; ?>
-                                        <?php if (!isViewOnlyOfficer()): ?>
+                                        <?php if (!isViewOnlyOfficer() && $isCurrentTerm): ?>
                                             <button class="btn-archive" data-bs-toggle="modal" data-bs-target="#archiveModal<?php echo $app['application_id']; ?>"><i class="bi bi-archive"></i> Archive</button>
                                         <?php endif; ?>
                                     </td>
