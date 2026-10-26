@@ -295,7 +295,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $fieldId = (int)$_POST['field_id'];
         $direction = $_POST['direction'] === 'up' ? 'up' : 'down';
-        $scopeFields = getFormFields($formCommitteeId, $formTrack, $formProgramId);
+        $scopeFields = getFormFields($formCommitteeId, $formTrack, $formProgramId, true);
         $index = null;
         foreach ($scopeFields as $i => $f) {
             if ((int)$f['field_id'] === $fieldId) {
@@ -363,7 +363,7 @@ foreach ($allCommittees as $c) {
             'form_title' => trim($t['form_title'] ?? ''),
             'track' => $formTrack,
             'program_id' => $formProgramId,
-            'fields' => getFormFields($cid, $formTrack, $formProgramId),
+            'fields' => getFormFields($cid, $formTrack, $formProgramId, true),
         ];
         $formCommitteeOptions[$cid] = $c['name'];
     }

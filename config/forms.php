@@ -482,11 +482,15 @@ function getProgramAmountForApplication($applicationId)
 // don't need it. The base "Assistance Program" tab (no program selected) keeps it.
 function programShowsAssistanceType($programId)
 {
+    static $cache = [];
     if ($programId === null) {
         return true;
     }
-    $program = getProgramById((int)$programId);
-    return !$program || ($program['assistance_type'] ?? '') === 'both';
+    if (!isset($cache[$programId])) {
+        $program = getProgramById((int)$programId);
+        $cache[$programId] = !$program || ($program['assistance_type'] ?? '') === 'both';
+    }
+    return $cache[$programId];
 }
 
 // Gives a program that offers both Cash and In-Kind the "Type of Assistance" radio field on its
@@ -565,7 +569,7 @@ function slugifyFieldKey($label, $committeeId, $track, $conn, $programId = null)
 // own) without touching anyone else's form. A brand-new program starts with a copy of the base
 // fields (see cloneBaseFormFieldsIntoProgram()) rather than an empty form, but from that point on
 // each is edited on its own.
-function getFormFields($committeeId, $programTrack = 'assistance', $programId = null)
+function getFormFields($committeeId, $programTrack = 'assistance', $programId = null, $includeAll = false)
 {
     global $conn;
     $sql = "SELECT * FROM form_fields WHERE committee_id = ? AND program_track = ? AND archived_at IS NULL AND "
@@ -580,6 +584,13 @@ function getFormFields($committeeId, $programTrack = 'assistance', $programId = 
     $stmt->execute();
     $fields = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
+
+    // A program that offers only Cash or only In-Kind has nothing to choose, so its "Type of Assistance"
+    // field is left out of the form, validation and lists (Configuration > Forms passes $includeAll to
+    // still show everything for editing).
+    if (!$includeAll && $programId !== null && !programShowsAssistanceType($programId)) {
+        $fields = array_values(array_filter($fields, fn($f) => !fieldMatchesKey($f, 'assistance_type')));
+    }
     return $fields;
 }
 
