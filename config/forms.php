@@ -1156,3 +1156,36 @@ function notifyProgramReleaseScheduleChanged($programId)
         notifyBeneficiaryRelease((int)$ben['app_id'], $ben, true);
     }
 }
+
+// Turns a new program's "Eligibility Requirements" list (one per line) into required file-upload fields on
+// its application form, so the documents applicants must submit exist from day one. Called once when a
+// program is created; later edits to the list never touch the form (that is edited in Configuration > Forms).
+function createRequirementFieldsForProgram($committeeId, $programId, $requirementsText)
+{
+    global $conn;
+    $labels = [];
+    foreach (preg_split('/\r\n|\r|\n/', (string)$requirementsText) as $line) {
+        $label = trim(preg_replace('/\s+/', ' ', $line));
+        if ($label !== '' && mb_strlen($label) <= 100 && !in_array(mb_strtolower($label), array_map('mb_strtolower', $labels), true)) {
+            $labels[] = $label;
+        }
+    }
+    if (empty($labels)) {
+        return;
+    }
+
+    $stmt = $conn->prepare("SELECT COALESCE(MAX(sort_order), 0) FROM form_fields WHERE committee_id = ? AND program_track = 'assistance' AND program_id = ?");
+    $stmt->bind_param('ii', $committeeId, $programId);
+    $stmt->execute();
+    $sort = (int)$stmt->get_result()->fetch_row()[0];
+    $stmt->close();
+
+    $insert = $conn->prepare("INSERT INTO form_fields (committee_id, program_track, program_id, label, field_key, input_type, icon, width, is_required, options, sort_order) VALUES (?, 'assistance', ?, ?, ?, 'file', 'bi-upload', 'half', 1, NULL, ?)");
+    foreach ($labels as $label) {
+        $sort++;
+        $key = slugifyFieldKey($label, $committeeId, 'assistance', $conn, $programId);
+        $insert->bind_param('iissi', $committeeId, $programId, $label, $key, $sort);
+        $insert->execute();
+    }
+    $insert->close();
+}
