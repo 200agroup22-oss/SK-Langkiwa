@@ -107,6 +107,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $pageError = getFlash('error');
 $pageSuccess = getFlash('success');
 
+// Programs with Activities: eligible beneficiaries are added automatically with the program's own amount /
+// items, so the manual Add buttons are hidden when that is set up.
+$autoAdd = autoAddBeneficiariesEnabled($committeeId, $programId, $type);
+if ($autoAdd) {
+    autoAddEligibleBeneficiaries($committeeId, $programId, $type);
+}
+
 // ---- Load beneficiaries (approved applications LEFT JOINed to this page's beneficiary type) ----
 $sql = "SELECT a.application_id, a.user_id, a.program_id, ab.beneficiary_id, ab.amount, ab.status AS b_status, ab.date_released
         FROM applications a
@@ -297,9 +304,11 @@ $activeLink = 'SportsCashAssistance';
             <!-- Table Header -->
             <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
                 <div class="d-flex gap-2 align-items-center flex-wrap">
-                    <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addBeneficiaryModal">
-                        <i class="bi bi-plus-lg me-1"></i> Add Beneficiary
-                    </button>
+                    <?php if (!$autoAdd): ?>
+                        <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addBeneficiaryModal">
+                            <i class="bi bi-plus-lg me-1"></i> Add Beneficiary
+                        </button>
+                    <?php endif; ?>
                     <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#archivesBeneficiaryModal">
                         <i class="bi bi-archive me-1"></i> Archives
                     </button>
@@ -348,7 +357,6 @@ $activeLink = 'SportsCashAssistance';
                             <th>Applicant ID</th>
                             <th>Full Name</th>
                             <th>Address</th>
-                            <?php if (!empty($committeePrograms)): ?><th>Program</th><?php endif; ?>
                             <th>Amount</th>
                             <th>Status</th>
                             <th>Actions</th>
@@ -357,7 +365,7 @@ $activeLink = 'SportsCashAssistance';
                     <tbody>
                         <?php if (empty($pagedRows)): ?>
                             <tr>
-                                <td colspan="<?php echo !empty($committeePrograms) ? 7 : 6; ?>" class="text-center text-muted py-4">No <?php echo e($activeProgram ? $activeProgram['name'] : 'sports'); ?> cash assistance beneficiaries found.</td>
+                                <td colspan="6" class="text-center text-muted py-4">No <?php echo e($activeProgram ? $activeProgram['name'] : 'sports'); ?> cash assistance beneficiaries found.</td>
                             </tr>
                         <?php endif; ?>
                         <?php foreach ($pagedRows as $row): ?>
@@ -365,7 +373,6 @@ $activeLink = 'SportsCashAssistance';
                                 <td><?php echo str_pad($row['application_id'], 3, '0', STR_PAD_LEFT); ?></td>
                                 <td><?php echo e($row['full_name']); ?></td>
                                 <td><?php echo e($row['address']); ?></td>
-                                <?php if (!empty($committeePrograms)): ?><td><?php echo e(programLabel($row['program_id'])); ?></td><?php endif; ?>
                                 <td><?php echo $row['beneficiary_id'] ? '₱' . number_format((float)$row['amount'], 2) : '—'; ?></td>
                                 <td><span class="badge text-bg-<?php echo statusBadgeClass($row['display_status']); ?>"><?php echo statusLabel($row['display_status']); ?></span></td>
                                 <td class="d-flex gap-1">
@@ -374,7 +381,9 @@ $activeLink = 'SportsCashAssistance';
                                         <button class="btn-edit" data-bs-toggle="modal" data-bs-target="#editModal<?php echo $row['beneficiary_id']; ?>"><i class="bi bi-pencil"></i> Edit</button>
                                         <button class="btn-archive" data-bs-toggle="modal" data-bs-target="#archiveModal<?php echo $row['beneficiary_id']; ?>"><i class="bi bi-archive"></i> Archive</button>
                                     <?php else: ?>
-                                        <button type="button" class="btn-view" onclick="document.getElementById('addAppSelect').value='<?php echo $row['application_id']; ?>';" data-bs-toggle="modal" data-bs-target="#addBeneficiaryModal"><i class="bi bi-plus-lg"></i> Add</button>
+                                        <?php if (!$autoAdd): ?>
+                                            <button type="button" class="btn-view" onclick="document.getElementById('addAppSelect').value='<?php echo $row['application_id']; ?>';" data-bs-toggle="modal" data-bs-target="#addBeneficiaryModal"><i class="bi bi-plus-lg"></i> Add</button>
+                                        <?php endif; ?>
                                     <?php endif; ?>
                                 </td>
                             </tr>

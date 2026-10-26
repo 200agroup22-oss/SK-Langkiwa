@@ -177,7 +177,7 @@ function programActivityCompliance($applicationId)
 
         $stmt = $conn->prepare("SELECT a.activity_id FROM program_activities a
             LEFT JOIN program_attendance att ON att.activity_id = a.activity_id AND att.user_id = ?
-            WHERE a.tab_id = ? AND a.archived_at IS NULL AND a.audience = 'all' AND a.activity_date >= CURDATE() AND att.attendance_id IS NULL");
+            WHERE a.tab_id = ? AND a.archived_at IS NULL AND a.audience = 'all' AND att.attendance_id IS NULL");
         $stmt->bind_param('ii', $userId, $tabId);
         $stmt->execute();
         $missing = array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'activity_id');
@@ -231,7 +231,7 @@ function programActivitiesSatisfied($applicationId)
 }
 
 // Assigns a beneficiary the activities already posted for "all beneficiaries" of each program they are
-// approved in — only ones still upcoming — so someone approved after an activity was created still sees it.
+// approved in — every one still open (not archived) — so someone approved after an activity was created still sees it.
 function syncProgramActivitiesForUser($userId)
 {
     global $conn;
@@ -246,7 +246,7 @@ function syncProgramActivitiesForUser($userId)
         $appIds = array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'application_id');
         $stmt->close();
         foreach ($appIds as $appId) {
-            programActivityCompliance((int)$appId); // assigns any missing upcoming activities
+            programActivityCompliance((int)$appId); // assigns any missing open activities
         }
     } catch (Throwable $ex) {
         // tables not created yet — nothing to sync
@@ -281,4 +281,75 @@ function userHasProgramActivities($userId)
         $cache[$userId] = false;
     }
     return $cache[$userId];
+}
+
+// Whether a program's tab (programId null = the committee's base Assistance Program tab) has Activities on.
+function programTabHasActivities($committeeId, $programId, $track = 'assistance')
+{
+    global $conn;
+    try {
+        if ($programId !== null) {
+            $stmt = $conn->prepare("SELECT * FROM program_tabs WHERE program_id = ? LIMIT 1");
+            $stmt->bind_param('i', $programId);
+        } else {
+            $stmt = $conn->prepare("SELECT * FROM program_tabs WHERE committee_id = ? AND track_code = ? AND program_id IS NULL LIMIT 1");
+            $stmt->bind_param('is', $committeeId, $track);
+        }
+        $stmt->execute();
+        $tab = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return !empty($tab['has_activities']);
+    } catch (Throwable $ex) {
+        return false;
+    }
+}
+
+// True when a program with Activities also has the default amount (cash) or items (in-kind) set, so
+// eligible beneficiaries can be added automatically instead of by hand.
+function autoAddBeneficiariesEnabled($committeeId, $programId, $type)
+{
+    if ($programId === null || !programTabHasActivities($committeeId, $programId)) {
+        return false;
+    }
+    return $type === 'cash' ? getProgramAmount($programId) !== null : getProgramInKind($programId) !== null;
+}
+
+// For a program with Activities: every approved applicant who is now eligible (all activities done, or
+// marked Eligible by hand) and has no beneficiary record of this type yet is added as a pending
+// beneficiary, using the amount (cash) or items/quantity (in-kind) set on the program. Applicants whose
+// chosen assistance type is the other one, and ones already added or archived, are left alone.
+function autoAddEligibleBeneficiaries($committeeId, $programId, $type)
+{
+    global $conn;
+    if (!autoAddBeneficiariesEnabled($committeeId, $programId, $type)) {
+        return;
+    }
+    $stmt = $conn->prepare("SELECT a.application_id FROM applications a
+        LEFT JOIN assistance_beneficiaries ab ON ab.application_id = a.application_id AND ab.type = ?
+        WHERE a.committee_id = ? AND a.program_id = ? AND a.status = 'approved' AND a.archived_at IS NULL AND ab.beneficiary_id IS NULL
+        ORDER BY a.application_id ASC");
+    $stmt->bind_param('sii', $type, $committeeId, $programId);
+    $stmt->execute();
+    $candidates = array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'application_id');
+    $stmt->close();
+
+    foreach ($candidates as $applicationId) {
+        $applicationId = (int)$applicationId;
+        $compliance = programActivityCompliance($applicationId);
+        if ($compliance === null || !$compliance['ok'] || !applicationAssistanceTypeMatches($applicationId, $type)) {
+            continue;
+        }
+        if ($type === 'cash') {
+            $amount = getProgramAmount($programId);
+            $ins = $conn->prepare("INSERT INTO assistance_beneficiaries (application_id, type, amount, status) VALUES (?, 'cash', ?, 'pending')");
+            $ins->bind_param('id', $applicationId, $amount);
+        } else {
+            $defaults = getProgramInKind($programId);
+            $ins = $conn->prepare("INSERT INTO assistance_beneficiaries (application_id, type, items, quantity, status) VALUES (?, 'in_kind', ?, ?, 'pending')");
+            $ins->bind_param('isi', $applicationId, $defaults['items'], $defaults['quantity']);
+        }
+        $ins->execute();
+        $ins->close();
+        logAudit('Auto-added ' . ($type === 'cash' ? 'Cash' : 'In-Kind') . ' Beneficiary', 'Application #' . $applicationId . ' (eligible)');
+    }
 }

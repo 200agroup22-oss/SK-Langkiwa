@@ -797,7 +797,12 @@ function renderDynamicFormFields($committeeId, $existingAnswers = [], $existingF
             default:
                 $lockedAttr = $isLocked ? 'readonly' : '';
                 $inputClass = $isLocked ? 'form-control' : 'form-control js-sentence-case';
-                echo '<input type="text" class="' . $inputClass . '" name="' . $name . '" value="' . $value . '" ' . $required . ' ' . $lockedAttr . '>';
+                // Name fields take letters, spaces, hyphens, apostrophes and periods only — no digits or symbols.
+                $nameAttrs = '';
+                if (!$isLocked && in_array($field['field_key'], ['last_name', 'first_name', 'middle_name'], true)) {
+                    $nameAttrs = ' pattern="\p{L}[\p{L} .\'\-]*" maxlength="50" title="Letters, spaces, hyphens, apostrophes, and periods only."';
+                }
+                echo '<input type="text" class="' . $inputClass . '" name="' . $name . '" value="' . $value . '" ' . $required . ' ' . $lockedAttr . $nameAttrs . '>';
         }
 
         echo '</div>';
@@ -847,6 +852,14 @@ function validateDynamicSubmission($committeeId, array $post, array $files, arra
         } elseif ($field['is_required']) {
             if (trim($post[$key] ?? '') === '') {
                 $errors[] = $field['label'] . ' is required.';
+            }
+        }
+
+        // Name fields: letters, spaces, hyphens, apostrophes and periods only.
+        if (in_array($key, ['last_name', 'first_name', 'middle_name'], true)) {
+            $nameValue = trim($post[$key] ?? '');
+            if ($nameValue !== '' && ($nameError = validatePersonName($nameValue, $field['label'], false))) {
+                $errors[] = $nameError;
             }
         }
     }
