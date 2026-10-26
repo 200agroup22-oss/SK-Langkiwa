@@ -90,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (isset($_POST['approve_application'])) {
         $applicationId = (int)$_POST['application_id'];
-        if (isProgramFull($committeeId, $track)) {
+        if (isProgramFull($committeeId, $track, getApplicationProgramId($applicationId))) {
             setFlash('error', 'Cannot approve — this program has reached its slot limit. Increase it in Configuration > Application/Program Settings, or decline/archive another approved applicant first.');
         } else {
             $stmt = $conn->prepare("UPDATE applications SET status = 'approved', decided_at = NOW(), decided_by = ? WHERE application_id = ?");

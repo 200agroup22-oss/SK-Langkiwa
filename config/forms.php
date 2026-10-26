@@ -375,11 +375,18 @@ function requireCommitteeAccess($committeeId)
 }
 
 // Counts approved, non-archived applications for a committee+track — used to enforce program_tabs.max_slots.
-function getApprovedCount($committeeId, $trackCode)
+function getApprovedCount($committeeId, $trackCode, $programId = null)
 {
     global $conn;
-    $stmt = $conn->prepare("SELECT COUNT(*) c FROM applications WHERE committee_id = ? AND program_track = ? AND status = 'approved' AND archived_at IS NULL");
-    $stmt->bind_param('is', $committeeId, $trackCode);
+    // A program you created (programId given) counts only its own approved applicants; a built-in tab
+    // (no program) counts only applicants who applied to it directly, not those of the programs under it.
+    if ($programId !== null) {
+        $stmt = $conn->prepare("SELECT COUNT(*) c FROM applications WHERE committee_id = ? AND program_id = ? AND status = 'approved' AND archived_at IS NULL");
+        $stmt->bind_param('ii', $committeeId, $programId);
+    } else {
+        $stmt = $conn->prepare("SELECT COUNT(*) c FROM applications WHERE committee_id = ? AND program_track = ? AND program_id IS NULL AND status = 'approved' AND archived_at IS NULL");
+        $stmt->bind_param('is', $committeeId, $trackCode);
+    }
     $stmt->execute();
     $c = (int)($stmt->get_result()->fetch_assoc()['c'] ?? 0);
     $stmt->close();
@@ -387,13 +394,13 @@ function getApprovedCount($committeeId, $trackCode)
 }
 
 // Returns true if a program's approved count has reached its configured max_slots (never true when unlimited).
-function isProgramFull($committeeId, $trackCode)
+function isProgramFull($committeeId, $trackCode, $programId = null)
 {
-    $tab = getProgramTab($committeeId, $trackCode);
+    $tab = $programId !== null ? getProgramTabByProgramId($programId) : getProgramTab($committeeId, $trackCode);
     if (empty($tab['max_slots'])) {
         return false;
     }
-    return getApprovedCount($committeeId, $trackCode) >= (int)$tab['max_slots'];
+    return getApprovedCount($committeeId, $trackCode, $programId) >= (int)$tab['max_slots'];
 }
 
 // Looks up a `programs` catalog row by id, including the fields needed to decide whether it's

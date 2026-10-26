@@ -321,7 +321,7 @@ $importantDates = $conn->query("SELECT * FROM important_dates ORDER BY event_dat
 // ---- Application / Program Settings: slot limits per committee+track program ----
 $programTabRows = $conn->query("SELECT t.*, c.name AS committee_name FROM program_tabs t JOIN committees c ON c.committee_id = t.committee_id ORDER BY c.committee_id ASC, t.sort_order ASC")->fetch_all(MYSQLI_ASSOC);
 foreach ($programTabRows as &$row) {
-    $row['approved_count'] = getApprovedCount((int)$row['committee_id'], $row['track_code']);
+    $row['approved_count'] = getApprovedCount((int)$row['committee_id'], $row['track_code'], !empty($row['program_id']) ? (int)$row['program_id'] : null);
 }
 unset($row);
 // Committee names for the "Filter by Committee" dropdown — a dropdown scales better here than a
