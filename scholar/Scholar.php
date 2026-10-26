@@ -43,11 +43,8 @@ $term = getCurrentTerm();
 $activitiesDone = 0;
 $upcoming = null;
 if ($scholar) {
-    $stmt = $conn->prepare("SELECT COUNT(*) AS c FROM attendance WHERE scholar_id = ? AND status = 'present'");
-    $stmt->bind_param('i', $scholar['scholar_id']);
-    $stmt->execute();
-    $activitiesDone = (int)$stmt->get_result()->fetch_assoc()['c'];
-    $stmt->close();
+    // This semester only — it starts again from 0 when the admin ends the semester.
+    $activitiesDone = countPresentActivities($scholar['scholar_id'], $term['current_academic_year'], $term['current_semester']);
 
     $stmt = $conn->prepare("SELECT a.title, a.activity_date, a.activity_time, a.venue, a.note
         FROM attendance att JOIN activities a ON a.activity_id = att.activity_id

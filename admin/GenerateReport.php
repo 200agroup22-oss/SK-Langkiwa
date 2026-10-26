@@ -147,6 +147,28 @@ $scopeLabel = $committeeLabel . ($programLabel !== null ? ' — ' . $programLabe
 logAudit('Generated Report', $reportLabel . ' / ' . $scopeLabel . ' / ' . $from . ' to ' . $to);
 
 // ---- PDF setup ----
+// Report colors follow the system color theme (Configuration > Settings > System Colors): returns [r, g, b]
+// for a named shade derived from the configured primary color (the default green when none is set).
+function reportColor($shade)
+{
+    $p = themeColors()['primary'];
+    $white = [255, 255, 255];
+    $black = [0, 0, 0];
+    switch ($shade) {
+        case 'header':
+            return themeRgb($p);
+        case 'heading':
+            return themeRgb(themeMix($p, $black, 0.32));
+        case 'tableHead':
+            return themeRgb(themeMix($p, $white, 0.52));
+        case 'tableHeadText':
+            return themeRgb(themeMix($p, $black, 0.65));
+        case 'rowTint':
+            return themeRgb(themeMix($p, $white, 0.95));
+    }
+    return [0, 0, 0];
+}
+
 class ReportPDF extends FPDF
 {
     public $reportTitle = '';
@@ -158,7 +180,7 @@ class ReportPDF extends FPDF
 
     function Header()
     {
-        $this->SetFillColor(69, 184, 77);
+        $this->SetFillColor(...reportColor('header'));
         $this->Rect(0, 0, $this->GetPageWidth(), 26, 'F');
 
         $textX = 10;
@@ -225,7 +247,7 @@ function sectionTitle($pdf, $text)
         $pdf->Ln(4);
     }
     $pdf->SetFont('Helvetica', 'B', 11);
-    $pdf->SetTextColor(46, 125, 50);
+    $pdf->SetTextColor(...reportColor('heading'));
     $pdf->Cell(0, 8, pdfEnc($text), 0, 1);
     $pdf->SetTextColor(30, 30, 30);
 }
@@ -263,8 +285,8 @@ function renderTable($pdf, $headers, $widths, $rows)
 
     $printHeader = function () use ($pdf, $headers, $widths) {
         $pdf->SetFont('Helvetica', 'B', 8.5);
-        $pdf->SetFillColor(169, 216, 171);
-        $pdf->SetTextColor(20, 60, 20);
+        $pdf->SetFillColor(...reportColor('tableHead'));
+        $pdf->SetTextColor(...reportColor('tableHeadText'));
         foreach ($headers as $i => $h) {
             $pdf->Cell($widths[$i], 8, fitText($pdf, $h, $widths[$i]), 1, 0, 'L', true);
         }
@@ -288,7 +310,11 @@ function renderTable($pdf, $headers, $widths, $rows)
             $printHeader();
             $fill = false;
         }
-        $pdf->SetFillColor($fill ? 245 : 255, $fill ? 250 : 255, $fill ? 245 : 255);
+        if ($fill) {
+            $pdf->SetFillColor(...reportColor('rowTint'));
+        } else {
+            $pdf->SetFillColor(255, 255, 255);
+        }
         foreach ($row as $i => $val) {
             $pdf->Cell($widths[$i], 7, fitText($pdf, $val, $widths[$i]), 1, 0, 'L', true);
         }
