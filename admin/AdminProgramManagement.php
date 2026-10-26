@@ -1075,7 +1075,6 @@ $activeLink = 'AdminProgramManagement';
                                     <div>
                                         <div class="p-name"><i class="bi <?php echo e($t['icon']); ?> me-1"></i><?php echo e($t['label']); ?></div>
                                         <div class="p-meta">
-                                            <span class="builtin-tag">Built-in Track</span>
                                             <span class="status-pill <?php echo $t['is_visible'] ? 'status-active' : 'status-inactive'; ?>"><?php echo $t['is_visible'] ? 'Shown' : 'Hidden'; ?></span>
                                             <span><i class="bi bi-people me-1"></i><?php echo $trackBenCount; ?> beneficiar<?php echo $trackBenCount === 1 ? 'y' : 'ies'; ?></span>
                                             <?php if (!empty($t['max_slots'])): ?>

@@ -28,7 +28,7 @@ foreach ($committees as $c) {
 }
 $builtInTracksResult = $conn->query("SELECT pt.track_code, pt.label, c.code AS committee_code FROM program_tabs pt JOIN committees c ON c.committee_id = pt.committee_id WHERE pt.program_id IS NULL AND pt.is_visible = 1 ORDER BY pt.sort_order ASC");
 foreach ($builtInTracksResult as $t) {
-    $programsByCommitteeCode[$t['committee_code']][] = ['id' => 'track:' . $t['track_code'], 'name' => $t['label'] . ' (Built-in Track)'];
+    $programsByCommitteeCode[$t['committee_code']][] = ['id' => 'track:' . $t['track_code'], 'name' => $t['label']];
 }
 $allProgramsResult = $conn->query("SELECT p.program_id, p.name, c.code AS committee_code FROM programs p JOIN committees c ON c.committee_id = p.committee_id WHERE p.archived_at IS NULL AND p.status = 'active' ORDER BY p.name ASC");
 foreach ($allProgramsResult as $p) {

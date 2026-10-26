@@ -81,7 +81,7 @@ if ($programParam !== 'all' && strpos($programParam, 'track:') === 0) {
         echo 'Invalid program.';
         exit();
     }
-    $programLabel = $row['label'] . ' (Built-in Track)';
+    $programLabel = $row['label'];
 } elseif ($programParam !== 'all') {
     $stmt = $conn->prepare("SELECT program_id, name FROM programs WHERE program_id = ? AND status = 'active' AND archived_at IS NULL AND (? = 0 OR committee_id = ?)");
     $stmt->bind_param('iii', $programParam, $committeeId, $committeeId);
