@@ -68,6 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute();
             $stmt->close();
             logAudit('Added In-Kind Beneficiary', $committee['name'] . ' application #' . $applicationId);
+            notifyBeneficiaryPendingRelease($applicationId, $type);
             setFlash('success', 'Beneficiary added.');
         } else {
             setFlash('error', 'Could not add beneficiary. Choose a valid applicant, item(s), and quantity.');

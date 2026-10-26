@@ -351,5 +351,6 @@ function autoAddEligibleBeneficiaries($committeeId, $programId, $type)
         $ins->execute();
         $ins->close();
         logAudit('Auto-added ' . ($type === 'cash' ? 'Cash' : 'In-Kind') . ' Beneficiary', 'Application #' . $applicationId . ' (eligible)');
+        notifyBeneficiaryPendingRelease($applicationId, $type);
     }
 }

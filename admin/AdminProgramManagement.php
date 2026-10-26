@@ -169,6 +169,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->bind_param('sii', $ikItems, $ikQty, $programId);
             $stmt->execute();
             $stmt->close();
+            ensureProgramReleaseColumns();
+            $oldProgram = getProgramById($programId);
+            $relDate = ($_POST['release_date'] ?? '') !== '' ? $_POST['release_date'] : null;
+            $relTime = ($_POST['release_time'] ?? '') !== '' ? $_POST['release_time'] : null;
+            $relVenueRaw = trim($_POST['release_venue'] ?? '');
+            $relVenue = $relVenueRaw !== '' ? $relVenueRaw : null;
+            $stmt = $conn->prepare("UPDATE programs SET release_date = ?, release_time = ?, release_venue = ? WHERE program_id = ?");
+            $stmt->bind_param('sssi', $relDate, $relTime, $relVenue, $programId);
+            $stmt->execute();
+            $stmt->close();
+            // A changed schedule is emailed again to everyone still waiting for their release.
+            if ($relDate !== null && (($oldProgram['release_date'] ?? null) !== $relDate || substr((string)($oldProgram['release_time'] ?? ''), 0, 5) !== substr((string)$relTime, 0, 5) || ($oldProgram['release_venue'] ?? null) !== $relVenue)) {
+                notifyProgramReleaseScheduleChanged($programId);
+            }
             if ($programTab = getProgramTabByProgramId($programId)) {
                 setProgramTabActivities((int)$programTab['tab_id'], isset($_POST['has_activities']));
             }
@@ -190,6 +204,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $ikQty = ($ikItems !== null && (int)($_POST['inkind_quantity'] ?? 0) > 0) ? (int)$_POST['inkind_quantity'] : null;
             $stmt = $conn->prepare("UPDATE programs SET inkind_items = ?, inkind_quantity = ? WHERE program_id = ?");
             $stmt->bind_param('sii', $ikItems, $ikQty, $newId);
+            $stmt->execute();
+            $stmt->close();
+            ensureProgramReleaseColumns();
+            $relDate = ($_POST['release_date'] ?? '') !== '' ? $_POST['release_date'] : null;
+            $relTime = ($_POST['release_time'] ?? '') !== '' ? $_POST['release_time'] : null;
+            $relVenueRaw = trim($_POST['release_venue'] ?? '');
+            $relVenue = $relVenueRaw !== '' ? $relVenueRaw : null;
+            $stmt = $conn->prepare("UPDATE programs SET release_date = ?, release_time = ?, release_venue = ? WHERE program_id = ?");
+            $stmt->bind_param('sssi', $relDate, $relTime, $relVenue, $newId);
             $stmt->execute();
             $stmt->close();
             if (isset($_POST['has_activities']) && ($programTab = getProgramTabByProgramId($newId))) {
@@ -1523,6 +1546,18 @@ $activeLink = 'AdminProgramManagement';
                                 <label class="form-label">Application Period End</label>
                                 <input type="date" class="form-control" name="app_end_date">
                             </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Release Date <span class="text-muted fw-normal">(for the email)</span></label>
+                                <input type="date" class="form-control" name="release_date" value="">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Release Time</label>
+                                <input type="time" class="form-control" name="release_time" value="">
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label">Release Venue</label>
+                                <input type="text" class="form-control" name="release_venue" maxlength="150" placeholder="e.g. Barangay Langkiwa Covered Court" value="">
+                            </div>
                             <div class="col-12">
                                 <label class="form-label">Eligibility Requirements <span class="text-muted fw-normal">(one per line)</span></label>
                                 <textarea class="form-control" name="eligibility_requirements" rows="3" placeholder="e.g.&#10;Barangay Indigency&#10;Valid ID"></textarea>
@@ -1689,6 +1724,18 @@ $activeLink = 'AdminProgramManagement';
                                 <div class="col-md-6">
                                     <label class="form-label">Application Period End</label>
                                     <input type="date" class="form-control" name="app_end_date" value="<?php echo e($p['app_end_date']); ?>">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Release Date <span class="text-muted fw-normal">(for the email)</span></label>
+                                    <input type="date" class="form-control" name="release_date" value="<?php echo e($p['release_date'] ?? ''); ?>">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Release Time</label>
+                                    <input type="time" class="form-control" name="release_time" value="<?php echo e(substr((string)($p['release_time'] ?? ''), 0, 5)); ?>">
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-label">Release Venue</label>
+                                    <input type="text" class="form-control" name="release_venue" maxlength="150" placeholder="e.g. Barangay Langkiwa Covered Court" value="<?php echo e($p['release_venue'] ?? ''); ?>">
                                 </div>
                                 <div class="col-12">
                                     <label class="form-label">Eligibility Requirements <span class="text-muted fw-normal">(one per line)</span></label>

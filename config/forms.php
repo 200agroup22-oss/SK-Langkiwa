@@ -1064,3 +1064,95 @@ function saveDynamicSubmission($applicationId, $committeeId, array $post, array 
         $insAns->close();
     }
 }
+
+// ---- Release schedule notices (Pending Release) ----
+// A program carries one release schedule (date / time / venue, set in Content Management). Beneficiaries
+// whose assistance is Pending Release are emailed it when they are added and again if it changes.
+function ensureProgramReleaseColumns()
+{
+    global $conn;
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+    foreach (['release_date' => 'DATE NULL', 'release_time' => 'TIME NULL', 'release_venue' => 'VARCHAR(150) NULL'] as $col => $def) {
+        $exists = $conn->query("SHOW COLUMNS FROM programs LIKE '$col'");
+        if ($exists && $exists->num_rows === 0) {
+            $conn->query("ALTER TABLE programs ADD COLUMN $col $def");
+        }
+    }
+}
+
+// Emails (and posts an in-app notice to) the person behind an application about their pending release.
+// $beneficiary is the assistance_beneficiaries row (type, amount, items, quantity).
+function notifyBeneficiaryRelease($applicationId, array $beneficiary, $updated = false)
+{
+    global $conn;
+    try {
+        $stmt = $conn->prepare("SELECT u.user_id, u.email, u.first_name, u.last_name, a.program_id, a.committee_id, c.name AS committee_name
+            FROM applications a JOIN users u ON u.user_id = a.user_id JOIN committees c ON c.committee_id = a.committee_id
+            WHERE a.application_id = ?");
+        $stmt->bind_param('i', $applicationId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!$row || empty($row['email']) || substr($row['email'], -12) === '@walkin.local') {
+            return; // walk-in applicants have no real email
+        }
+
+        $program = !empty($row['program_id']) ? getProgramById((int)$row['program_id']) : null;
+        $type = $beneficiary['type'] ?? 'cash';
+        $what = $type === 'cash'
+            ? 'PHP ' . number_format((float)($beneficiary['amount'] ?? 0), 2)
+            : trim(($beneficiary['items'] ?? '') . (!empty($beneficiary['quantity']) ? ' x' . (int)$beneficiary['quantity'] : ''));
+        $details = [
+            'program' => $program['name'] ?? ($row['committee_name'] . ' Assistance Program'),
+            'type' => $type,
+            'what' => $what,
+            'date' => $program['release_date'] ?? null,
+            'time' => $program['release_time'] ?? null,
+            'venue' => $program['release_venue'] ?? null,
+        ];
+        sendReleaseScheduleEmail($row['email'], trim($row['first_name'] . ' ' . $row['last_name']), $details, $updated);
+
+        $when = !empty($details['date']) ? date('F j, Y', strtotime($details['date'])) . (!empty($details['time']) ? ' at ' . date('g:i A', strtotime($details['time'])) : '') : 'to be announced';
+        notifyUserInApp(
+            (int)$row['user_id'],
+            $updated ? 'Release schedule updated' : 'Assistance pending release',
+            $details['program'] . ' (' . $what . ') - release: ' . $when . (!empty($details['venue']) ? ', ' . $details['venue'] : '') . '.'
+        );
+    } catch (Throwable $ex) {
+        error_log('Release notice failed: ' . $ex->getMessage());
+    }
+}
+
+// Convenience for the page handlers right after a beneficiary was added.
+function notifyBeneficiaryPendingRelease($applicationId, $type)
+{
+    global $conn;
+    $stmt = $conn->prepare("SELECT * FROM assistance_beneficiaries WHERE application_id = ? AND type = ? AND status = 'pending' AND archived_at IS NULL ORDER BY beneficiary_id DESC LIMIT 1");
+    $stmt->bind_param('is', $applicationId, $type);
+    $stmt->execute();
+    $ben = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if ($ben) {
+        notifyBeneficiaryRelease((int)$applicationId, $ben, false);
+    }
+}
+
+// The release schedule of a program changed: tell everyone still waiting for their release.
+function notifyProgramReleaseScheduleChanged($programId)
+{
+    global $conn;
+    $stmt = $conn->prepare("SELECT ab.*, a.application_id AS app_id FROM assistance_beneficiaries ab
+        JOIN applications a ON a.application_id = ab.application_id
+        WHERE a.program_id = ? AND ab.status = 'pending' AND ab.archived_at IS NULL");
+    $stmt->bind_param('i', $programId);
+    $stmt->execute();
+    $bens = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    foreach ($bens as $ben) {
+        notifyBeneficiaryRelease((int)$ben['app_id'], $ben, true);
+    }
+}
