@@ -3,6 +3,14 @@
 // what normally brings in this helper — load it directly so the Program Activities link can show.
 require_once __DIR__ . '/../config/program_activities.php';
 $me = currentUser();
+
+// A scholar always gets the scholar navigation bar, even on the applicant-side pages they can open
+// (Application Status, My Assistance, application forms), so the header never changes under them.
+if (($me['role'] ?? '') === 'scholar') {
+    include __DIR__ . '/scholarnav.php';
+    return;
+}
+
 $homeUrl = dashboardUrlForRole($me['role'] ?? 'applicant');
 $roleLabel = ucfirst($me['role'] ?? 'applicant');
 ?>

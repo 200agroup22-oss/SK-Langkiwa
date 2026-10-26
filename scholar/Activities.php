@@ -19,10 +19,33 @@ if ($scholar) {
     $stmt->close();
 }
 
-$total = count($rows);
-$present = count(array_filter($rows, fn($r) => $r['status'] === 'present'));
-$pending = count(array_filter($rows, fn($r) => $r['status'] === 'pending'));
-$absent = count(array_filter($rows, fn($r) => $r['status'] === 'absent'));
+// Activities of any program (with Activities switched on) this scholar was also approved for - shown on
+// this same page so a scholar has one place for all of their activities.
+$programRows = [];
+try {
+    ensureProgramActivitySchema();
+    syncProgramActivitiesForUser((int)$me['user_id']);
+    $stmt = $conn->prepare("SELECT att.attendance_id, att.status, att.qr_token, att.scanned_at,
+            a.title, a.activity_date, a.activity_time, a.venue, a.description,
+            pt.label AS program_label
+        FROM program_attendance att
+        JOIN program_activities a ON a.activity_id = att.activity_id
+        JOIN program_tabs pt ON pt.tab_id = a.tab_id
+        WHERE att.user_id = ? AND a.archived_at IS NULL AND pt.has_activities = 1
+        ORDER BY a.activity_date DESC, a.activity_id DESC");
+    $stmt->bind_param('i', $me['user_id']);
+    $stmt->execute();
+    $programRows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+} catch (Throwable $ex) {
+    $programRows = [];
+}
+$allRows = array_merge($rows, $programRows);
+
+$total = count($allRows);
+$present = count(array_filter($allRows, fn($r) => $r['status'] === 'present'));
+$pending = count(array_filter($allRows, fn($r) => $r['status'] === 'pending'));
+$absent = count(array_filter($allRows, fn($r) => $r['status'] === 'absent'));
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -182,7 +205,7 @@ $absent = count(array_filter($rows, fn($r) => $r['status'] === 'absent'));
                 <div style="font-size: 22px; font-weight: 700; margin-bottom: 4px;">
                     <i class="bi bi-calendar-event-fill text-success"></i> My Activities
                 </div>
-                <p class="text-muted mb-0" style="font-size: 13px;">View your assigned SK activities and generate your QR code for attendance scanning.</p>
+                <p class="text-muted mb-0" style="font-size: 13px;">View your assigned SK activities (iSKolar and your programs) and generate your QR code for attendance scanning.</p>
             </div>
         </div>
 
@@ -214,7 +237,7 @@ $absent = count(array_filter($rows, fn($r) => $r['status'] === 'absent'));
         </div>
 
         <div class="row g-3">
-            <?php if (empty($rows)): ?>
+            <?php if (empty($rows) && empty($programRows)): ?>
                 <div class="col-12">
                     <p class="text-muted text-center py-5">No activities have been assigned to you yet.</p>
                 </div>
@@ -281,6 +304,75 @@ $absent = count(array_filter($rows, fn($r) => $r['status'] === 'absent'));
             <?php endforeach; ?>
         </div>
 
+        <?php if (!empty($programRows)): ?>
+            <div class="d-flex align-items-center gap-2 mt-4 mb-3" style="font-size:16px; font-weight:700;">
+                <i class="bi bi-diagram-3-fill text-success"></i> Program Activities
+            </div>
+            <div class="row g-3">
+                <?php foreach ($programRows as $r): ?>
+                    <div class="col-lg-4 col-md-6">
+                        <div class="activities">
+                            <span class="badge" style="background:#e8f5e9;color:#2e7d32;font-size:11px;font-weight:600;border-radius:20px;padding:3px 10px;margin-bottom:8px;"><?php echo e($r['program_label']); ?></span>
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div class="activity-title"><?php echo e($r['title']); ?></div>
+                                <?php if ($r['status'] === 'present'): ?>
+                                    <span class="badge-submitted"><i class="bi bi-check-circle-fill me-1"></i>Present</span>
+                                <?php elseif ($r['status'] === 'absent'): ?>
+                                    <span class="badge-absent"><i class="bi bi-x-circle-fill me-1"></i>Absent</span>
+                                <?php else: ?>
+                                    <span class="badge-pending"><strong><i class="bi bi-hourglass-split me-1"></i>Pending</strong></span>
+                                <?php endif; ?>
+                            </div>
+                            <div class="detail"><i class="bi bi-calendar2 text-success"></i> &nbsp;<strong>When:</strong> <?php echo date('F j, Y', strtotime($r['activity_date'])); ?><?php echo $r['activity_time'] ? ', ' . date('g:i A', strtotime($r['activity_time'])) : ''; ?></div>
+                            <?php if ($r['venue']): ?><div class="detail"><i class="bi bi-geo-alt-fill text-success"></i> &nbsp;<strong>Where:</strong> <?php echo e($r['venue']); ?></div><?php endif; ?>
+                            <?php if ($r['description']): ?><div class="detail"><i class="bi bi-info-circle text-success"></i> &nbsp;<?php echo e($r['description']); ?></div><?php endif; ?>
+
+                            <hr class="my-divider">
+
+                            <?php if ($r['status'] === 'present'): ?>
+                                <div class="present-info">
+                                    <div><i class="bi bi-check-circle-fill"></i> QR Code scanned</div>
+                                    <?php if ($r['scanned_at']): ?>
+                                        <div><i class="bi bi-calendar-check"></i> Date: <strong><?php echo date('F j, Y', strtotime($r['scanned_at'])); ?></strong></div>
+                                        <div><i class="bi bi-clock-fill"></i> Time: <strong><?php echo date('g:i A', strtotime($r['scanned_at'])); ?></strong></div>
+                                    <?php endif; ?>
+                                </div>
+                            <?php elseif ($r['status'] === 'absent'): ?>
+                                <div class="missed-notice">
+                                    <i class="bi bi-exclamation-triangle-fill"></i> &nbsp;No QR scan was recorded for this activity. Marked absent by the SK officer.
+                                </div>
+                            <?php else: ?>
+                                <div class="qr-section">
+                                    <label class="section-label"><i class="bi bi-qr-code"></i> Attendance QR Code</label>
+                                    <p class="text-muted mb-2" style="font-size: 12px;">Generate your personal QR code and present it to the SK officer for scanning on the day of the activity.</p>
+                                    <button type="button" class="btn-generate-qr" data-bs-toggle="modal" data-bs-target="#pqrModal<?php echo $r['attendance_id']; ?>" onclick="renderProgramQr(<?php echo (int)$r['attendance_id']; ?>, '<?php echo e($r['qr_token']); ?>')">
+                                        <i class="bi bi-qr-code-scan"></i> Generate QR Code
+                                    </button>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+
+                    <?php if ($r['status'] === 'pending'): ?>
+                        <div class="modal fade" id="pqrModal<?php echo $r['attendance_id']; ?>" tabindex="-1">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title"><i class="bi bi-qr-code"></i> Attendance QR Code — <?php echo e($r['title']); ?></h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body text-center">
+                                        <div id="pqrcode<?php echo $r['attendance_id']; ?>" class="d-flex justify-content-center my-3"></div>
+                                        <p class="text-muted" style="font-size:12px;">Show this to the SK officer on the day of the activity.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -298,6 +390,20 @@ $absent = count(array_filter($rows, fn($r) => $r['status'] === 'absent'));
                     height: 200
                 });
                 renderedQr[attendanceId] = true;
+            }
+        }
+        const renderedProgramQr = {};
+
+        function renderProgramQr(attendanceId, token) {
+            if (renderedProgramQr[attendanceId]) return;
+            const el = document.getElementById('pqrcode' + attendanceId);
+            if (el) {
+                new QRCode(el, {
+                    text: token,
+                    width: 200,
+                    height: 200
+                });
+                renderedProgramQr[attendanceId] = true;
             }
         }
     </script>
