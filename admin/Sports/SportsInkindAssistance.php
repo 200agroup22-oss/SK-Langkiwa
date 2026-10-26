@@ -150,8 +150,8 @@ $rows = array_values(array_filter($rows, function ($row) use ($type) {
 }));
 
 // Programs with Activities: only beneficiaries who completed them (eligible) are listed here; everyone
-// else stays on the program's Beneficiaries tab until they do. Existing records are always kept.
-$rows = array_values(array_filter($rows, fn($r) => !empty($r['beneficiary_id']) || empty($r['compliance']) || $r['compliance']['ok']));
+// else stays on the program's Beneficiaries tab until they do. Only records already released/distributed are always kept.
+$rows = array_values(array_filter($rows, fn($r) => (!empty($r['beneficiary_id']) && in_array($r['b_status'] ?? '', ['released', 'distributed'], true)) || empty($r['compliance']) || $r['compliance']['ok']));
 
 // ---- Archived beneficiaries (for the Archives modal) ----
 $archivedStmt = $conn->prepare("SELECT ab.beneficiary_id, ab.application_id, ab.items, ab.quantity, ab.archived_at, a.program_id

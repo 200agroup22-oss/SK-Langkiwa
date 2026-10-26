@@ -34,6 +34,13 @@ function ensureProgramActivitySchema()
         KEY idx_tab (tab_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
+    $conn->query("CREATE TABLE IF NOT EXISTS program_eligibility_overrides (
+        application_id INT PRIMARY KEY,
+        eligibility ENUM('eligible','not_eligible') NOT NULL,
+        set_by INT NULL,
+        set_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
     $conn->query("CREATE TABLE IF NOT EXISTS program_attendance (
         attendance_id INT AUTO_INCREMENT PRIMARY KEY,
         activity_id INT NOT NULL,
@@ -164,6 +171,7 @@ function programActivityCompliance($applicationId)
             return null;
         }
 
+        ensureProgramActivitySchema();
         $tabId = (int)$tab['tab_id'];
         $userId = (int)$app['user_id'];
 
@@ -194,7 +202,22 @@ function programActivityCompliance($applicationId)
 
         $required = (int)$row['required'];
         $completed = (int)$row['completed'];
-        return ['required' => $required, 'completed' => $completed, 'ok' => $completed >= $required];
+        $ok = $completed >= $required;
+
+        // A Super Admin/officer can mark someone Eligible or Not Eligible by hand (Beneficiaries > Actions),
+        // which then wins over attendance — same idea as a scholar's "Set Eligibility".
+        $manual = null;
+        $stmt = $conn->prepare("SELECT eligibility FROM program_eligibility_overrides WHERE application_id = ?");
+        $stmt->bind_param('i', $applicationId);
+        $stmt->execute();
+        $override = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if ($override) {
+            $manual = $override['eligibility'];
+            $ok = $manual === 'eligible';
+        }
+
+        return ['required' => $required, 'completed' => $completed, 'ok' => $ok, 'manual' => $manual];
     } catch (Throwable $ex) {
         return null;
     }
