@@ -44,6 +44,12 @@ if (!empty($_GET['program_id'])) {
 }
 $displayName = $programName ?: $committee['name'];
 
+// Slot limit (Configuration > Application / Program Settings): once the approved applicants reach it, nobody
+// can apply any more — the form is locked instead of letting people apply for a slot that is gone.
+if (!$programClosed && isProgramFull($committeeId, 'assistance', $programId)) {
+    $programClosed = 'This program has reached its maximum number of beneficiaries and is no longer accepting applications.';
+}
+
 // program_id <=> ? (null-safe equal) so a pending/approved application for one program doesn't
 // block applying to a different program under the same committee — only re-applying to the exact
 // same program (or the generic track, when neither has a program_id) counts as a duplicate.
