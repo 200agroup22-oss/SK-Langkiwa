@@ -472,6 +472,8 @@ function assistBadges($type)
 }
 
 $committeeIconChoices = ['bi-people-fill', 'bi-mortarboard-fill', 'bi-heart-pulse-fill', 'bi-trophy-fill', 'bi-flag-fill', 'bi-tree-fill', 'bi-palette-fill', 'bi-shield-fill-check', 'bi-music-note-beamed', 'bi-globe2', 'bi-star-fill', 'bi-bank', 'bi-briefcase-fill', 'bi-currency-exchange'];
+// Program tabs pick from the same icons plus a few that suit assistance programs.
+$tabIconChoices = array_merge($committeeIconChoices, ['bi-hand-holding-heart-fill', 'bi-cash-coin', 'bi-box-seam', 'bi-clipboard2-heart-fill']);
 
 $activeLink = 'AdminProgramManagement';
 ?>
@@ -1167,15 +1169,21 @@ $activeLink = 'AdminProgramManagement';
                                             <p class="text-muted" style="font-size:13px;">These are the sidebar sections shown under <?php echo e($c['name']); ?> on both the admin and applicant sides. Rename a tab or hide it from the sidebar without deleting any data — the underlying pages and applications stay intact either way.</p>
                                             <?php foreach ($tabsByCommittee[$cid] as $t): $tid = (int)$t['tab_id']; ?>
                                                 <div class="row g-2 align-items-center mb-3 pb-3" style="border-bottom:1px solid #eee;">
-                                                    <div class="col-md-5">
+                                                    <div class="col-md-8">
                                                         <label class="form-label" style="font-size:12px; font-weight:600;">Label</label>
                                                         <input type="text" class="form-control form-control-sm" name="tabs[<?php echo $tid; ?>][label]" value="<?php echo e($t['label']); ?>" required>
+                                                        <label class="form-label mt-2" style="font-size:12px; font-weight:600;">Icon</label>
+                                                        <?php $tabChoices = in_array($t['icon'], $tabIconChoices, true) ? $tabIconChoices : array_merge([$t['icon']], $tabIconChoices); ?>
+                                                        <div>
+                                                            <input type="hidden" name="tabs[<?php echo $tid; ?>][icon]" value="<?php echo e($t['icon']); ?>" class="icon-hidden-input">
+                                                            <div class="d-flex flex-wrap gap-2 icon-picker">
+                                                                <?php foreach ($tabChoices as $ic): ?>
+                                                                    <span class="icon-choice<?php echo $ic === $t['icon'] ? ' selected' : ''; ?>" data-icon="<?php echo e($ic); ?>"><i class="bi <?php echo e($ic); ?>"></i></span>
+                                                                <?php endforeach; ?>
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                     <div class="col-md-4">
-                                                        <label class="form-label" style="font-size:12px; font-weight:600;">Icon <span class="text-muted fw-normal">(Bootstrap Icons class)</span></label>
-                                                        <input type="text" class="form-control form-control-sm" name="tabs[<?php echo $tid; ?>][icon]" value="<?php echo e($t['icon']); ?>">
-                                                    </div>
-                                                    <div class="col-md-3">
                                                         <label class="form-label d-block" style="font-size:12px; font-weight:600;">Visible</label>
                                                         <div class="form-check form-switch">
                                                             <input class="form-check-input" type="checkbox" name="tabs[<?php echo $tid; ?>][visible]" id="tabVisible<?php echo $tid; ?>" <?php echo $t['is_visible'] ? 'checked' : ''; ?>>
@@ -1183,7 +1191,7 @@ $activeLink = 'AdminProgramManagement';
                                                         </div>
                                                     </div>
                                                     <div class="col-12">
-                                                        <span class="text-muted" style="font-size:11px;"><i class="bi bi-info-circle me-1"></i>Track: <code><?php echo e($t['track_code']); ?></code> — <i class="bi <?php echo e($t['icon']); ?>"></i> preview</span>
+                                                        <span class="text-muted" style="font-size:11px;"><i class="bi bi-info-circle me-1"></i>Track: <code><?php echo e($t['track_code']); ?></code></span>
                                                     </div>
                                                 </div>
                                             <?php endforeach; ?>
