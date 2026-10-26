@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/config/functions.php';
 require_once __DIR__ . '/config/mail.php';
+require_once __DIR__ . '/config/registration_approval.php';
 
 if (isLoggedIn()) {
     header("Location: " . dashboardUrlForRole($_SESSION['role']));
@@ -47,11 +48,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $d = $pending['data'];
                 $email = $pending['email'];
 
-                $stmt = $conn->prepare("INSERT INTO users (last_name, first_name, middle_name, age, gender, email, password_hash, role, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'applicant', 'active')");
-                $stmt->bind_param('sssisss', $d['last_name'], $d['first_name'], $d['middle_name'], $d['age'], $d['gender'], $email, $d['password_hash']);
+                // The account is created as 'pending' — it can't log in until the Super Admin has checked the
+                // uploaded ID and proof of residency (Account Approvals). A previously declined registration
+                // with the same email is reused (reset to pending with the new details and files).
+                ensureRegistrationApprovalSchema();
+                $idPath = $d['id_document_path'] ?? null;
+                $residencyPath = $d['residency_document_path'] ?? null;
+
+                $stmt = $conn->prepare("SELECT user_id FROM users WHERE email = ? AND status = 'declined'");
+                $stmt->bind_param('s', $email);
                 $stmt->execute();
-                $userId = $stmt->insert_id;
+                $declined = $stmt->get_result()->fetch_assoc();
                 $stmt->close();
+
+                if ($declined) {
+                    $userId = (int)$declined['user_id'];
+                    $stmt = $conn->prepare("UPDATE users SET last_name = ?, first_name = ?, middle_name = ?, age = ?, gender = ?, password_hash = ?, status = 'pending', id_document_path = ?, residency_document_path = ?, decline_reason = NULL, decided_at = NULL, decided_by = NULL WHERE user_id = ?");
+                    $stmt->bind_param('sssissssi', $d['last_name'], $d['first_name'], $d['middle_name'], $d['age'], $d['gender'], $d['password_hash'], $idPath, $residencyPath, $userId);
+                    $stmt->execute();
+                    $stmt->close();
+                } else {
+                    $stmt = $conn->prepare("INSERT INTO users (last_name, first_name, middle_name, age, gender, email, password_hash, role, status, id_document_path, residency_document_path) VALUES (?, ?, ?, ?, ?, ?, ?, 'applicant', 'pending', ?, ?)");
+                    $stmt->bind_param('sssisssss', $d['last_name'], $d['first_name'], $d['middle_name'], $d['age'], $d['gender'], $email, $d['password_hash'], $idPath, $residencyPath);
+                    $stmt->execute();
+                    $userId = $stmt->insert_id;
+                    $stmt->close();
+                }
 
                 unset($_SESSION['otp_pending']);
 
@@ -61,7 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $auditStmt->execute();
                 $auditStmt->close();
 
-                setFlash('success', 'Account created successfully! Please log in.');
+                setFlash('success', 'Email verified! Your registration is now waiting for approval by the Super Admin. You will be emailed once it is reviewed, and you can log in after it is approved.');
                 header("Location: " . APP_BASE . "/login.php");
                 exit();
             } else {

@@ -214,7 +214,7 @@ $statusFilter = $_GET['status'] ?? '';
 $sortBy = $_GET['sort'] ?? '';
 $search = trim($_GET['q'] ?? '');
 
-$result = $conn->query("SELECT * FROM users WHERE status != 'archived' AND email NOT LIKE '%@walkin.local' ORDER BY user_id ASC");
+$result = $conn->query("SELECT * FROM users WHERE status != 'archived' AND status NOT IN ('pending','declined') AND email NOT LIKE '%@walkin.local' ORDER BY user_id ASC");
 $users = $result->fetch_all(MYSQLI_ASSOC);
 foreach ($users as &$u) {
     $u['full_name'] = trim($u['first_name'] . ' ' . $u['last_name']);

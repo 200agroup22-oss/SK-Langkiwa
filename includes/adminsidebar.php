@@ -1,6 +1,7 @@
 <?php
 // Shared admin topbar + sidebar. Caller sets $activeLink (e.g. 'EducationApplicants') before including this file.
 require_once __DIR__ . '/../config/forms.php';
+require_once __DIR__ . '/../config/registration_approval.php';
 $activeLink = $activeLink ?? '';
 $adminMe = currentUser();
 $isSuperAdmin = $adminMe ? hasFullCommitteeAccess($adminMe) : false;
@@ -475,6 +476,10 @@ function collapseAttrs($expanded)
     <div class="config-section">
         <?php if ($isFullAdmin): ?>
             <a href="<?php echo APP_BASE; ?>/admin/AdminProgramManagement.php" class="nav-link-item<?php echo navActive('AdminProgramManagement'); ?>"><i class="bi bi-diagram-3-fill"></i> Content Management</a>
+        <?php endif; ?>
+        <?php if ($isFullAdmin):
+            $pendingRegCount = function_exists('pendingRegistrationCount') ? pendingRegistrationCount() : 0; ?>
+            <a href="<?php echo APP_BASE; ?>/admin/AccountApprovals.php" class="nav-link-item<?php echo navActive('AccountApprovals'); ?>"><i class="bi bi-person-check-fill"></i> Account Approvals<?php if ($pendingRegCount > 0): ?> <span class="badge rounded-pill text-bg-danger ms-1" style="font-size:10px;"><?php echo $pendingRegCount; ?></span><?php endif; ?></a>
         <?php endif; ?>
         <?php if ($isFullAdmin): ?>
             <a href="<?php echo APP_BASE; ?>/admin/AdminUserManagement.php" class="nav-link-item<?php echo navActive('AdminUserManagement'); ?>"><i class="bi bi-person-fill"></i> User Management</a>

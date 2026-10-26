@@ -25,6 +25,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$user || !password_verify($password, $user['password_hash'])) {
             setFlash('error', 'Invalid email or password.');
+        } elseif ($user['status'] === 'pending') {
+            setFlash('error', 'Your registration is still waiting for approval by the Super Admin. You will be emailed once it is reviewed.');
+        } elseif ($user['status'] === 'declined') {
+            setFlash('error', 'Your registration was declined' . (!empty($user['decline_reason']) ? ': ' . $user['decline_reason'] : '.') . ' You may register again with the correct documents.');
         } elseif ($user['status'] !== 'active') {
             setFlash('error', 'This account is inactive. Please contact the SK office.');
         } else {
