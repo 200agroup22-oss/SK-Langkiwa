@@ -41,8 +41,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $userId = getOrCreateWalkInUser($lastName, $firstName, $middleName);
 
             $settings = $conn->query("SELECT current_academic_year, current_semester FROM site_settings WHERE id = 1")->fetch_assoc();
+            // Only iSKolar (scholar) applications belong to an academic term — assistance programs record none.
+            $noTerm = null;
             $stmt = $conn->prepare("INSERT INTO applications (user_id, committee_id, program_track, program_id, status, academic_year, semester) VALUES (?, ?, ?, ?, 'pending', ?, ?)");
-            $stmt->bind_param('iisiss', $userId, $committeeId, $track, $programId, $settings['current_academic_year'], $settings['current_semester']);
+            $stmt->bind_param('iisiss', $userId, $committeeId, $track, $programId, $noTerm, $noTerm);
             $stmt->execute();
             $applicationId = $stmt->insert_id;
             $stmt->close();
