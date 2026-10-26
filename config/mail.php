@@ -5,7 +5,12 @@
 //
 // Until BREVO_API_KEY is filled in, OTP codes are written to config/otp_debug.log instead of
 // being emailed, so registration and password reset still work end-to-end for local testing/demo.
-require_once __DIR__ . '/mail.local.php';
+if (file_exists(__DIR__ . '/mail.local.php')) {
+    require_once __DIR__ . '/mail.local.php';
+}
+if (!defined('BREVO_API_KEY')) {
+    define('BREVO_API_KEY', getenv('BREVO_API_KEY') ?: '');
+}
 define('BREVO_SENDER_EMAIL', '200agroup22@gmail.com');
 define('BREVO_SENDER_NAME', siteName());
 
