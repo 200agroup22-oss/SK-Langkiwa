@@ -1010,6 +1010,17 @@ $activeLink = 'AdminReports';
                             </select>
                             <div class="form-text" style="font-size:11.5px;" id="reportTermHint">Only applies to Education (Activity Participation Report) — pick a specific academic term, or leave as N/A for other committees.</div>
                         </div>
+                        <div class="mb-3">
+                            <label for="reportSort" class="form-label">Sort By</label>
+                            <select class="form-select" id="reportSort">
+                                <option value="">Default order</option>
+                                <option value="name_asc">Name: A &rarr; Z</option>
+                                <option value="name_desc">Name: Z &rarr; A</option>
+                                <option value="date_desc">Date: Newest first</option>
+                                <option value="date_asc">Date: Oldest first</option>
+                            </select>
+                            <div class="form-text" style="font-size:11.5px;">Sorts the rows of the report by name or by its date column, where the report has one.</div>
+                        </div>
                         <div class="row g-2">
                             <div class="col-6">
                                 <label for="reportDateFrom" class="form-label">Date From</label>
@@ -1329,8 +1340,9 @@ $activeLink = 'AdminReports';
             const term = reportTermSelect.disabled ? '' : reportTermSelect.value;
             const dateFrom = document.getElementById('reportDateFrom').value;
             const dateTo = document.getElementById('reportDateTo').value;
+            const sortBy = document.getElementById('reportSort').value;
 
-            window.location.href = `GenerateReport.php?type=${encodeURIComponent(reportType)}&committee=${encodeURIComponent(committee)}&program=${encodeURIComponent(program)}&term=${encodeURIComponent(term)}&from=${encodeURIComponent(dateFrom)}&to=${encodeURIComponent(dateTo)}`;
+            window.location.href = `GenerateReport.php?type=${encodeURIComponent(reportType)}&committee=${encodeURIComponent(committee)}&program=${encodeURIComponent(program)}&term=${encodeURIComponent(term)}&from=${encodeURIComponent(dateFrom)}&to=${encodeURIComponent(dateTo)}&sort=${encodeURIComponent(sortBy)}`;
 
             const modalEl = document.getElementById('generateReportModal');
             bootstrap.Modal.getInstance(modalEl).hide();

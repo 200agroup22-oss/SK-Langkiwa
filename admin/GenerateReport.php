@@ -132,6 +132,8 @@ if (!isValidDate($from) || !isValidDate($to)) {
     echo 'Invalid date range. Use YYYY-MM-DD for both "from" and "to".';
     exit();
 }
+$reportSort = in_array($_GET['sort'] ?? '', ['name_asc', 'name_desc', 'date_asc', 'date_desc'], true) ? $_GET['sort'] : '';
+
 if ($from > $to) {
     [$from, $to] = [$to, $from];
 }
@@ -231,6 +233,34 @@ function sectionTitle($pdf, $text)
 // Renders a bordered table with a repeating header row across page breaks.
 function renderTable($pdf, $headers, $widths, $rows)
 {
+    // Optional "Sort By" chosen in the Generate Report dialog: finds the first Name-like or date-like
+    // column by its header and orders the rows by it (rows with no value, shown as a dash, go last).
+    global $reportSort;
+    if (!empty($reportSort) && count($rows) > 1) {
+        $wantName = strpos($reportSort, 'name') === 0;
+        $col = null;
+        foreach ($headers as $i => $h) {
+            if ($wantName ? preg_match('/name/i', $h) : preg_match('/(date|time|at)/i', $h)) {
+                $col = $i;
+                break;
+            }
+        }
+        if ($col !== null) {
+            $desc = substr($reportSort, -4) === 'desc';
+            usort($rows, function ($a, $b) use ($col, $wantName, $desc) {
+                $x = trim((string)($a[$col] ?? ''));
+                $y = trim((string)($b[$col] ?? ''));
+                $xEmpty = ($x === '' || $x === '—');
+                $yEmpty = ($y === '' || $y === '—');
+                if ($xEmpty || $yEmpty) {
+                    return $xEmpty <=> $yEmpty;
+                }
+                $cmp = $wantName ? strcasecmp($x, $y) : strcmp($x, $y);
+                return $desc ? -$cmp : $cmp;
+            });
+        }
+    }
+
     $printHeader = function () use ($pdf, $headers, $widths) {
         $pdf->SetFont('Helvetica', 'B', 8.5);
         $pdf->SetFillColor(169, 216, 171);
