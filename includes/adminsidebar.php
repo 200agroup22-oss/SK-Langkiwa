@@ -133,7 +133,14 @@ function renderExtraProgramTabLinks($committeeId, $tabs, $pages)
             echo '<a href="' . e(programBeneficiariesUrl($t)) . '" class="nav-link-item nav-sub-sub' . ($isThisPtab ? navActive(programBeneficiariesActiveName($committeeId)) : '') . '"><i class="bi bi-people-fill"></i> Beneficiaries</a>';
         }
 
-        if ($hasReq) {
+        if ($hasReq && ($showCash xor $showInKind)) {
+            // A program that offers only one type has nothing to expand — link straight to that page.
+            if ($showCash) {
+                echo '<a href="' . APP_BASE . '/admin/' . e(withProgramParams($pages['cash'], $ptab, $programId)) . '" class="nav-link-item nav-sub-sub' . ($isThisPtab ? navActive($pages['cash_active']) : '') . '"><i class="bi bi-cash-coin"></i> Cash Assistance</a>';
+            } else {
+                echo '<a href="' . APP_BASE . '/admin/' . e(withProgramParams($pages['inkind'], $ptab, $programId)) . '" class="nav-link-item nav-sub-sub' . ($isThisPtab ? navActive($pages['inkind_active']) : '') . '"><i class="bi bi-box-seam"></i> In-Kind Assistance</a>';
+            }
+        } elseif ($hasReq) {
             echo '<a href="#' . $reqMenuId . '" class="nav-link-item nav-sub-sub nav-sub-sub-parent" data-bs-toggle="collapse" role="button" aria-expanded="' . ($reqExpanded ? 'true' : 'false') . '" aria-controls="' . $reqMenuId . '">';
             echo '<i class="bi bi-cash-coin"></i> Assistance Requests<i class="bi bi-chevron-down toggle-icon-sub-sub"></i></a>';
             echo '<div class="collapse' . ($reqExpanded ? ' show' : '') . '" id="' . $reqMenuId . '"><div class="submenu-nested-2">';
