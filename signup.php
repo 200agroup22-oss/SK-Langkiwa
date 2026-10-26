@@ -1,7 +1,6 @@
 <?php
 require_once __DIR__ . '/config/functions.php';
 require_once __DIR__ . '/config/mail.php';
-require_once __DIR__ . '/config/registration_approval.php';
 
 if (isLoggedIn()) {
     header("Location: " . dashboardUrlForRole($_SESSION['role']));
@@ -50,47 +49,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($password !== $confirmPassword) {
         $errors[] = 'Passwords do not match.';
     }
-    $docLabels = ['id_document' => 'Valid ID', 'residency_document' => 'Proof of residency'];
-    foreach ($docLabels as $field => $label) {
-        $f = $_FILES[$field] ?? null;
-        if (!$f || ($f['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
-            $errors[] = $label . ' is required.';
-        } elseif ($fileError = validateUploadedFile($f)) {
-            $errors[] = $label . ': ' . $fileError;
-        }
-    }
     if (!isset($_POST['agree_terms'])) {
         $errors[] = 'You must agree to the Terms and Conditions to register.';
     }
 
     if (empty($errors)) {
-        ensureRegistrationApprovalSchema();
-        $stmt = $conn->prepare("SELECT status FROM users WHERE email = ?");
+        $stmt = $conn->prepare("SELECT user_id FROM users WHERE email = ?");
         $stmt->bind_param('s', $email);
         $stmt->execute();
-        $existingUser = $stmt->get_result()->fetch_assoc();
-        if ($existingUser && $existingUser['status'] === 'pending') {
-            $errors[] = 'A registration with that email is already waiting for approval.';
-        } elseif ($existingUser && $existingUser['status'] !== 'declined') {
+        if ($stmt->get_result()->fetch_assoc()) {
             $errors[] = 'An account with that email already exists.';
         }
         $stmt->close();
     }
 
     if (empty($errors)) {
-        try {
-            $idUpload = handleUpload($_FILES['id_document'], 'registrations');
-            $residencyUpload = handleUpload($_FILES['residency_document'], 'registrations');
-        } catch (RuntimeException $ex) {
-            $errors[] = $ex->getMessage();
-        }
-    }
-
-    if (empty($errors)) {
         $passwordHash = password_hash($password, PASSWORD_DEFAULT);
         $code = startOtp('register', $email, [
-            'id_document_path' => $idUpload['path'],
-            'residency_document_path' => $residencyUpload['path'],
             'last_name' => $lastName,
             'first_name' => $firstName,
             'middle_name' => $middleName,
@@ -143,7 +118,7 @@ $privacyText = $settings['privacy_policy'] ?? '';
                     <div class="alert alert-danger py-2"><?php echo e($signupError); ?></div>
                 <?php endif; ?>
 
-                <form action="" method="post" enctype="multipart/form-data">
+                <form action="" method="post">
 
                     <div class="row mb-3">
                         <div class="col-md-4">
@@ -214,22 +189,6 @@ $privacyText = $settings['privacy_policy'] ?? '';
                                 <span class="input-group-text"><i class="bi bi-lock-fill"></i></span>
                                 <input type="password" name="confirm_password" class="form-control" placeholder="Re-enter password" minlength="8" required>
                                 <span class="input-group-text" style="cursor:pointer;" onclick="togglePasswordVisibility(this)"><i class="bi bi-eye-fill"></i></span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="mb-3" style="border-top:1px solid #e8f5e9; padding-top:14px;">
-                        <div class="form-label mb-1" style="font-size:14px;"><i class="bi bi-shield-check text-success me-1"></i>Verification documents</div>
-                        <div class="form-text mb-2" style="font-size:11.5px;">The Super Admin will check these before your account is approved. JPG, PNG or PDF, up to 4MB each.</div>
-                        <div class="row">
-                            <div class="col-md-6 mb-2">
-                                <label class="form-label">Valid ID <span class="text-danger">*</span></label>
-                                <input type="file" name="id_document" class="form-control" accept=".jpg,.jpeg,.png,.pdf" required>
-                            </div>
-                            <div class="col-md-6 mb-2">
-                                <label class="form-label">Proof of residency <span class="text-danger">*</span></label>
-                                <input type="file" name="residency_document" class="form-control" accept=".jpg,.jpeg,.png,.pdf" required>
-                                <div class="form-text" style="font-size:11px;">e.g. Barangay certificate</div>
                             </div>
                         </div>
                     </div>
