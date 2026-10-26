@@ -124,18 +124,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setFlash('success', 'SK Office info updated.');
     }
 
-    if (isset($_POST['toggle_program_activities'])) {
-        $tabId = (int)$_POST['tab_id'];
-        $enabled = isset($_POST['has_activities']);
-        $tabRow = getProgramTabById($tabId);
-        if ($tabRow && $tabRow['track_code'] !== 'scholarship') {
-            setProgramTabActivities($tabId, $enabled);
-            logAudit('Updated Program Activities', ($tabRow['label'] ?? 'Tab #' . $tabId) . ' -> ' . ($enabled ? 'Enabled' : 'Disabled'));
-            setFlash('success', 'Activities ' . ($enabled ? 'enabled' : 'disabled') . ' for ' . $tabRow['label'] . '.');
-        }
-        $redirectTab = 'programSettingsTab';
-    }
-
     if (isset($_POST['update_program_slots'])) {
         $tabId = (int)$_POST['tab_id'];
         $slotsRaw = trim($_POST['max_slots'] ?? '');
@@ -1010,13 +998,12 @@ $activeLink = 'AdminConfiguration';
                                 <th>Approved</th>
                                 <th>Max Slots</th>
                                 <th>Remaining</th>
-                                <th>Activities</th>
                             </tr>
                         </thead>
                         <tbody id="programSettingsTableBody">
                             <?php if (empty($programTabRows)): ?>
                                 <tr>
-                                    <td colspan="6" class="text-center text-muted py-3">No programs found.</td>
+                                    <td colspan="5" class="text-center text-muted py-3">No programs found.</td>
                                 </tr>
                             <?php endif; ?>
                             <?php foreach ($programTabRows as $row): ?>
@@ -1041,17 +1028,6 @@ $activeLink = 'AdminConfiguration';
                                             <span class="badge text-bg-danger">Full</span>
                                         <?php else: ?>
                                             <span class="badge text-bg-success"><?php echo $remaining; ?> left</span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td>
-                                        <?php if ($row['track_code'] === 'scholarship'): ?>
-                                            <span class="text-muted" style="font-size:12px;">Built in (Scholars)</span>
-                                        <?php else: ?>
-                                            <form method="post" class="form-check form-switch m-0">
-                                                <input type="hidden" name="tab_id" value="<?php echo (int)$row['tab_id']; ?>">
-                                                <input type="hidden" name="toggle_program_activities" value="1">
-                                                <input class="form-check-input" type="checkbox" role="switch" name="has_activities" <?php echo !empty($row['has_activities']) ? 'checked' : ''; ?> onchange="this.form.submit()" title="Enable the Activities tab for this program">
-                                            </form>
                                         <?php endif; ?>
                                     </td>
                                 </tr>
