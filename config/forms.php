@@ -466,6 +466,49 @@ function getProgramAmount($programId)
     return ($amount !== null && (float)$amount > 0) ? (float)$amount : null;
 }
 
+// In-kind defaults set on a program (programs.inkind_items / inkind_quantity), used to prefill a new In-Kind
+// beneficiary so the items and quantity are not typed twice. Null when the program has none.
+function ensureProgramInKindColumns()
+{
+    global $conn;
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+    foreach (['inkind_items' => 'VARCHAR(255) NULL', 'inkind_quantity' => 'INT NULL'] as $col => $def) {
+        $exists = $conn->query("SHOW COLUMNS FROM programs LIKE '$col'");
+        if ($exists && $exists->num_rows === 0) {
+            $conn->query("ALTER TABLE programs ADD COLUMN $col $def");
+        }
+    }
+}
+
+function getProgramInKind($programId)
+{
+    if (empty($programId)) {
+        return null;
+    }
+    $program = getProgramById((int)$programId);
+    $items = trim((string)($program['inkind_items'] ?? ''));
+    if ($items === '') {
+        return null;
+    }
+    $qty = (int)($program['inkind_quantity'] ?? 0);
+    return ['items' => $items, 'quantity' => $qty > 0 ? $qty : 1];
+}
+
+function getProgramInKindForApplication($applicationId)
+{
+    global $conn;
+    $stmt = $conn->prepare("SELECT program_id FROM applications WHERE application_id = ?");
+    $stmt->bind_param('i', $applicationId);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row ? getProgramInKind($row['program_id']) : null;
+}
+
 function getProgramAmountForApplication($applicationId)
 {
     global $conn;

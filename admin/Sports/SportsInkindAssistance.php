@@ -31,6 +31,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $applicationId = (int)($_POST['application_id'] ?? 0);
         $items = trim($_POST['items'] ?? '');
         $quantity = (int)($_POST['quantity'] ?? 0);
+        if ($items === '' || $quantity <= 0) {
+            $defaults = getProgramInKindForApplication($applicationId);
+            if ($defaults) {
+                $items = $items !== '' ? $items : $defaults['items'];
+                $quantity = $quantity > 0 ? $quantity : $defaults['quantity'];
+            }
+        }
 
         $stmt = $conn->prepare("SELECT a.application_id FROM applications a
             LEFT JOIN assistance_beneficiaries ab ON ab.application_id = a.application_id AND ab.type = ?
@@ -401,7 +408,7 @@ $activeLink = 'SportsInkindAssistance';
                                 <select class="form-select" name="application_id" id="addAppSelect" required>
                                     <option value="" disabled selected>Choose an applicant...</option>
                                     <?php foreach ($eligibleApplications as $ea): ?>
-                                        <option value="<?php echo $ea['application_id']; ?>">#<?php echo str_pad($ea['application_id'], 3, '0', STR_PAD_LEFT); ?> — <?php echo e($ea['full_name']); ?></option>
+                                        <option value="<?php echo $ea['application_id']; ?>" data-items="<?php echo e((getProgramInKind($ea['program_id'])['items'] ?? '')); ?>" data-quantity="<?php echo e((string)(getProgramInKind($ea['program_id'])['quantity'] ?? '')); ?>">#<?php echo str_pad($ea['application_id'], 3, '0', STR_PAD_LEFT); ?> — <?php echo e($ea['full_name']); ?></option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
@@ -410,11 +417,11 @@ $activeLink = 'SportsInkindAssistance';
                             <div class="row g-3 mb-3">
                                 <div class="col-md-6">
                                     <label class="info-label">Item(s) <span class="text-danger">*</span></label>
-                                    <input type="text" class="form-control" name="items" placeholder="e.g. School Supplies Kit" required>
+                                    <input type="text" class="form-control" name="items" id="addItemsInput" placeholder="e.g. School Supplies Kit" required>
                                 </div>
                                 <div class="col-md-3">
                                     <label class="info-label">Quantity <span class="text-danger">*</span></label>
-                                    <input type="number" min="1" class="form-control" name="quantity" required>
+                                    <input type="number" min="1" class="form-control" name="quantity" id="addQuantityInput" required>
                                 </div>
                             </div>
                         <?php endif; ?>
@@ -667,6 +674,26 @@ $activeLink = 'SportsInkindAssistance';
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Fill the items and quantity from the selected applicant's program (set in Content Management).
+        (function() {
+            const sel = document.getElementById('addAppSelect');
+            const items = document.getElementById('addItemsInput');
+            const qty = document.getElementById('addQuantityInput');
+            const modal = document.getElementById('addBeneficiaryModal');
+            if (!sel || !items || !qty) return;
+
+            function syncDefaults() {
+                const opt = sel.options[sel.selectedIndex];
+                const i = opt ? (opt.dataset.items || '') : '';
+                const q = opt ? (opt.dataset.quantity || '') : '';
+                items.value = i;
+                qty.value = q;
+            }
+            sel.addEventListener('change', syncDefaults);
+            if (modal) modal.addEventListener('shown.bs.modal', syncDefaults);
+        })();
+    </script>
 </body>
 
 </html>

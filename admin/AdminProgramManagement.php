@@ -161,6 +161,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute();
             $stmt->close();
             syncProgramTab($programId, $committeeId, $name, $status === 'active');
+            ensureProgramInKindColumns();
+            $ik = $hasInKind ? trim($_POST['inkind_items'] ?? '') : '';
+            $ikItems = $ik !== '' ? $ik : null;
+            $ikQty = ($ikItems !== null && (int)($_POST['inkind_quantity'] ?? 0) > 0) ? (int)$_POST['inkind_quantity'] : null;
+            $stmt = $conn->prepare("UPDATE programs SET inkind_items = ?, inkind_quantity = ? WHERE program_id = ?");
+            $stmt->bind_param('sii', $ikItems, $ikQty, $programId);
+            $stmt->execute();
+            $stmt->close();
             if ($programTab = getProgramTabByProgramId($programId)) {
                 setProgramTabActivities((int)$programTab['tab_id'], isset($_POST['has_activities']));
             }
@@ -176,6 +184,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $newId = $stmt->insert_id;
             $stmt->close();
             syncProgramTab($newId, $committeeId, $name, $status === 'active');
+            ensureProgramInKindColumns();
+            $ik = $hasInKind ? trim($_POST['inkind_items'] ?? '') : '';
+            $ikItems = $ik !== '' ? $ik : null;
+            $ikQty = ($ikItems !== null && (int)($_POST['inkind_quantity'] ?? 0) > 0) ? (int)$_POST['inkind_quantity'] : null;
+            $stmt = $conn->prepare("UPDATE programs SET inkind_items = ?, inkind_quantity = ? WHERE program_id = ?");
+            $stmt->bind_param('sii', $ikItems, $ikQty, $newId);
+            $stmt->execute();
+            $stmt->close();
             if (isset($_POST['has_activities']) && ($programTab = getProgramTabByProgramId($newId))) {
                 setProgramTabActivities((int)$programTab['tab_id'], true);
             }
@@ -1479,6 +1495,19 @@ $activeLink = 'AdminProgramManagement';
                                     <option>Quarterly</option>
                                 </select>
                             </div>
+                            <div class="col-12 inkind-fields" style="display:none;">
+                                <div class="row g-3">
+                                    <div class="col-md-8">
+                                        <label class="form-label">In-Kind Items</label>
+                                        <input type="text" class="form-control" name="inkind_items" maxlength="255" placeholder="e.g. Rice, canned goods, school supplies kit" value="" disabled>
+                                        <div class="form-text" style="font-size:11.5px;">Pre-filled when you add a beneficiary under In-Kind Assistance.</div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Quantity per Beneficiary</label>
+                                        <input type="number" min="1" class="form-control" name="inkind_quantity" placeholder="1" value="" disabled>
+                                    </div>
+                                </div>
+                            </div>
                             <div class="col-md-6">
                                 <label class="form-label">Application Period Start</label>
                                 <input type="date" class="form-control" name="app_start_date">
@@ -1632,6 +1661,19 @@ $activeLink = 'AdminProgramManagement';
                                             <option <?php echo $p['release_schedule'] === $sch ? 'selected' : ''; ?>><?php echo $sch; ?></option>
                                         <?php endforeach; ?>
                                     </select>
+                                </div>
+                                <div class="col-12 inkind-fields" <?php echo in_array($p['assistance_type'], ['in_kind', 'both'], true) ? '' : ' style="display:none;"'; ?>>
+                                    <div class="row g-3">
+                                        <div class="col-md-8">
+                                            <label class="form-label">In-Kind Items</label>
+                                            <input type="text" class="form-control" name="inkind_items" maxlength="255" placeholder="e.g. Rice, canned goods, school supplies kit" value="<?php echo e($p['inkind_items'] ?? ''); ?>" <?php echo in_array($p['assistance_type'], ['in_kind', 'both'], true) ? '' : ' disabled'; ?>>
+                                            <div class="form-text" style="font-size:11.5px;">Pre-filled when you add a beneficiary under In-Kind Assistance.</div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">Quantity per Beneficiary</label>
+                                            <input type="number" min="1" class="form-control" name="inkind_quantity" placeholder="1" value="<?php echo e($p['inkind_quantity'] ?? ''); ?>" <?php echo in_array($p['assistance_type'], ['in_kind', 'both'], true) ? '' : ' disabled'; ?>>
+                                        </div>
+                                    </div>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Application Period Start</label>
@@ -2029,6 +2071,20 @@ $activeLink = 'AdminProgramManagement';
                 boxesInForm.forEach(b => b.setCustomValidity(anyChecked ? '' : 'Select at least one assistance type.'));
             });
         });
+        // The In-Kind Items input only opens while In-Kind Assistance is ticked (and is not submitted otherwise).
+        document.querySelectorAll('.assistance-type-check[value="in_kind"]').forEach(function(box) {
+            const form = box.closest('form');
+            const wrap = form.querySelector('.inkind-fields');
+            if (!wrap) return;
+
+            function toggleInKind() {
+                wrap.style.display = box.checked ? '' : 'none';
+                wrap.querySelectorAll('input').forEach(i => i.disabled = !box.checked);
+            }
+            box.addEventListener('change', toggleInKind);
+            toggleInKind();
+        });
+
         // Add/Edit Announcement modal — one shared modal, reset to a blank "Add" state or
         // populated into an "Edit" state depending on which button opened it.
         function openAddAnnouncement(committeeId) {
