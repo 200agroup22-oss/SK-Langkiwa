@@ -766,6 +766,9 @@ function renderDynamicFormFields($committeeId, $existingAnswers = [], $existingF
                 echo '<select class="form-select" name="' . $name . '" ' . $required . '>';
                 echo '<option value="" disabled' . ($value === '' ? ' selected' : '') . '>Select ' . $label . '</option>';
                 foreach ($options as $opt) {
+                    if (!assistanceOptionAllowed($field, $opt)) {
+                        continue;
+                    }
                     $sel = ($value === $opt) ? 'selected' : '';
                     echo '<option value="' . e($opt) . '" ' . $sel . '>' . e($opt) . '</option>';
                 }
@@ -774,33 +777,10 @@ function renderDynamicFormFields($committeeId, $existingAnswers = [], $existingF
 
             case 'radio':
                 $options = json_decode($field['options'] ?? '[]', true) ?: [];
-                if (fieldMatchesKey($field, 'assistance_type')) {
-                    // Cash and In-Kind can both be requested in one application, so this is a checkbox group
-                    // (the stored answer is a comma-separated list, e.g. "Cash Assistance, In-kind Assistance").
-                    global $allowedAssistanceTypes;
-                    $chosen = array_map('trim', explode(',', (string)$value));
-                    $groupRequired = $field['is_required'] ? '1' : '0';
-                    echo '<div class="assistance-type-group" data-required="' . $groupRequired . '">';
-                    foreach ($options as $i => $opt) {
-                        $optType = (stripos($opt, 'kind') !== false) ? 'in_kind' : 'cash';
-                        if (is_array($allowedAssistanceTypes) && !in_array($optType, $allowedAssistanceTypes, true)) {
-                            continue;
-                        }
-                        $id = $idPrefix . $name . '_' . $i;
-                        $checked = in_array($opt, $chosen, true) ? 'checked' : '';
-                        echo '<div class="form-check">';
-                        echo '<input class="form-check-input" type="checkbox" name="' . $name . '[]" id="' . e($id) . '" value="' . e($opt) . '" ' . $checked . ' onchange="var g=this.closest(\'.assistance-type-group\');var b=g.querySelectorAll(\'input\');var a=[].some.call(b,function(c){return c.checked;});if(g.dataset.required===\'1\'){[].forEach.call(b,function(c){c.required=!a;});}">';
-                        echo '<label class="form-check-label" for="' . e($id) . '">' . e($opt) . '</label>';
-                        echo '</div>';
-                    }
-                    echo '<div class="form-text" style="font-size:11.5px;">You can choose one or both.</div>';
-                    echo '</div>';
-                    if ($field['is_required']) {
-                        echo '<script>(function(){var g=document.currentScript.previousElementSibling;var b=g.querySelectorAll("input");var a=[].some.call(b,function(c){return c.checked;});[].forEach.call(b,function(c){c.required=!a;});})();</script>';
-                    }
-                    break;
-                }
                 foreach ($options as $i => $opt) {
+                    if (!assistanceOptionAllowed($field, $opt)) {
+                        continue;
+                    }
                     $id = $idPrefix . $name . '_' . $i;
                     $checked = ($value === $opt) ? 'checked' : '';
                     echo '<div class="form-check">';
@@ -1296,4 +1276,18 @@ function programPageQuery($programId, $prefix = '?')
         $q .= '&ptab=' . $ptab;
     }
     return $prefix . $q;
+}
+
+
+
+// While someone applies for the second assistance type of a program (they already applied for the other),
+// only the type still open to them is offered in the Type of Assistance question.
+function assistanceOptionAllowed(array $field, $opt)
+{
+    global $allowedAssistanceTypes;
+    if (!is_array($allowedAssistanceTypes) || !fieldMatchesKey($field, 'assistance_type')) {
+        return true;
+    }
+    $type = (stripos($opt, 'kind') !== false) ? 'in_kind' : 'cash';
+    return in_array($type, $allowedAssistanceTypes, true);
 }
