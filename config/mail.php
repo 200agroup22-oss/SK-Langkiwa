@@ -5,8 +5,12 @@
 //
 // Until BREVO_API_KEY is filled in, OTP codes are written to config/otp_debug.log instead of
 // being emailed, so registration and password reset still work end-to-end for local testing/demo.
-if (file_exists(__DIR__ . '/mail.local.php')) {
-    require_once __DIR__ . '/mail.local.php';
+// The API key is never stored in this file (GitHub blocks pushes that contain it). It comes from the
+// BREVO_API_KEY environment variable (Railway > Variables) or, on local XAMPP, from config/mail.local.php,
+// which is git-ignored.
+$brevoLocalFile = __DIR__ . '/mail.local.php';
+if (is_file($brevoLocalFile)) {
+    require_once $brevoLocalFile;
 }
 if (!defined('BREVO_API_KEY')) {
     define('BREVO_API_KEY', getenv('BREVO_API_KEY') ?: '');
@@ -127,6 +131,65 @@ function sendApplicationDecisionEmail($toEmail, $toName, $programLabel, $status,
         return false;
     }
 
+    return true;
+}
+
+// A plain notice email: a heading line, an optional table of label => value rows, and a closing line.
+// Used for scholar notices (allowance release, semester ended, renewal result). Never throws - a mail
+// problem must not block the action that triggered it.
+function sendNoticeEmail($toEmail, $toName, $subject, $intro, array $rows = [], $closing = '')
+{
+    $fullSubject = BREVO_SENDER_NAME . ' - ' . $subject;
+
+    if (BREVO_API_KEY === '') {
+        $line = date('Y-m-d H:i:s') . " | notice | $toEmail | $subject\n";
+        file_put_contents(__DIR__ . '/otp_debug.log', $line, FILE_APPEND);
+        return true;
+    }
+
+    $table = '';
+    $text = $intro;
+    if ($rows) {
+        $table = '<table style="width:100%;border-collapse:collapse;background:#e8f5e9;border-radius:8px;margin:14px 0;">';
+        foreach ($rows as $label => $value) {
+            $table .= '<tr><td style="padding:6px 10px;color:#666;width:38%;">' . htmlspecialchars($label) . '</td><td style="padding:6px 10px;font-weight:bold;">' . htmlspecialchars($value) . '</td></tr>';
+            $text .= " $label: $value.";
+        }
+        $table .= '</table>';
+    }
+    $htmlContent = '<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;">'
+        . '<h2 style="color:#409D42;">' . htmlspecialchars(BREVO_SENDER_NAME) . '</h2>'
+        . '<p>Hi ' . htmlspecialchars($toName) . ',</p>'
+        . '<p>' . $intro . '</p>'
+        . $table
+        . ($closing !== '' ? '<p>' . $closing . '</p>' : '')
+        . '<p style="color:#888;font-size:12px;">This is an automated message - please do not reply.</p></div>';
+
+    $payload = [
+        'sender' => ['name' => BREVO_SENDER_NAME, 'email' => BREVO_SENDER_EMAIL],
+        'to' => [['email' => $toEmail, 'name' => $toName !== '' ? $toName : $toEmail]],
+        'subject' => $fullSubject,
+        'htmlContent' => $htmlContent,
+        'textContent' => strip_tags($text),
+    ];
+
+    $ch = curl_init('https://api.brevo.com/v3/smtp/email');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => json_encode($payload),
+        CURLOPT_HTTPHEADER => ['accept: application/json', 'content-type: application/json', 'api-key: ' . BREVO_API_KEY],
+        CURLOPT_TIMEOUT => 15,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+    curl_close($ch);
+
+    if ($curlError || $httpCode < 200 || $httpCode >= 300) {
+        error_log('Notice email failed (Brevo): ' . ($curlError ?: "HTTP $httpCode - $response"));
+        return false;
+    }
     return true;
 }
 

@@ -1237,6 +1237,44 @@ function notifyBeneficiaryRelease($applicationId, array $beneficiary, $updated =
     }
 }
 
+// ---- Scholar notices ----
+// Emails (and posts an in-app notice to) one scholar. $rows is an optional label => value table.
+function notifyScholar($scholarId, $subject, $intro, array $rows = [], $closing = '')
+{
+    global $conn;
+    try {
+        $stmt = $conn->prepare("SELECT u.user_id, u.email, u.first_name, u.last_name FROM scholars s JOIN users u ON u.user_id = s.user_id WHERE s.scholar_id = ?");
+        $stmt->bind_param('i', $scholarId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!$row) {
+            return;
+        }
+        $plain = trim(strip_tags($intro));
+        if (!empty($row['email']) && substr($row['email'], -12) !== '@walkin.local') {
+            sendNoticeEmail($row['email'], trim($row['first_name'] . ' ' . $row['last_name']), $subject, $intro, $rows, $closing);
+        }
+        notifyUserInApp((int)$row['user_id'], $subject, $plain . ($rows ? ' ' . implode(', ', array_map(fn($k, $v) => "$k: $v", array_keys($rows), $rows)) : ''));
+    } catch (Throwable $ex) {
+        error_log('Scholar notice failed: ' . $ex->getMessage());
+    }
+}
+
+// The iSKolar release details typed in Content Management (Edit Program on the iSKolar row), as display text.
+function scholarReleaseDetails()
+{
+    global $conn;
+    ensureBuiltinTabSettingsColumns();
+    $res = $conn->query("SELECT pt.release_date, pt.release_time, pt.release_venue FROM program_tabs pt JOIN committees c ON c.committee_id = pt.committee_id WHERE c.code = 'education' AND pt.track_code = 'scholarship' AND pt.program_id IS NULL LIMIT 1");
+    $row = $res ? $res->fetch_assoc() : null;
+    $when = 'To be announced by the SK office';
+    if (!empty($row['release_date'])) {
+        $when = date('F j, Y', strtotime($row['release_date'])) . (!empty($row['release_time']) ? ' at ' . date('g:i A', strtotime($row['release_time'])) : '');
+    }
+    return ['when' => $when, 'venue' => !empty($row['release_venue']) ? $row['release_venue'] : 'To be announced by the SK office'];
+}
+
 // Convenience for the page handlers right after a beneficiary was added.
 function notifyBeneficiaryPendingRelease($applicationId, $type)
 {
