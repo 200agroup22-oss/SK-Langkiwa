@@ -379,8 +379,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $email = trim($_POST['email'] ?? '');
         $officeAddress = trim($_POST['sk_office_address'] ?? '');
         $facebookUrl = trim($_POST['facebook_url'] ?? '');
-        $allowPublicApplications = isset($_POST['allow_public_applications']) ? 1 : 0;
-        $showAnnouncements = isset($_POST['show_announcements']) ? 1 : 0;
         $academicYear = trim($_POST['current_academic_year'] ?? '');
         $semester = $_POST['current_semester'] ?? '';
         $requirementsDeadlineInput = trim($_POST['requirements_deadline'] ?? '');
@@ -394,8 +392,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($requirementsDeadline !== null && !DateTime::createFromFormat('Y-m-d', $requirementsDeadline)) {
             setFlash('error', 'Invalid requirements deadline date.');
         } else {
-            $stmt = $conn->prepare("UPDATE site_settings SET site_name = ?, welcome_message = ?, contact_number = ?, email = ?, sk_office_address = ?, facebook_url = ?, allow_public_applications = ?, show_announcements = ?, current_academic_year = ?, current_semester = ?, requirements_deadline = ?, requirements_open = ? WHERE id = 1");
-            $stmt->bind_param('ssssssiisssi', $siteName, $welcomeMessage, $contactNumber, $email, $officeAddress, $facebookUrl, $allowPublicApplications, $showAnnouncements, $academicYear, $semester, $requirementsDeadline, $requirementsOpen);
+            $stmt = $conn->prepare("UPDATE site_settings SET site_name = ?, welcome_message = ?, contact_number = ?, email = ?, sk_office_address = ?, facebook_url = ?, current_academic_year = ?, current_semester = ?, requirements_deadline = ?, requirements_open = ? WHERE id = 1");
+            $stmt->bind_param('sssssssssi', $siteName, $welcomeMessage, $contactNumber, $email, $officeAddress, $facebookUrl, $academicYear, $semester, $requirementsDeadline, $requirementsOpen);
             $stmt->execute();
             $stmt->close();
             logAudit('Updated Site Settings', 'General / contact / preferences / term: ' . $academicYear . ' ' . $semester);
@@ -1639,20 +1637,6 @@ $activeLink = 'AdminProgramManagement';
                             <div class="col-md-6">
                                 <label class="form-label">Facebook Page URL</label>
                                 <input type="text" class="form-control" name="facebook_url" value="<?php echo e($settings['facebook_url']); ?>" placeholder="https://facebook.com/...">
-                            </div>
-                        </div>
-
-                        <div class="settings-section-title">Preferences</div>
-                        <div class="row g-3">
-                            <div class="col-12">
-                                <div class="form-check form-switch mb-2">
-                                    <input class="form-check-input" type="checkbox" role="switch" name="allow_public_applications" id="settingPublicApplications" <?php echo $settings['allow_public_applications'] ? 'checked' : ''; ?>>
-                                    <label class="form-check-label" for="settingPublicApplications" style="font-size:13.5px;">Allow youth to submit applications online</label>
-                                </div>
-                                <div class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" role="switch" name="show_announcements" id="settingShowAnnouncements" <?php echo $settings['show_announcements'] ? 'checked' : ''; ?>>
-                                    <label class="form-check-label" for="settingShowAnnouncements" style="font-size:13.5px;">Show announcements on the public homepage</label>
-                                </div>
                             </div>
                         </div>
 
