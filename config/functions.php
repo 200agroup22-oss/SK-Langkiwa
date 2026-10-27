@@ -210,11 +210,44 @@ function generateOtpCode()
     return str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
 }
 
+// A new code can only be requested once every OTP_RESEND_SECONDS per email, wherever it is asked for
+// (sign up, forgot password, Resend). Kept in the database so closing the tab or clearing cookies
+// doesn't skip the wait.
+const OTP_RESEND_SECONDS = 60;
+
+function otpCooldownRemaining($email)
+{
+    global $conn;
+    $key = hash('sha256', strtolower(trim($email)));
+    $conn->query("CREATE TABLE IF NOT EXISTS otp_cooldowns (
+        email_key CHAR(64) PRIMARY KEY,
+        last_sent INT NOT NULL DEFAULT 0
+    )");
+    $stmt = $conn->prepare("SELECT last_sent FROM otp_cooldowns WHERE email_key = ?");
+    $stmt->bind_param('s', $key);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row ? max(0, (int)$row['last_sent'] + OTP_RESEND_SECONDS - time()) : 0;
+}
+
+function otpMarkSent($email)
+{
+    global $conn;
+    $key = hash('sha256', strtolower(trim($email)));
+    $now = time();
+    $stmt = $conn->prepare("INSERT INTO otp_cooldowns (email_key, last_sent) VALUES (?, ?) ON DUPLICATE KEY UPDATE last_sent = VALUES(last_sent)");
+    $stmt->bind_param('si', $key, $now);
+    $stmt->execute();
+    $stmt->close();
+}
+
 // Starts (or restarts) a pending OTP challenge in the session. $data carries any extra
 // payload the flow needs once verified (e.g. the not-yet-created registration fields).
 // Returns the generated code so the caller can email it.
 function startOtp($purpose, $email, array $data = [])
 {
+    otpMarkSent($email);
     $_SESSION['otp_pending'] = [
         'purpose' => $purpose, // 'register' or 'reset'
         'email' => $email,

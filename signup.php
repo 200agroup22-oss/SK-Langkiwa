@@ -63,6 +63,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->close();
     }
 
+    if (empty($errors) && ($wait = otpCooldownRemaining($email)) > 0) {
+        $errors[] = 'A code was just sent to this email. Please wait ' . $wait . ' second' . ($wait === 1 ? '' : 's') . ' before requesting another one.';
+    }
+
     if (empty($errors)) {
         $passwordHash = password_hash($password, PASSWORD_DEFAULT);
         $code = startOtp('register', $email, [

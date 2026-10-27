@@ -18,17 +18,22 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (isset($_POST['resend'])) {
-        $pending['code'] = generateOtpCode();
-        $pending['expires_at'] = time() + 600;
-        $pending['attempts'] = 0;
-        $_SESSION['otp_pending'] = $pending;
+        if (($wait = otpCooldownRemaining($pending['email'])) > 0) {
+            $error = 'Please wait ' . $wait . ' second' . ($wait === 1 ? '' : 's') . ' before requesting a new code.';
+        } else {
+            $pending['code'] = generateOtpCode();
+            $pending['expires_at'] = time() + 600;
+            $pending['attempts'] = 0;
+            $_SESSION['otp_pending'] = $pending;
+            otpMarkSent($pending['email']);
 
-        $name = $pending['purpose'] === 'register' ? ($pending['data']['first_name'] ?? '') : '';
-        sendOtpEmail($pending['email'], $name, $pending['code'], $pending['purpose']);
+            $name = $pending['purpose'] === 'register' ? ($pending['data']['first_name'] ?? '') : '';
+            sendOtpEmail($pending['email'], $name, $pending['code'], $pending['purpose']);
 
-        setFlash('success', 'A new code has been sent to ' . $pending['email'] . '.');
-        header("Location: VerifyOtp.php");
-        exit();
+            setFlash('success', 'A new code has been sent to ' . $pending['email'] . '.');
+            header("Location: VerifyOtp.php");
+            exit();
+        }
     }
 
     if (isset($_POST['verify'])) {
@@ -80,6 +85,7 @@ $pageDesc = $isReset
     ? 'Enter the 6-digit code we sent to your email to continue resetting your password.'
     : 'Enter the 6-digit code we sent to your email to finish creating your account.';
 $otpSuccess = getFlash('success');
+$resendWait = otpCooldownRemaining($pending['email']);
 ?>
 <!doctype html>
 <html lang="en">
@@ -128,8 +134,8 @@ $otpSuccess = getFlash('success');
                 </form>
 
                 <form action="" method="post" class="text-center">
-                    <button type="submit" name="resend" class="btn btn-link auth-link" style="font-size: 13px;">
-                        Didn't get a code? Resend
+                    <button type="submit" name="resend" id="resendBtn" class="btn btn-link auth-link" style="font-size: 13px;" <?php echo $resendWait > 0 ? ' disabled' : ''; ?>>
+                        Didn't get a code? Resend<span id="resendTimer"><?php echo $resendWait > 0 ? ' in ' . $resendWait . 's' : ''; ?></span>
                     </button>
                 </form>
             </div>
@@ -141,6 +147,25 @@ $otpSuccess = getFlash('success');
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
+    <script>
+        // Resend is disabled while the cooldown runs, then switches back on by itself.
+        (function() {
+            let left = <?php echo (int)$resendWait; ?>;
+            const btn = document.getElementById('resendBtn');
+            const label = document.getElementById('resendTimer');
+            if (left <= 0) return;
+            const timer = setInterval(function() {
+                left--;
+                if (left <= 0) {
+                    clearInterval(timer);
+                    label.textContent = '';
+                    btn.disabled = false;
+                    return;
+                }
+                label.textContent = ' in ' + left + 's';
+            }, 1000);
+        })();
+    </script>
 </body>
 
 </html>

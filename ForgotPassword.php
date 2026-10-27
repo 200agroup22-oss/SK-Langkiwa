@@ -20,6 +20,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setFlash('error', 'No account found with that email address.');
     } elseif ($user['status'] !== 'active') {
         setFlash('error', 'This account is inactive. Please contact the SK office.');
+    } elseif (($wait = otpCooldownRemaining($email)) > 0) {
+        setFlash('error', 'A code was just sent to this email. Please wait ' . $wait . ' second' . ($wait === 1 ? '' : 's') . ' before requesting another one.');
     } else {
         $code = startOtp('reset', $email);
         sendOtpEmail($email, $user['first_name'], $code, 'reset');
