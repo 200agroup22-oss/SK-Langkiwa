@@ -47,6 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // scholar-portal access to submit renewal documents for the new term; nobody is
         // auto-approved or auto-declined. The admin reviews each one and decides Approve
         // (continue) or Decline (remove) from the Applicants page's Renewals tab.
+        $endingScholarIds = array_column($conn->query("SELECT scholar_id FROM scholars WHERE status = 'active'")->fetch_all(MYSQLI_ASSOC), 'scholar_id');
         $stmt = $conn->prepare("UPDATE scholars SET status = 'pending', finished_academic_year = ?, finished_semester = ? WHERE status = 'active'");
         $stmt->bind_param('ss', $term['current_academic_year'], $term['current_semester']);
         $stmt->execute();
@@ -63,11 +64,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $archivedActivityCount = $stmt->affected_rows;
         $stmt->close();
 
-        // The New Applicants list starts fresh for the new term too: this term's decided (approved /
-        // declined) iSKolar applications are archived, not deleted, so their records stay available under
-        // Archives. Undecided (pending) applications are left alone so nobody waiting for a decision is
-        // lost. Scholars themselves are untouched — their renewal runs from the scholars table.
-        $stmt = $conn->prepare("UPDATE applications SET archived_at = NOW() WHERE committee_id = ? AND program_track = 'scholarship' AND status IN ('approved', 'declined') AND archived_at IS NULL");
+        // The New Applicants list starts fresh for the new term too: every iSKolar application from the
+        // ending term (approved, declined and still-pending alike) is archived, not deleted, so the records
+        // stay available under Archives. Scholars themselves are untouched — their renewal runs from the
+        // scholars table.
+        $stmt = $conn->prepare("UPDATE applications SET archived_at = NOW() WHERE committee_id = ? AND program_track = 'scholarship' AND archived_at IS NULL");
         $stmt->bind_param('i', $committeeId);
         $stmt->execute();
         $archivedApplicationCount = $stmt->affected_rows;
@@ -78,9 +79,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute();
         $stmt->close();
 
+        // Let every scholar know the semester ended and that they need to renew, with the deadline.
+        foreach ($endingScholarIds as $endingScholarId) {
+            $noticeRows = ['Semester ended' => $term['current_academic_year'] . ', ' . $term['current_semester'], 'New term' => $next['academic_year'] . ', ' . $next['semester']];
+            if ($deadline) {
+                $noticeRows['Requirements deadline'] = date('F j, Y', strtotime($deadline));
+            }
+            notifyScholar(
+                (int)$endingScholarId,
+                'Semester Ended - Please Renew Your Scholarship',
+                'The semester has ended. To continue as an iSKolar ng Langkiwa scholar, please submit your renewal requirements.',
+                $noticeRows,
+                'Log in to your scholar account and upload your requirements. The SK office will review and confirm your renewal.'
+            );
+        }
+
         $deadlineNote = $deadline ? (' Requirements deadline: ' . date('M j, Y', strtotime($deadline)) . '.') : '';
         logAudit('Ended Semester', $term['current_academic_year'] . ' ' . $term['current_semester'] . ' -> ' . $next['academic_year'] . ' ' . $next['semester'] . ' (' . $archivedActivityCount . ' activities, ' . $archivedApplicationCount . ' applications archived)' . ($deadline ? ' (deadline ' . $deadline . ')' : ''));
-        setFlash('success', 'Semester ended. Now in ' . $next['academic_year'] . ', ' . $next['semester'] . '. All scholars are now pending renewal — review them on the Applicants page\'s Renewals tab. ' . $archivedActivityCount . ' activities from the ended semester were archived.' . ' ' . $archivedApplicationCount . ' decided applications were moved to Archives on the Applicants page.' . $deadlineNote);
+        setFlash('success', 'Semester ended. Now in ' . $next['academic_year'] . ', ' . $next['semester'] . '. All scholars are now pending renewal — review them on the Applicants page\'s Renewals tab. ' . $archivedActivityCount . ' activities from the ended semester were archived.' . ' ' . $archivedApplicationCount . ' applications were moved to Archives on the Applicants page.' . $deadlineNote);
     }
 
     if (isset($_POST['archive_scholar'])) {
@@ -310,9 +326,6 @@ $activeLink = 'EducationScholarList';
                 <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#archivesModal">
                     <i class="bi bi-archive me-1"></i> Archives
                 </button>
-                <a class="btn btn-sm btn-outline-dark" href="<?php echo APP_BASE; ?>/admin/Education/EducationApplicants.php?tab=renewals">
-                    <i class="bi bi-file-earmark-check me-1"></i> Renewals
-                </a>
                 <button class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#manageRequirementTypesModal">
                     <i class="bi bi-pencil-square me-1"></i> Manage Requirement Types
                 </button>
