@@ -222,12 +222,19 @@ if (!empty($_GET['term']) && strpos($_GET['term'], '|') !== false) {
         }
     }
 }
-$isCurrentTerm = ($viewYear === $settings['current_academic_year'] && $viewSemester === $settings['current_semester']);
+$viewAll = (($_GET['term'] ?? '') === 'all');
+$isCurrentTerm = !$viewAll && $viewYear === $settings['current_academic_year'] && $viewSemester === $settings['current_semester'];
 
 if (!$isCurrentTerm) {
-    $stmt = $conn->prepare("SELECT a.*, u.email AS user_email FROM applications a JOIN users u ON u.user_id = a.user_id
-        WHERE a.committee_id = ? AND a.program_track = ? AND a.academic_year = ? AND a.semester = ? ORDER BY a.application_id ASC");
-    $stmt->bind_param('isss', $committeeId, $track, $viewYear, $viewSemester);
+    if ($viewAll) {
+        $stmt = $conn->prepare("SELECT a.*, u.email AS user_email FROM applications a JOIN users u ON u.user_id = a.user_id
+            WHERE a.committee_id = ? AND a.program_track = ? ORDER BY a.academic_year DESC, a.application_id ASC");
+        $stmt->bind_param('is', $committeeId, $track);
+    } else {
+        $stmt = $conn->prepare("SELECT a.*, u.email AS user_email FROM applications a JOIN users u ON u.user_id = a.user_id
+            WHERE a.committee_id = ? AND a.program_track = ? AND a.academic_year = ? AND a.semester = ? ORDER BY a.application_id ASC");
+        $stmt->bind_param('isss', $committeeId, $track, $viewYear, $viewSemester);
+    }
     $stmt->execute();
     $applications = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
@@ -246,6 +253,16 @@ if ($isCurrentTerm) {
 
 // ---- Renewals tab: scholars whose term ended and are awaiting an Approve/Decline decision ----
 $pendingScholars = $conn->query("SELECT s.*, u.first_name, u.last_name, u.email FROM scholars s JOIN users u ON u.user_id = s.user_id WHERE s.status = 'pending' ORDER BY u.last_name ASC")->fetch_all(MYSQLI_ASSOC);
+
+// Renewals list is paged like New Applicants (10 per page).
+$renewPerPage = 10;
+$renewTotalRows = 0;
+$renewTotalPages = 1;
+$renewPage = 1;
+$renewTotalRows = count($pendingScholars);
+$renewTotalPages = max(1, (int)ceil($renewTotalRows / $renewPerPage));
+$renewPage = max(1, min($renewTotalPages, (int)($_GET['page'] ?? 1)));
+$pagedPendingScholars = array_slice($pendingScholars, ($renewPage - 1) * $renewPerPage, $renewPerPage);
 $renewalDocFields = array_values(array_filter($fields, fn($f) => $f['input_type'] === 'file'));
 $renewalFiles = [];
 if (!empty($pendingScholars)) {
@@ -354,7 +371,7 @@ $activeLink = 'EducationApplicants';
 
         <?php if ($activeTab === 'new'): ?>
             <?php if (!$isCurrentTerm): ?>
-                <p class="text-muted mb-2" style="font-size:13px;"><span class="badge text-bg-secondary me-1"><i class="bi bi-clock-history me-1"></i>Past record</span> Everyone who applied for A.Y. <?php echo e($viewYear); ?>, <?php echo e($viewSemester); ?> — read-only.</p>
+                <p class="text-muted mb-2" style="font-size:13px;"><span class="badge text-bg-secondary me-1"><i class="bi bi-clock-history me-1"></i>Past record</span> <?php echo $viewAll ? 'Everyone who has applied in any term' : 'Everyone who applied for A.Y. ' . e($viewYear) . ', ' . e($viewSemester); ?> — read-only.</p>
             <?php endif; ?>
             <form method="get">
                 <input type="hidden" name="tab" value="new">
@@ -382,8 +399,9 @@ $activeLink = 'EducationApplicants';
                 <div class="filter-bar d-flex gap-2 align-items-center mb-3 flex-wrap">
                     <span style="font-size:12px; color:#666; font-weight:600;"><i class="bi bi-funnel me-1"></i>Filter:</span>
                     <select class="filter-select" name="term" onchange="this.form.submit()" title="Term">
+                        <option value="all" <?php echo $viewAll ? 'selected' : ''; ?>>All terms</option>
                         <?php foreach ($availableTerms as $t): $val = $t['academic_year'] . '|' . $t['semester']; ?>
-                            <option value="<?php echo e($val); ?>" <?php echo ($t['academic_year'] === $viewYear && $t['semester'] === $viewSemester) ? 'selected' : ''; ?>>A.Y. <?php echo e($t['academic_year']); ?>, <?php echo e($t['semester']); ?><?php echo ($t['academic_year'] === $settings['current_academic_year'] && $t['semester'] === $settings['current_semester']) ? ' (Current)' : ''; ?></option>
+                            <option value="<?php echo e($val); ?>" <?php echo (!$viewAll && $t['academic_year'] === $viewYear && $t['semester'] === $viewSemester) ? 'selected' : ''; ?>>A.Y. <?php echo e($t['academic_year']); ?>, <?php echo e($t['semester']); ?><?php echo ($t['academic_year'] === $settings['current_academic_year'] && $t['semester'] === $settings['current_semester']) ? ' (Current)' : ''; ?></option>
                         <?php endforeach; ?>
                     </select>
                     <select class="filter-select" name="status" onchange="this.form.submit()">
@@ -416,6 +434,7 @@ $activeLink = 'EducationApplicants';
                                 <th>School</th>
                                 <th>Course</th>
                                 <th>Year Level</th>
+                                <?php if ($viewAll): ?><th>Term</th><?php endif; ?>
                                 <th>Status</th>
                                 <th>Action</th>
                             </tr>
@@ -423,7 +442,7 @@ $activeLink = 'EducationApplicants';
                         <tbody>
                             <?php if (empty($pagedApplications)): ?>
                                 <tr>
-                                    <td colspan="7" class="text-center text-muted py-4">No applicants found.</td>
+                                    <td colspan="<?php echo $viewAll ? 8 : 7; ?>" class="text-center text-muted py-4">No applicants found.</td>
                                 </tr>
                             <?php endif; ?>
                             <?php foreach ($pagedApplications as $app): ?>
@@ -433,6 +452,7 @@ $activeLink = 'EducationApplicants';
                                     <td><?php echo e($app['school']); ?></td>
                                     <td><?php echo e($app['course']); ?></td>
                                     <td><?php echo e($app['year_level_text']); ?></td>
+                                    <?php if ($viewAll): ?><td><?php echo e(($app['academic_year'] ?? '—') . ', ' . ($app['semester'] ?? '')); ?></td><?php endif; ?>
                                     <td><span class="badge text-bg-<?php echo $app['status'] === 'approved' ? 'success' : ($app['status'] === 'declined' ? 'danger' : 'warning'); ?>"><?php echo ucfirst($app['status']); ?></span></td>
                                     <td class="d-flex gap-1">
                                         <button class="btn-view" data-bs-toggle="modal" data-bs-target="#viewModal<?php echo $app['application_id']; ?>"><i class="bi bi-eye"></i> View</button>
@@ -475,7 +495,7 @@ $activeLink = 'EducationApplicants';
                                     <td colspan="<?php echo 5 + count($renewalDocFields); ?>" class="text-center text-muted py-4">No scholars pending renewal.</td>
                                 </tr>
                             <?php endif; ?>
-                            <?php foreach ($pendingScholars as $ps): ?>
+                            <?php foreach ($pagedPendingScholars as $ps): ?>
                                 <tr>
                                     <td><?php echo str_pad($ps['scholar_id'], 3, '0', STR_PAD_LEFT); ?></td>
                                     <td><?php echo e($ps['first_name'] . ' ' . $ps['last_name']); ?></td>
@@ -522,6 +542,7 @@ $activeLink = 'EducationApplicants';
                     </table>
                 </div>
             </div>
+            <?php renderPagination($renewPage, $renewTotalPages, $renewTotalRows, $renewPerPage); ?>
         <?php endif; ?>
     </div>
 
