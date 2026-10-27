@@ -794,7 +794,10 @@ switch ($type) {
                         $termStmt->execute();
                         $termRecord = $termStmt->get_result()->fetch_assoc();
                         $termStmt->close();
-                        $allowance = $termRecord ?: ['eligibility' => 'no_record', 'amount' => 0];
+                        if (!$termRecord) {
+                            continue; // not a scholar in that term (joined later), so they have no place in its report
+                        }
+                        $allowance = $termRecord;
                     } else {
                         $allowance = ensureAllowanceRecord($scholarId);
                     }
