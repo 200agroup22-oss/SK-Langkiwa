@@ -96,7 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $lastName = trim($_POST['last_name'] ?? '');
             $firstName = trim($_POST['first_name'] ?? '');
             $middleName = trim($_POST['middle_name'] ?? '');
-            $userId = getOrCreateWalkInUser($lastName, $firstName, $middleName);
+            $userId = getOrCreateWalkInUser($lastName, $firstName, $middleName, trim($_POST['walkin_email'] ?? ''), trim($_POST['walkin_contact'] ?? ''));
 
             $settings = $conn->query("SELECT current_academic_year, current_semester FROM site_settings WHERE id = 1")->fetch_assoc();
             $stmt = $conn->prepare("INSERT INTO applications (user_id, committee_id, program_track, status, academic_year, semester) VALUES (?, ?, ?, 'pending', ?, ?)");
@@ -597,6 +597,16 @@ $activeLink = 'EducationApplicants';
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body p-4">
+                        <div class="row g-3 mb-3 p-3 rounded" style="background:#e8f5e9;">
+                            <div class="col-md-6">
+                                <label class="form-label" style="font-size:13px;">Email address <span class="text-muted fw-normal">(optional - for approval and release emails)</span></label>
+                                <input type="email" class="form-control" name="walkin_email" maxlength="150" placeholder="name@example.com">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" style="font-size:13px;">Contact number <span class="text-muted fw-normal">(optional - printed on the release slip)</span></label>
+                                <input type="text" class="form-control" name="walkin_contact" maxlength="30" placeholder="09XX XXX XXXX">
+                            </div>
+                        </div>
                         <?php renderDynamicFormFields($committeeId, [], [], $track); ?>
                     </div>
                     <div class="modal-footer border-0">

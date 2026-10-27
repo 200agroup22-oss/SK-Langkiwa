@@ -403,6 +403,7 @@ $activeLink = 'ActiveCitizenshipInKindAssistance';
                                 <td class="d-flex gap-1">
                                     <?php if ($row['beneficiary_id']): ?>
                                         <button class="btn-view" data-bs-toggle="modal" data-bs-target="#viewModal<?php echo $row['beneficiary_id']; ?>"><i class="bi bi-eye"></i> View</button>
+                                        <a class="btn-view" style="text-decoration:none;" href="<?php echo APP_BASE; ?>/admin/ReleaseSlip.php?id=<?php echo (int)$row['beneficiary_id']; ?>" target="_blank" title="Print release slip"><i class="bi bi-printer"></i> Slip</a>
                                         <button class="btn-edit" data-bs-toggle="modal" data-bs-target="#editModal<?php echo $row['beneficiary_id']; ?>"><i class="bi bi-pencil"></i> Edit</button>
                                         <button class="btn-archive" data-bs-toggle="modal" data-bs-target="#archiveModal<?php echo $row['beneficiary_id']; ?>"><i class="bi bi-archive"></i> Archive</button>
                                     <?php else: ?>

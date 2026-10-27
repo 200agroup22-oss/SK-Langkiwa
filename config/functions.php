@@ -165,18 +165,57 @@ function handleUpload(array $file, $subdir = 'documents')
 // Creates a minimal 'applicant' user account for someone an admin adds by hand (e.g. a walk-in
 // applicant with no online account), so applications.user_id always has a real user to point at.
 // The account has no usable password (walk-ins don't log in) and a generated placeholder email.
-function getOrCreateWalkInUser($lastName, $firstName, $middleName = '')
+// Optional $email: a real address typed by the officer, so the walk-in gets the same approval and release emails
+// as everyone else. It is used only when it is valid and not already taken by another account (otherwise the
+// placeholder is kept). Optional $contactNumber is stored on the user for the release slip.
+function ensureUserContactColumn()
+{
+    global $conn;
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+    $exists = $conn->query("SHOW COLUMNS FROM users LIKE 'contact_number'");
+    if ($exists && $exists->num_rows === 0) {
+        $conn->query("ALTER TABLE users ADD COLUMN contact_number VARCHAR(30) NULL");
+    }
+}
+
+function getOrCreateWalkInUser($lastName, $firstName, $middleName = '', $email = '', $contactNumber = '')
 {
     global $conn;
 
     $placeholderEmail = 'walkin.' . strtolower(preg_replace('/[^a-z0-9]/i', '', $firstName . $lastName)) . '.' . bin2hex(random_bytes(3)) . '@walkin.local';
+    $useEmail = $placeholderEmail;
+    $email = trim((string)$email);
+    if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $stmt = $conn->prepare("SELECT user_id FROM users WHERE email = ?");
+        $stmt->bind_param('s', $email);
+        $stmt->execute();
+        $taken = (bool)$stmt->get_result()->fetch_row();
+        $stmt->close();
+        if (!$taken) {
+            $useEmail = $email;
+        }
+    }
     $randomPasswordHash = password_hash(bin2hex(random_bytes(16)), PASSWORD_DEFAULT);
 
     $stmt = $conn->prepare("INSERT INTO users (last_name, first_name, middle_name, email, password_hash, role, status) VALUES (?, ?, ?, ?, ?, 'applicant', 'active')");
-    $stmt->bind_param('sssss', $lastName, $firstName, $middleName, $placeholderEmail, $randomPasswordHash);
+    $stmt->bind_param('sssss', $lastName, $firstName, $middleName, $useEmail, $randomPasswordHash);
     $stmt->execute();
     $userId = $stmt->insert_id;
     $stmt->close();
+
+    $contactNumber = trim((string)$contactNumber);
+    if ($contactNumber !== '') {
+        ensureUserContactColumn();
+        $contactNumber = substr(preg_replace('/[^0-9+\-\s()]/', '', $contactNumber), 0, 30);
+        $stmt = $conn->prepare("UPDATE users SET contact_number = ? WHERE user_id = ?");
+        $stmt->bind_param('si', $contactNumber, $userId);
+        $stmt->execute();
+        $stmt->close();
+    }
 
     return $userId;
 }
