@@ -328,7 +328,9 @@ function programTabHasActivities($committeeId, $programId, $track = 'assistance'
 // eligible beneficiaries can be added automatically instead of by hand.
 function autoAddBeneficiariesEnabled($committeeId, $programId, $type)
 {
-    if ($programId === null || !programTabHasActivities($committeeId, $programId)) {
+    // Any custom program with a default amount / items set adds its approved (and, with Activities, eligible)
+    // applicants by itself; the built-in tabs have no defaults and stay manual.
+    if ($programId === null) {
         return false;
     }
     return $type === 'cash' ? getProgramAmount($programId) !== null : getProgramInKind($programId) !== null;
@@ -356,7 +358,8 @@ function autoAddEligibleBeneficiaries($committeeId, $programId, $type)
     foreach ($candidates as $applicationId) {
         $applicationId = (int)$applicationId;
         $compliance = programActivityCompliance($applicationId);
-        if ($compliance === null || !$compliance['ok'] || !applicationAssistanceTypeMatches($applicationId, $type)) {
+        // null = the program has no Activities, so being approved is enough.
+        if (($compliance !== null && !$compliance['ok']) || !applicationAssistanceTypeMatches($applicationId, $type)) {
             continue;
         }
         if ($type === 'cash') {
