@@ -432,6 +432,21 @@ function getProgramById($programId, $committeeId = null)
     return $row ?: null;
 }
 
+// ---- Application cycles ----
+// An application only blocks a new one (same program, same Cash / In-Kind choice) while it belongs to the
+// program's current application period. When the admin sets new dates, everything submitted before the new
+// start date is the previous cycle, so people can apply again. A program with no start date keeps
+// "one application per type". Returns an SQL fragment to append to a WHERE clause.
+function applicationCycleSql($committeeId, $programId)
+{
+    $program = getProgramById((int)$programId, $committeeId);
+    $start = $program['app_start_date'] ?? null;
+    if (empty($start) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $start)) {
+        return '';
+    }
+    return " AND submitted_at >= '" . $start . " 00:00:00'";
+}
+
 // ---- Built-in track settings ----
 // A built-in "Assistance Program" has no programs row, so the same settings a program has (amount, release
 // schedule, dates, in-kind items ...) are kept on its program_tabs row instead.
@@ -1347,7 +1362,7 @@ function remainingAssistanceTypes($userId, $committeeId, $programId)
 {
     global $conn;
     $fields = getFormFields($committeeId, 'assistance', $programId, true);
-    $stmt = $conn->prepare("SELECT application_id FROM applications WHERE user_id = ? AND committee_id = ? AND program_id <=> ? AND status != 'declined' AND archived_at IS NULL");
+    $stmt = $conn->prepare("SELECT application_id FROM applications WHERE user_id = ? AND committee_id = ? AND program_id <=> ? AND status != 'declined' AND archived_at IS NULL" . applicationCycleSql($committeeId, $programId));
     $stmt->bind_param('iii', $userId, $committeeId, $programId);
     $stmt->execute();
     $appIds = array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'application_id');

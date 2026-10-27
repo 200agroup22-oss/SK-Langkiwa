@@ -57,7 +57,7 @@ if (!$programClosed && isProgramFull($committeeId, 'assistance', $programId)) {
 // program_id <=> ? (null-safe equal) so a pending/approved application for one program doesn't
 // block applying to a different program under the same committee — only re-applying to the exact
 // same program (or the generic track, when neither has a program_id) counts as a duplicate.
-$stmt = $conn->prepare("SELECT application_id, status FROM applications WHERE user_id = ? AND committee_id = ? AND program_track = ? AND program_id <=> ? AND status != 'declined' AND archived_at IS NULL LIMIT 1");
+$stmt = $conn->prepare("SELECT application_id, status FROM applications WHERE user_id = ? AND committee_id = ? AND program_track = ? AND program_id <=> ? AND status != 'declined' AND archived_at IS NULL" . applicationCycleSql($committeeId, $programId) . " LIMIT 1");
 $stmt->bind_param('iisi', $me['user_id'], $committeeId, $track, $programId);
 $stmt->execute();
 $existing = $stmt->get_result()->fetch_assoc();
