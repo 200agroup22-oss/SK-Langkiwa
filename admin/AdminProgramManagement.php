@@ -425,7 +425,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->close();
 
             // The Assistance Program track also keeps the same settings a custom program has.
-            if ($tabRow['track_code'] === 'assistance' && empty($tabRow['program_id']) && isset($_POST['has_settings'])) {
+            if (empty($tabRow['program_id']) && isset($_POST['has_settings'])) {
                 $nz = fn($k) => (($_POST[$k] ?? '') !== '') ? $_POST[$k] : null;
                 $desc = trim($_POST['description'] ?? '') ?: null;
                 $amount = $nz('amount') !== null ? (float)$_POST['amount'] : null;
@@ -443,7 +443,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute();
                 $stmt->close();
                 // A changed release schedule is emailed again to everyone still waiting for their release.
-                if ($relDate !== null && (($tabRow['release_date'] ?? null) !== $relDate || substr((string)($tabRow['release_time'] ?? ''), 0, 5) !== substr((string)$relTime, 0, 5) || ($tabRow['release_venue'] ?? null) !== $relVenue)) {
+                if ($tabRow['track_code'] === 'assistance' && $relDate !== null && (($tabRow['release_date'] ?? null) !== $relDate || substr((string)($tabRow['release_time'] ?? ''), 0, 5) !== substr((string)$relTime, 0, 5) || ($tabRow['release_venue'] ?? null) !== $relVenue)) {
                     notifyProgramReleaseScheduleChanged(null, (int)$tabRow['committee_id']);
                 }
             }
@@ -1337,11 +1337,11 @@ $activeLink = 'AdminProgramManagement';
                                                     </select>
                                                 </div>
                                                 <?php $isAssist = $t['track_code'] === 'assistance';
-                                                $dis = $isAssist ? '' : ' disabled'; ?>
-                                                <?php if ($isAssist): ?><input type="hidden" name="has_settings" value="1"><?php endif; ?>
+                                                $dis = ''; ?>
+                                                <input type="hidden" name="has_settings" value="1">
                                                 <?php if (!$isAssist): ?>
                                                     <div class="col-12">
-                                                        <div class="alert alert-light border py-2 mb-0" style="font-size:12.5px;"><i class="bi bi-info-circle me-1"></i>iSKolar ng Langkiwa runs on school terms and allowances (Configuration &gt; Site Settings), so these fields don't apply to it.</div>
+                                                        <div class="alert alert-light border py-2 mb-0" style="font-size:12.5px;"><i class="bi bi-info-circle me-1"></i>These details are saved for iSKolar ng Langkiwa, but its allowance amount and term dates are still set in Configuration &gt; Site Settings.</div>
                                                     </div>
                                                 <?php endif; ?>
                                                 <div class="col-12">
