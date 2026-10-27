@@ -1291,3 +1291,28 @@ function assistanceOptionAllowed(array $field, $opt)
     $type = (stripos($opt, 'kind') !== false) ? 'in_kind' : 'cash';
     return in_array($type, $allowedAssistanceTypes, true);
 }
+
+// Whether a program (or, with no program, the committee's general Assistance Program) lets people ask for
+// both Cash and In-Kind assistance: a program set to "both", or a general form whose Type of Assistance
+// question lists a Cash and an In-Kind choice.
+function programOffersBothTypes($committeeId, $programId)
+{
+    if ($programId !== null) {
+        $program = getProgramById((int)$programId);
+        return $program && ($program['assistance_type'] ?? '') === 'both';
+    }
+    foreach (getFormFields($committeeId, 'assistance', null, true) as $field) {
+        if (!fieldMatchesKey($field, 'assistance_type')) {
+            continue;
+        }
+        $options = json_decode($field['options'] ?? '[]', true) ?: [];
+        $hasCash = false;
+        $hasKind = false;
+        foreach ($options as $opt) {
+            $hasCash = $hasCash || stripos($opt, 'cash') !== false;
+            $hasKind = $hasKind || stripos($opt, 'kind') !== false;
+        }
+        return $hasCash && $hasKind;
+    }
+    return false;
+}

@@ -46,7 +46,7 @@ $stmt->close();
 // A program that offers both Cash and In-Kind: someone who applied for one type can still apply for the
 // other (only the type they have not applied for is offered). Otherwise one application per program.
 $allowedAssistanceTypes = null;
-if ($existing && $programRow && ($programRow['assistance_type'] ?? '') === 'both') {
+if ($existing && programOffersBothTypes($committeeId, $programId)) {
     $remainingTypes = remainingAssistanceTypes($me['user_id'], $committeeId, $programId);
     if (!empty($remainingTypes)) {
         $existing = null;
