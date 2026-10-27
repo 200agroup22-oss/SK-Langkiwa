@@ -202,6 +202,19 @@ function programActivityCompliance($applicationId)
 
         $required = (int)$row['required'];
         $completed = (int)$row['completed'];
+
+        // A program can ask for a set number of activities instead of all of them.
+        if (!empty($app['program_id'])) {
+            ensureProgramInKindColumns();
+            $stmt = $conn->prepare("SELECT min_activities FROM programs WHERE program_id = ?");
+            $stmt->bind_param('i', $app['program_id']);
+            $stmt->execute();
+            $minNeeded = (int)($stmt->get_result()->fetch_row()[0] ?? 0);
+            $stmt->close();
+            if ($minNeeded > 0) {
+                $required = $minNeeded;
+            }
+        }
         $ok = $completed >= $required;
 
         // A Super Admin/officer can mark someone Eligible or Not Eligible by hand (Beneficiaries > Actions),

@@ -171,6 +171,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->bind_param('sii', $ikItems, $ikQty, $programId);
             $stmt->execute();
             $stmt->close();
+            $minAct = (int)($_POST['min_activities'] ?? 0) > 0 ? (int)$_POST['min_activities'] : null;
+            $stmt = $conn->prepare("UPDATE programs SET min_activities = ? WHERE program_id = ?");
+            $stmt->bind_param('ii', $minAct, $programId);
+            $stmt->execute();
+            $stmt->close();
             ensureProgramReleaseColumns();
             $oldProgram = getProgramById($programId);
             $relDate = ($_POST['release_date'] ?? '') !== '' ? $_POST['release_date'] : null;
@@ -207,6 +212,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $ikQty = ($ikItems !== null && (int)($_POST['inkind_quantity'] ?? 0) > 0) ? (int)$_POST['inkind_quantity'] : null;
             $stmt = $conn->prepare("UPDATE programs SET inkind_items = ?, inkind_quantity = ? WHERE program_id = ?");
             $stmt->bind_param('sii', $ikItems, $ikQty, $newId);
+            $stmt->execute();
+            $stmt->close();
+            $minAct = (int)($_POST['min_activities'] ?? 0) > 0 ? (int)$_POST['min_activities'] : null;
+            $stmt = $conn->prepare("UPDATE programs SET min_activities = ? WHERE program_id = ?");
+            $stmt->bind_param('ii', $minAct, $newId);
             $stmt->execute();
             $stmt->close();
             ensureProgramReleaseColumns();
@@ -1648,6 +1658,10 @@ $activeLink = 'AdminProgramManagement';
                                     <input class="form-check-input" type="checkbox" role="switch" name="has_activities" id="programActivitiesSwitch">
                                     <label class="form-check-label" for="programActivitiesSwitch" style="font-size:13.5px;">Enable Activities tab (activities and QR attendance for approved beneficiaries)</label>
                                 </div>
+                                <div class="mt-2">
+                                    <label class="form-label mb-1" style="font-size:13px;">Activities needed to be eligible</label>
+                                    <input type="number" class="form-control" name="min_activities" min="1" max="999" placeholder="Leave blank = all activities">
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1827,6 +1841,10 @@ $activeLink = 'AdminProgramManagement';
                                     <div class="form-check form-switch mt-2">
                                         <input class="form-check-input" type="checkbox" role="switch" name="has_activities" id="programActivitiesSwitch<?php echo $pid; ?>" <?php echo !empty((getProgramTabByProgramId($pid) ?? [])['has_activities']) ? 'checked' : ''; ?>>
                                         <label class="form-check-label" for="programActivitiesSwitch<?php echo $pid; ?>" style="font-size:13.5px;">Enable Activities tab (activities and QR attendance for approved beneficiaries)</label>
+                                    </div>
+                                    <div class="mt-2">
+                                        <label class="form-label mb-1" style="font-size:13px;">Activities needed to be eligible</label>
+                                        <input type="number" class="form-control" name="min_activities" min="1" max="999" placeholder="Leave blank = all activities" value="<?php echo e($p['min_activities'] ?? ''); ?>">
                                     </div>
                                 </div>
                             </div>

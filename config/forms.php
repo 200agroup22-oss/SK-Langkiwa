@@ -493,7 +493,7 @@ function ensureProgramInKindColumns()
         return;
     }
     $done = true;
-    foreach (['inkind_items' => 'VARCHAR(255) NULL', 'inkind_quantity' => 'INT NULL'] as $col => $def) {
+    foreach (['inkind_items' => 'VARCHAR(255) NULL', 'inkind_quantity' => 'INT NULL', 'min_activities' => 'INT NULL'] as $col => $def) {
         $exists = $conn->query("SHOW COLUMNS FROM programs LIKE '$col'");
         if ($exists && $exists->num_rows === 0) {
             $conn->query("ALTER TABLE programs ADD COLUMN $col $def");
