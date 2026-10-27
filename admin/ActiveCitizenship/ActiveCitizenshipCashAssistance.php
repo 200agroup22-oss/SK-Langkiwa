@@ -59,8 +59,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isViewOnlyOfficer()) {
             setFlash('error', 'Your role has view-only access on this page.');
         } else {
-            $roundResult = startNextReleaseRound($committeeId, $programId, $type);
-            setFlash($roundResult['ok'] ? 'success' : 'error', $roundResult['message']);
+            try {
+                $roundResult = startNextReleaseRound($committeeId, $programId, $type);
+                setFlash($roundResult['ok'] ? 'success' : 'error', $roundResult['message']);
+            } catch (Throwable $ex) {
+                error_log('Start release round failed: ' . $ex->getMessage() . ' @ ' . $ex->getFile() . ':' . $ex->getLine());
+                setFlash('error', 'Could not start the round: ' . $ex->getMessage());
+            }
         }
     }
 
