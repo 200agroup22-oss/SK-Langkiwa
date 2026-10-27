@@ -81,7 +81,35 @@ function themeMap(array $t)
         '#c8e6c9' => themeMix($p, $white, 0.70),
         '#e8f5e9' => themeMix($p, $white, 0.88),
         '#aadaad' => $t['secondary'],
+        // hover / tint shades used in a single place each
+        '#359a3d' => themeMix($p, $black, 0.20),
+        '#3ca644' => themeMix($p, $black, 0.10),
+        '#3aa342' => themeMix($p, $black, 0.12),
+        '#2f7d37' => themeMix($p, $black, 0.30),
+        '#1a3d1c' => themeMix($p, $black, 0.60),
+        '#e0f2e1' => themeMix($p, $white, 0.80),
+        '#dcefdd' => themeMix($p, $white, 0.78),
+        '#eefbea' => themeMix($p, $white, 0.90),
+        '#e8f8e8' => themeMix($p, $white, 0.88),
+        '#c8efc8' => themeMix($p, $white, 0.70),
+        '#b2ddb2' => themeMix($p, $white, 0.45),
+        '#a9d8ab' => themeMix($p, $white, 0.45),
+        '#86c98a' => themeMix($p, $white, 0.30),
     ];
+}
+
+// Bootstrap's own green buttons (.btn-success / .btn-outline-success) don't use the palette above, so
+// they stay green on hover and click. This restyles them with the configured primary color.
+function themeButtonCss(array $t)
+{
+    $p = $t['primary'];
+    $black = [0, 0, 0];
+    $hover = themeMix($p, $black, 0.15);
+    $active = themeMix($p, $black, 0.24);
+    return '<style id="theme-buttons">'
+        . '.btn-success{--bs-btn-bg:' . $p . ';--bs-btn-border-color:' . $p . ';--bs-btn-hover-bg:' . $hover . ';--bs-btn-hover-border-color:' . $hover . ';--bs-btn-active-bg:' . $active . ';--bs-btn-active-border-color:' . $active . ';--bs-btn-disabled-bg:' . $p . ';--bs-btn-disabled-border-color:' . $p . ';--bs-btn-focus-shadow-rgb:' . implode(',', themeRgb($p)) . ';}'
+        . '.btn-outline-success{--bs-btn-color:' . $p . ';--bs-btn-border-color:' . $p . ';--bs-btn-hover-bg:' . $p . ';--bs-btn-hover-border-color:' . $p . ';--bs-btn-active-bg:' . $hover . ';--bs-btn-active-border-color:' . $hover . ';--bs-btn-focus-shadow-rgb:' . implode(',', themeRgb($p)) . ';}'
+        . '</style>';
 }
 
 function themeApply($text)
@@ -91,7 +119,7 @@ function themeApply($text)
         return $text;
     }
     $map = themeMap($t);
-    $text = preg_replace_callback('/#(?:45b84d|4caf50|409d42|388e3c|3a7d44|2e7d32|1b5e20|a5d6a7|c8e6c9|e8f5e9|aadaad)\b/i', function ($m) use ($map) {
+    $text = preg_replace_callback('/#(?:45b84d|4caf50|409d42|388e3c|3a7d44|2e7d32|1b5e20|a5d6a7|c8e6c9|e8f5e9|aadaad|359a3d|3ca644|3aa342|2f7d37|1a3d1c|e0f2e1|dcefdd|eefbea|e8f8e8|c8efc8|b2ddb2|a9d8ab|86c98a)\b/i', function ($m) use ($map) {
         return $map[strtolower($m[0])];
     }, $text);
     // Focus rings etc. use rgba() of the default primary.
@@ -113,6 +141,7 @@ function themeStart()
         }
         // Serve admin.css through the same color swap.
         $buffer = str_replace('/assets/css/admin.css', '/assets/css/theme-css.php?f=admin&v=' . substr(md5(json_encode(themeColors())), 0, 8), $buffer);
-        return themeApply($buffer);
+        $buffer = themeApply($buffer);
+        return str_ireplace('</head>', themeButtonCss(themeColors()) . '</head>', $buffer);
     });
 }

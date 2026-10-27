@@ -814,8 +814,10 @@ $activeLink = 'AdminConfiguration';
                                 <div class="setting-label mb-2">Presets</div>
                                 <div class="d-flex flex-wrap gap-2" id="themePresets">
                                     <?php foreach ([['Green (default)', '#45b8' . '4d', '#aada' . 'ad'] /* split so the theme color swap doesn't rewrite the default preset */, ['Blue', '#2f80ed', '#a9cdf8'], ['Purple', '#8e44ad', '#d2b4de'], ['Red', '#d9433b', '#f1b5b1'], ['Orange', '#f08c1a', '#f8d3a0'], ['Teal', '#16a39a', '#a3e0db']] as $pr): ?>
-                                        <button type="button" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-2" data-p="<?php echo $pr[1]; ?>" data-s="<?php echo $pr[2]; ?>">
-                                            <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:linear-gradient(90deg,<?php echo $pr[1]; ?>,<?php echo $pr[2]; ?>);"></span><?php echo e($pr[0]); ?>
+                                        <?php /* '#' written as &#35; so the theme color swap can't recolor the default Green preset */ $prP = str_replace('#', '&#35;', $pr[1]);
+                                        $prS = str_replace('#', '&#35;', $pr[2]); ?>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-2" data-p="<?php echo $prP; ?>" data-s="<?php echo $prS; ?>">
+                                            <span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:linear-gradient(90deg,<?php echo $prP; ?>,<?php echo $prS; ?>);"></span><?php echo e($pr[0]); ?>
                                         </button>
                                     <?php endforeach; ?>
                                 </div>
