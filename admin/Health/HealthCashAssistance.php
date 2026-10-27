@@ -101,7 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setFlash('success', 'Beneficiary record restored.');
     }
 
-    header("Location: HealthCashAssistance.php" . ($programId !== null ? '?program_id=' . $programId : ''));
+    header("Location: HealthCashAssistance.php" . programPageQuery($programId));
     exit();
 }
 
@@ -323,13 +323,9 @@ $activeLink = 'HealthCashAssistance';
             <!-- Filter Bar -->
             <div class="filter-bar d-flex gap-2 align-items-center mb-3 flex-wrap">
                 <span style="font-size:12px; color:#666; font-weight:600;"><i class="bi bi-funnel me-1"></i>Filter:</span>
-                <?php if (!empty($committeePrograms)): ?>
-                    <select class="filter-select" name="program_id" onchange="this.form.submit()">
-                        <option value="">General (no program)</option>
-                        <?php foreach ($committeePrograms as $cp): ?>
-                            <option value="<?php echo $cp['program_id']; ?>" <?php echo $programId === (int)$cp['program_id'] ? 'selected' : ''; ?>><?php echo e($cp['name']); ?></option>
-                        <?php endforeach; ?>
-                    </select>
+                <?php if ($programId !== null): ?>
+                    <input type="hidden" name="program_id" value="<?php echo (int)$programId; ?>">
+                    <input type="hidden" name="ptab" value="<?php echo (int)programPtab($programId); ?>">
                 <?php endif; ?>
                 <select class="filter-select" name="status" onchange="this.form.submit()">
                     <option value="">All Status</option>

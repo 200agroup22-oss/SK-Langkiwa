@@ -120,7 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setFlash('success', 'Applicant restored.');
     }
 
-    header("Location: EducationAssistanceApplicants.php" . ($programId !== null ? '?program_id=' . $programId : ''));
+    header("Location: EducationAssistanceApplicants.php" . programPageQuery($programId));
     exit();
 }
 
@@ -229,13 +229,9 @@ $activeLink = 'EducationAssistanceApplicants';
             <!-- Filter Bar -->
             <div class="filter-bar d-flex gap-2 align-items-center mb-3 flex-wrap">
                 <span style="font-size:12px; color:#666; font-weight:600;"><i class="bi bi-funnel me-1"></i>Filter:</span>
-                <?php if (!empty($committeePrograms)): ?>
-                    <select class="filter-select" name="program_id" onchange="this.form.submit()">
-                        <option value="">General (no program)</option>
-                        <?php foreach ($committeePrograms as $cp): ?>
-                            <option value="<?php echo $cp['program_id']; ?>" <?php echo $programId === (int)$cp['program_id'] ? 'selected' : ''; ?>><?php echo e($cp['name']); ?></option>
-                        <?php endforeach; ?>
-                    </select>
+                <?php if ($programId !== null): ?>
+                    <input type="hidden" name="program_id" value="<?php echo (int)$programId; ?>">
+                    <input type="hidden" name="ptab" value="<?php echo (int)programPtab($programId); ?>">
                 <?php endif; ?>
                 <select class="filter-select" name="status" onchange="this.form.submit()">
                     <option value="">All Status</option>
@@ -263,7 +259,6 @@ $activeLink = 'EducationAssistanceApplicants';
                             <th>Applicant ID</th>
                             <th>Full Name</th>
                             <th>Address</th>
-                            <?php if (!empty($committeePrograms)): ?><th>Program</th><?php endif; ?>
                             <?php if ($showAssistanceTypeCol): ?><th>Type of Assistance</th><?php endif; ?>
                             <th>Status</th>
                             <th>Actions</th>
@@ -272,7 +267,7 @@ $activeLink = 'EducationAssistanceApplicants';
                     <tbody>
                         <?php if (empty($pagedApplications)): ?>
                             <tr>
-                                <td colspan="<?php echo (!empty($committeePrograms) ? 7 : 6) - ($showAssistanceTypeCol ? 0 : 1); ?>">
+                                <td colspan="<?php echo 6 - ($showAssistanceTypeCol ? 0 : 1); ?>">
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
                                         <p>No <?php echo e($activeProgram ? $activeProgram['name'] : 'education assistance'); ?> applications found.</p>
@@ -285,7 +280,6 @@ $activeLink = 'EducationAssistanceApplicants';
                                 <td><?php echo str_pad($app['application_id'], 3, '0', STR_PAD_LEFT); ?></td>
                                 <td><?php echo e($app['full_name']); ?></td>
                                 <td><?php echo e($app['address']); ?></td>
-                                <?php if (!empty($committeePrograms)): ?><td><?php echo e(programLabel($app['program_id'])); ?></td><?php endif; ?>
                                 <?php if ($showAssistanceTypeCol): ?><td><?php echo e($app['assistance_type']); ?></td><?php endif; ?>
                                 <td><span class="badge text-bg-<?php echo $app['status'] === 'approved' ? 'success' : ($app['status'] === 'declined' ? 'danger' : 'warning'); ?>"><?php echo ucfirst($app['status']); ?></span></td>
                                 <td class="d-flex gap-1">

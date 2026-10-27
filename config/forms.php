@@ -1273,3 +1273,27 @@ function validateAssistanceTypeChoice(array $post, $allowedTypes)
     }
     return $errors;
 }
+
+// Query string that keeps an admin program page on its program and its own sidebar menu (program_id for the
+// data, ptab for which program's submenu stays open). Empty for the committee's general Assistance Program.
+function programPtab($programId)
+{
+    if ($programId === null) {
+        return 0;
+    }
+    $tab = getProgramTabByProgramId((int)$programId);
+    return $tab ? (int)$tab['tab_id'] : 0;
+}
+
+function programPageQuery($programId, $prefix = '?')
+{
+    if ($programId === null) {
+        return '';
+    }
+    $q = 'program_id=' . (int)$programId;
+    $ptab = programPtab($programId);
+    if ($ptab > 0) {
+        $q .= '&ptab=' . $ptab;
+    }
+    return $prefix . $q;
+}
