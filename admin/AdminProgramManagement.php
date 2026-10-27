@@ -771,15 +771,19 @@ $activeLink = 'AdminProgramManagement';
         }
 
         .action-btn {
-            font-size: 11.5px;
+            font-size: 12px;
             font-weight: 600;
-            padding: 5px 9px;
-            border-radius: 5px;
+            height: 30px;
+            min-width: 104px;
+            padding: 0 12px;
+            border-radius: 6px;
             border: none;
             white-space: nowrap;
             display: inline-flex;
             align-items: center;
-            gap: 3px;
+            justify-content: center;
+            gap: 5px;
+            line-height: 1;
         }
 
         .btn-view {
