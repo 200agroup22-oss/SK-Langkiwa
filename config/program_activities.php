@@ -19,6 +19,11 @@ function ensureProgramActivitySchema()
         $conn->query("ALTER TABLE program_tabs ADD COLUMN has_activities TINYINT(1) NOT NULL DEFAULT 0");
     }
 
+    $col = $conn->query("SHOW COLUMNS FROM program_tabs LIKE 'min_activities'");
+    if ($col && $col->num_rows === 0) {
+        $conn->query("ALTER TABLE program_tabs ADD COLUMN min_activities INT NULL");
+    }
+
     $conn->query("CREATE TABLE IF NOT EXISTS program_activities (
         activity_id INT AUTO_INCREMENT PRIMARY KEY,
         tab_id INT NOT NULL,
@@ -214,6 +219,8 @@ function programActivityCompliance($applicationId)
             if ($minNeeded > 0) {
                 $required = $minNeeded;
             }
+        } elseif ((int)($tab['min_activities'] ?? 0) > 0) {
+            $required = (int)$tab['min_activities']; // built-in tab
         }
         $ok = $completed >= $required;
 

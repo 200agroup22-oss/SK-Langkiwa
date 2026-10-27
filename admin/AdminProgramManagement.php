@@ -402,6 +402,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // -- Edit a built-in track (name, icon, slot limit, status, Activities) --
+    if (isset($_POST['save_builtin_tab'])) {
+        $tabId = (int)($_POST['tab_id'] ?? 0);
+        $tabRow = $conn->query("SELECT committee_id FROM program_tabs WHERE tab_id = " . $tabId)->fetch_assoc();
+        $label = trim($_POST['label'] ?? '');
+        if (!$tabRow || !pmCanAccessCommittee($tabRow['committee_id'])) {
+            setFlash('error', 'You can only manage programs for your assigned committee(s).');
+        } elseif ($label === '') {
+            setFlash('error', 'Program name is required.');
+        } else {
+            ensureProgramActivitySchema();
+            $icon = trim($_POST['icon'] ?? 'bi-heart-fill');
+            $visible = isset($_POST['status_active']) ? 1 : 0;
+            $slots = (int)($_POST['max_slots'] ?? 0) > 0 ? (int)$_POST['max_slots'] : null;
+            $hasAct = isset($_POST['has_activities']) ? 1 : 0;
+            $minAct = (int)($_POST['min_activities'] ?? 0) > 0 ? (int)$_POST['min_activities'] : null;
+            $stmt = $conn->prepare("UPDATE program_tabs SET label = ?, icon = ?, is_visible = ?, max_slots = ?, has_activities = ?, min_activities = ? WHERE tab_id = ?");
+            $stmt->bind_param('ssiiiii', $label, $icon, $visible, $slots, $hasAct, $minAct, $tabId);
+            $stmt->execute();
+            $stmt->close();
+            logAudit('Updated Program', $label . ' (built-in tab #' . $tabId . ')');
+            setFlash('success', 'Program updated.');
+        }
+    }
+
     // -- Program tabs (sidebar labels/visibility, e.g. Education's "iSKolar" vs "Assistance Program") --
     if (isset($_POST['save_tabs'])) {
         $tabs = $_POST['tabs'] ?? [];
@@ -1149,7 +1174,7 @@ $activeLink = 'AdminProgramManagement';
                                     </div>
                                     <div class="program-actions">
                                         <button type="button" class="action-btn btn-view" data-bs-toggle="modal" data-bs-target="#viewTabModal<?php echo $tid; ?>"><i class="bi bi-eye"></i> View</button>
-                                        <button type="button" class="action-btn btn-edit" data-bs-toggle="modal" data-bs-target="#manageTabsModal<?php echo $cid; ?>"><i class="bi bi-pencil"></i> Edit</button>
+                                        <button type="button" class="action-btn btn-edit" data-bs-toggle="modal" data-bs-target="#editTabModal<?php echo $tid; ?>"><i class="bi bi-pencil"></i> Edit</button>
                                         <form method="post" class="d-inline">
                                             <input type="hidden" name="tabs[<?php echo $tid; ?>][label]" value="<?php echo e($t['label']); ?>">
                                             <input type="hidden" name="tabs[<?php echo $tid; ?>][icon]" value="<?php echo e($t['icon']); ?>">
@@ -1258,6 +1283,71 @@ $activeLink = 'AdminProgramManagement';
                                     <div class="modal-footer border-0">
                                         <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
                                     </div>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+
+                    <?php foreach ($builtInTabs as $t): $etid = (int)$t['tab_id']; ?>
+                        <!-- Edit built-in tab -->
+                        <div class="modal fade" id="editTabModal<?php echo $etid; ?>" tabindex="-1" aria-hidden="true">
+                            <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+                                <div class="modal-content border-0 shadow">
+                                    <form method="post">
+                                        <input type="hidden" name="tab_id" value="<?php echo $etid; ?>">
+                                        <div class="modal-header brand-header">
+                                            <h5 class="modal-title text-white fw-bold"><i class="bi bi-pencil-square me-2"></i> Edit Program</h5>
+                                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
+                                        <div class="modal-body p-4">
+                                            <div class="row g-3">
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Program Name</label>
+                                                    <input type="text" class="form-control" name="label" value="<?php echo e($t['label']); ?>" required>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Committee</label>
+                                                    <input type="text" class="form-control" value="<?php echo e($c['name']); ?>" disabled>
+                                                </div>
+                                                <div class="col-12">
+                                                    <label class="form-label">Icon</label>
+                                                    <?php $tabChoices = in_array($t['icon'], $tabIconChoices, true) ? $tabIconChoices : array_merge([$t['icon']], $tabIconChoices); ?>
+                                                    <input type="hidden" name="icon" value="<?php echo e($t['icon']); ?>" class="icon-hidden-input">
+                                                    <div class="d-flex flex-wrap gap-2 icon-picker">
+                                                        <?php foreach ($tabChoices as $ic): ?>
+                                                            <span class="icon-choice<?php echo $ic === $t['icon'] ? ' selected' : ''; ?>" data-icon="<?php echo e($ic); ?>"><i class="bi <?php echo e($ic); ?>"></i></span>
+                                                        <?php endforeach; ?>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Slot Limit</label>
+                                                    <input type="number" class="form-control" name="max_slots" min="1" placeholder="Leave blank = unlimited" value="<?php echo !empty($t['max_slots']) ? (int)$t['max_slots'] : ''; ?>">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Activities needed to be eligible</label>
+                                                    <input type="number" class="form-control" name="min_activities" min="1" max="999" placeholder="Leave blank = all activities" value="<?php echo !empty($t['min_activities']) ? (int)$t['min_activities'] : ''; ?>">
+                                                </div>
+                                                <div class="col-12">
+                                                    <label class="form-label d-block">Status</label>
+                                                    <div class="form-check form-switch">
+                                                        <input class="form-check-input" type="checkbox" role="switch" name="status_active" id="tabStatus<?php echo $etid; ?>" <?php echo $t['is_visible'] ? 'checked' : ''; ?>>
+                                                        <label class="form-check-label" for="tabStatus<?php echo $etid; ?>" style="font-size:13.5px;">Active (shown in the sidebar)</label>
+                                                    </div>
+                                                    <div class="form-check form-switch mt-2">
+                                                        <input class="form-check-input" type="checkbox" role="switch" name="has_activities" id="tabActivities<?php echo $etid; ?>" <?php echo !empty($t['has_activities']) ? 'checked' : ''; ?>>
+                                                        <label class="form-check-label" for="tabActivities<?php echo $etid; ?>" style="font-size:13.5px;">Enable Activities tab (activities and QR attendance for approved beneficiaries)</label>
+                                                    </div>
+                                                </div>
+                                                <div class="col-12">
+                                                    <span class="text-muted" style="font-size:12px;"><i class="bi bi-info-circle me-1"></i>Amount, release schedule and application dates don't apply to this built-in program; set an amount per beneficiary on its Cash / In-Kind pages.</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn-outline-brand" data-bs-dismiss="modal">Cancel</button>
+                                            <button type="submit" name="save_builtin_tab" class="btn-brand">Save Program</button>
+                                        </div>
+                                    </form>
                                 </div>
                             </div>
                         </div>
