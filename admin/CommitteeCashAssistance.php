@@ -106,7 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->bind_param('si', $dateReleased, $beneficiaryId);
         $stmt->execute();
         $stmt->close();
-        logAudit('Released Cash Payment', 'Beneficiary #' . $beneficiaryId);
+        logAudit('Released Cash Payment', beneficiaryAuditLabel($beneficiaryId));
         setFlash('success', 'Payment marked as released.');
     }
 

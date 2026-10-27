@@ -1342,6 +1342,29 @@ function ensureProgramTabArchiveColumn()
     }
 }
 
+// Readable text for the audit log: "Juan Dela Cruz (Application #159), PHP 5,000.00, round 2".
+function beneficiaryAuditLabel($beneficiaryId)
+{
+    global $conn;
+    try {
+        $stmt = $conn->prepare("SELECT ab.*, u.first_name, u.last_name FROM assistance_beneficiaries ab
+            JOIN applications a ON a.application_id = ab.application_id
+            JOIN users u ON u.user_id = a.user_id WHERE ab.beneficiary_id = ?");
+        $stmt->bind_param('i', $beneficiaryId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!$row) {
+            return 'Beneficiary #' . $beneficiaryId;
+        }
+        $what = $row['type'] === 'cash' ? 'PHP ' . number_format((float)$row['amount'], 2) : trim(($row['items'] ?? '') . ' x' . (int)$row['quantity']);
+        $round = (int)($row['round_no'] ?? 1) > 1 ? ', round ' . (int)$row['round_no'] : '';
+        return trim($row['first_name'] . ' ' . $row['last_name']) . ' (Application #' . (int)$row['application_id'] . '), ' . $what . $round . ' [Beneficiary #' . $beneficiaryId . ']';
+    } catch (Throwable $ex) {
+        return 'Beneficiary #' . $beneficiaryId;
+    }
+}
+
 // ---- Release rounds (Monthly / Quarterly / Per Semester programs) ----
 // A one-time program pays each beneficiary once. A recurring program pays in rounds: round 1 is the first
 // payout, and an admin starts each next round with one button, which gives every beneficiary who is still
