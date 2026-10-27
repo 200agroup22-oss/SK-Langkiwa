@@ -140,7 +140,7 @@ function themeStart()
             }
         }
         // Serve admin.css through the same color swap.
-        $buffer = str_replace('/assets/css/admin.css', '/assets/css/theme-css.php?f=admin&v=' . substr(md5(json_encode(themeColors())), 0, 8), $buffer);
+        $buffer = str_replace('/assets/css/admin.css', '/assets/css/theme-css.php?f=admin&v=' . substr(md5(json_encode(themeColors()) . filemtime(__FILE__) . @filemtime(__DIR__ . '/../assets/css/admin.css')), 0, 8), $buffer);
         $buffer = themeApply($buffer);
         return str_ireplace('</head>', themeButtonCss(themeColors()) . '</head>', $buffer);
     });
