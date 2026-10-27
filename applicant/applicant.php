@@ -100,7 +100,7 @@ usort($archivedAnnouncements, fn($a, $b) => strtotime($b['archived_at']) <=> str
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iSKolar ng Langkiwa</title>
+    <title>Home</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <!-- Bootstrap Icons has no waving-hand glyph; this one icon comes from Google's Material Symbols (only waving_hand is downloaded) -->
