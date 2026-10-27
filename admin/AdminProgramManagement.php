@@ -731,24 +731,20 @@ $activeLink = 'AdminProgramManagement';
             flex-wrap: wrap;
         }
 
+        /* Assistance-type tags use the same green pill as the Shown / Active / Open status pills. */
         .assist-tag {
             font-size: 11.5px;
-            font-weight: 600;
-            padding: 3px 10px;
+            font-weight: 700;
+            padding: 4px 12px;
             border-radius: 20px;
             white-space: nowrap;
         }
 
-        .assist-cash {
-            background: #e3f2fd;
-            color: #1565c0;
-            border: 1px solid #90caf9;
-        }
-
+        .assist-cash,
         .assist-kind {
-            background: #fff3e0;
-            color: #e65100;
-            border: 1px solid #ffcc80;
+            background: #45b84d;
+            color: #fff;
+            border: none;
         }
 
         .status-pill {
@@ -771,19 +767,15 @@ $activeLink = 'AdminProgramManagement';
         }
 
         .action-btn {
-            font-size: 12px;
+            font-size: 11.5px;
             font-weight: 600;
-            height: 30px;
-            min-width: 104px;
-            padding: 0 12px;
-            border-radius: 6px;
+            padding: 5px 9px;
+            border-radius: 5px;
             border: none;
             white-space: nowrap;
             display: inline-flex;
             align-items: center;
-            justify-content: center;
-            gap: 5px;
-            line-height: 1;
+            gap: 3px;
         }
 
         .btn-view {
@@ -1115,14 +1107,15 @@ $activeLink = 'AdminProgramManagement';
                                         </div>
                                     </div>
                                     <div class="program-actions">
-                                        <button type="button" class="action-btn btn-edit" data-bs-toggle="modal" data-bs-target="#manageTabsModal<?php echo $cid; ?>"><i class="bi bi-pencil"></i> Manage</button>
+                                        <button type="button" class="action-btn btn-view" data-bs-toggle="modal" data-bs-target="#viewTabModal<?php echo $tid; ?>"><i class="bi bi-eye"></i> View</button>
+                                        <button type="button" class="action-btn btn-edit" data-bs-toggle="modal" data-bs-target="#manageTabsModal<?php echo $cid; ?>"><i class="bi bi-pencil"></i> Edit</button>
                                         <form method="post" class="d-inline">
                                             <input type="hidden" name="tabs[<?php echo $tid; ?>][label]" value="<?php echo e($t['label']); ?>">
                                             <input type="hidden" name="tabs[<?php echo $tid; ?>][icon]" value="<?php echo e($t['icon']); ?>">
                                             <?php if (!$t['is_visible']): ?><input type="hidden" name="tabs[<?php echo $tid; ?>][visible]" value="1"><?php endif; ?>
                                             <button type="submit" name="save_tabs" class="action-btn <?php echo $t['is_visible'] ? 'btn-toggle' : 'btn-activate'; ?>">
                                                 <i class="bi <?php echo $t['is_visible'] ? 'bi-slash-circle' : 'bi-check-circle'; ?>"></i>
-                                                <?php echo $t['is_visible'] ? 'Hide' : 'Show'; ?>
+                                                <?php echo $t['is_visible'] ? 'Deactivate' : 'Activate'; ?>
                                             </button>
                                         </form>
                                     </div>
@@ -1182,6 +1175,48 @@ $activeLink = 'AdminProgramManagement';
                             <?php endforeach; ?>
                         </div>
                     </div>
+
+                    <?php foreach ($builtInTabs as $t): $vtid = (int)$t['tab_id'];
+                        $vBen = getApprovedCount($cid, $t['track_code']); ?>
+                        <!-- View built-in tab -->
+                        <div class="modal fade" id="viewTabModal<?php echo $vtid; ?>" tabindex="-1" aria-hidden="true">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content border-0 shadow">
+                                    <div class="modal-header">
+                                        <h6 class="modal-title fw-bold"><i class="bi <?php echo e($t['icon']); ?> me-2"></i><?php echo e($t['label']); ?></h6>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body p-4">
+                                        <div class="row g-3">
+                                            <div class="col-6">
+                                                <div class="info-label">Committee</div>
+                                                <div class="info-value"><?php echo e($c['name']); ?></div>
+                                            </div>
+                                            <div class="col-6">
+                                                <div class="info-label">Status</div>
+                                                <div class="info-value"><?php echo $t['is_visible'] ? 'Active (shown in the sidebar)' : 'Inactive (hidden from the sidebar)'; ?></div>
+                                            </div>
+                                            <div class="col-6">
+                                                <div class="info-label">Approved Beneficiaries</div>
+                                                <div class="info-value"><?php echo $vBen; ?></div>
+                                            </div>
+                                            <div class="col-6">
+                                                <div class="info-label">Slot Limit</div>
+                                                <div class="info-value"><?php echo !empty($t['max_slots']) ? $vBen . ' / ' . (int)$t['max_slots'] : 'Unlimited'; ?></div>
+                                            </div>
+                                            <div class="col-12">
+                                                <div class="info-label">Type</div>
+                                                <div class="info-value">Built-in program of the <?php echo e($c['name']); ?> committee. Its sidebar name and visibility can be changed with Edit.</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer border-0">
+                                        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
 
                     <?php if (!empty($tabsByCommittee[$cid])): ?>
                         <!-- MANAGE TABS MODAL -->
