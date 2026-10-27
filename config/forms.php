@@ -261,8 +261,14 @@ function cloneBaseFormFieldsIntoProgram($committeeId, $programTrack, $programId)
     $baseFields = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
 
+    // A brand-new committee has no base form to copy from, so use the built-in starter fields instead.
     if (empty($baseFields)) {
-        return;
+        $baseFields = [
+            ['label' => 'Last Name', 'field_key' => 'last_name', 'input_type' => 'text', 'icon' => 'bi-person', 'width' => 'half', 'is_required' => 1, 'options' => null, 'sort_order' => 1],
+            ['label' => 'First Name', 'field_key' => 'first_name', 'input_type' => 'text', 'icon' => 'bi-person', 'width' => 'half', 'is_required' => 1, 'options' => null, 'sort_order' => 2],
+            ['label' => 'Middle Name', 'field_key' => 'middle_name', 'input_type' => 'text', 'icon' => 'bi-person', 'width' => 'half', 'is_required' => 0, 'options' => null, 'sort_order' => 3],
+            ['label' => 'Complete Address', 'field_key' => 'complete_address', 'input_type' => 'text', 'icon' => 'bi-geo-alt', 'width' => 'full', 'is_required' => 1, 'options' => null, 'sort_order' => 4],
+        ];
     }
 
     $insert = $conn->prepare("INSERT INTO form_fields (committee_id, program_track, program_id, label, field_key, input_type, icon, width, is_required, options, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
