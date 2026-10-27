@@ -60,6 +60,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    if (isset($_POST['start_round'])) {
+        if (isViewOnlyOfficer()) {
+            setFlash('error', 'Your role has view-only access on this page.');
+        } else {
+            $roundResult = startNextReleaseRound($committeeId, $programId, $type);
+            setFlash($roundResult['ok'] ? 'success' : 'error', $roundResult['message']);
+        }
+    }
+
     if (isset($_POST['edit_beneficiary'])) {
         $beneficiaryId = (int)($_POST['beneficiary_id'] ?? 0);
         $items = trim($_POST['items'] ?? '');
@@ -114,6 +123,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $pageError = getFlash('error');
 $pageSuccess = getFlash('success');
 
+// Recurring programs (Monthly / Quarterly / Per Semester) pay in rounds - see startNextReleaseRound().
+ensureBeneficiaryRoundColumn();
+$isRecurringProgram = programIsRecurring($programId);
+$releaseScheduleLabel = $isRecurringProgram ? (getProgramById($programId)['release_schedule'] ?? '') : '';
+$currentRound = $isRecurringProgram ? currentReleaseRound($committeeId, $programId, $type) : 1;
+
 // Programs with Activities: eligible beneficiaries are added automatically with the program's own amount /
 // items, so the manual Add buttons are hidden when that is set up.
 $autoAdd = autoAddBeneficiariesEnabled($committeeId, $programId, $type);
@@ -122,7 +137,7 @@ if ($autoAdd) {
 }
 
 // ---- Load beneficiaries (approved applications LEFT JOINed to this page's beneficiary type) ----
-$sql = "SELECT a.application_id, a.user_id, a.program_id, ab.beneficiary_id, ab.items, ab.quantity, ab.status AS b_status, ab.date_distributed
+$sql = "SELECT a.application_id, a.user_id, a.program_id, ab.beneficiary_id, ab.round_no, ab.items, ab.quantity, ab.status AS b_status, ab.date_distributed
         FROM applications a
         LEFT JOIN assistance_beneficiaries ab ON ab.application_id = a.application_id AND ab.type = 'in_kind'
         WHERE a.committee_id = ? AND a.program_track = ? AND a.status = 'approved' AND a.archived_at IS NULL AND (ab.beneficiary_id IS NULL OR ab.archived_at IS NULL)"
@@ -300,6 +315,14 @@ $activeLink = 'EducationInKindAssistance';
 
         <?php if ($pageSuccess): ?><div class="alert alert-success py-2"><?php echo e($pageSuccess); ?></div><?php endif; ?>
         <?php if ($pageError): ?><div class="alert alert-danger py-2"><?php echo e($pageError); ?></div><?php endif; ?>
+        <?php if ($isRecurringProgram && !isViewOnlyOfficer()): ?>
+            <div class="alert alert-light border d-flex justify-content-between align-items-center flex-wrap gap-2 py-2" style="font-size:13px;">
+                <div><i class="bi bi-arrow-repeat text-success me-1"></i><strong><?php echo e($releaseScheduleLabel); ?> release</strong> &middot; Current round: <strong><?php echo (int)$currentRound; ?></strong></div>
+                <form method="post" class="m-0" data-confirm="Start round <?php echo (int)$currentRound + 1; ?>? Every beneficiary who is still eligible gets a new pending payout and is emailed the release schedule." data-confirm-title="Start Next Release Round" data-confirm-ok="Yes, Start Round" data-confirm-variant="success">
+                    <button type="submit" name="start_round" class="btn btn-sm btn-success"><i class="bi bi-play-fill me-1"></i> Start next release round</button>
+                </form>
+            </div>
+        <?php endif; ?>
 
         <form method="get">
             <!-- Table Header -->
@@ -371,7 +394,7 @@ $activeLink = 'EducationInKindAssistance';
                                 <td><?php echo e($row['address']); ?></td>
                                 <td><?php echo $row['beneficiary_id'] ? e($row['items']) : '—'; ?></td>
                                 <td><?php echo $row['beneficiary_id'] ? e($row['quantity']) : '—'; ?></td>
-                                <td><span class="badge text-bg-<?php echo statusBadgeClass($row['display_status']); ?>"><?php echo statusLabel($row['display_status']); ?></span></td>
+                                <td><span class="badge text-bg-<?php echo statusBadgeClass($row['display_status']); ?>"><?php echo statusLabel($row['display_status']); ?></span><?php if ($isRecurringProgram && !empty($row['beneficiary_id'])): ?> <small class="text-muted">Round <?php echo (int)($row['round_no'] ?? 1); ?></small><?php endif; ?></td>
                                 <td class="d-flex gap-1">
                                     <?php if ($row['beneficiary_id']): ?>
                                         <button class="btn-view" data-bs-toggle="modal" data-bs-target="#viewModal<?php echo $row['beneficiary_id']; ?>"><i class="bi bi-eye"></i> View</button>

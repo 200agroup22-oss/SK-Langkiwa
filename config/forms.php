@@ -1335,3 +1335,128 @@ function ensureProgramTabArchiveColumn()
         $conn->query("ALTER TABLE program_tabs ADD COLUMN archived_at DATETIME NULL");
     }
 }
+
+// ---- Release rounds (Monthly / Quarterly / Per Semester programs) ----
+// A one-time program pays each beneficiary once. A recurring program pays in rounds: round 1 is the first
+// payout, and an admin starts each next round with one button, which gives every beneficiary who is still
+// eligible a new pending payout (and emails them the release schedule). Each payout is its own
+// assistance_beneficiaries row, tagged with its round number.
+function ensureBeneficiaryRoundColumn()
+{
+    global $conn;
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+    $exists = $conn->query("SHOW COLUMNS FROM assistance_beneficiaries LIKE 'round_no'");
+    if ($exists && $exists->num_rows === 0) {
+        $conn->query("ALTER TABLE assistance_beneficiaries ADD COLUMN round_no INT NOT NULL DEFAULT 1");
+    }
+}
+
+function programIsRecurring($programId)
+{
+    if ($programId === null) {
+        return false;
+    }
+    $program = getProgramById((int)$programId);
+    return $program && in_array($program['release_schedule'] ?? '', ['Monthly', 'Quarterly', 'Per Semester'], true);
+}
+
+// The highest round number that already exists for a program and assistance type (1 when nothing yet).
+function currentReleaseRound($committeeId, $programId, $type)
+{
+    global $conn;
+    ensureBeneficiaryRoundColumn();
+    $stmt = $conn->prepare("SELECT COALESCE(MAX(ab.round_no), 1) FROM assistance_beneficiaries ab
+        JOIN applications a ON a.application_id = ab.application_id
+        WHERE a.committee_id = ? AND a.program_id = ? AND ab.type = ?");
+    $stmt->bind_param('iis', $committeeId, $programId, $type);
+    $stmt->execute();
+    $round = (int)$stmt->get_result()->fetch_row()[0];
+    $stmt->close();
+    return max(1, $round);
+}
+
+// Starts the next round. Returns ['ok' => bool, 'message' => string].
+function startNextReleaseRound($committeeId, $programId, $type)
+{
+    global $conn;
+    ensureBeneficiaryRoundColumn();
+    if ($programId === null || !programIsRecurring($programId)) {
+        return ['ok' => false, 'message' => 'This program is not a recurring (Monthly / Quarterly / Per Semester) program.'];
+    }
+
+    $stmt = $conn->prepare("SELECT ab.*, a.application_id AS app_id FROM assistance_beneficiaries ab
+        JOIN applications a ON a.application_id = ab.application_id
+        WHERE a.committee_id = ? AND a.program_id = ? AND ab.type = ? AND a.status = 'approved' AND a.archived_at IS NULL
+        ORDER BY a.application_id ASC, ab.round_no DESC, ab.beneficiary_id DESC");
+    $stmt->bind_param('iis', $committeeId, $programId, $type);
+    $stmt->execute();
+    $all = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+
+    $latest = [];
+    foreach ($all as $row) {
+        if (!isset($latest[$row['app_id']])) {
+            $latest[$row['app_id']] = $row; // newest payout per application
+        }
+    }
+    if (empty($latest)) {
+        return ['ok' => false, 'message' => 'There are no beneficiaries yet, so there is no round to continue.'];
+    }
+
+    $current = max(array_map(fn($r) => (int)$r['round_no'], $latest));
+    foreach ($latest as $row) {
+        if ((int)$row['round_no'] === $current && $row['status'] === 'pending' && empty($row['archived_at'])) {
+            return ['ok' => false, 'message' => 'Round ' . $current . ' still has payouts waiting for release. Release them (or archive the ones that will not be paid) before starting round ' . ($current + 1) . '.'];
+        }
+    }
+
+    $next = $current + 1;
+    $created = 0;
+    $skipped = 0;
+    foreach ($latest as $appId => $row) {
+        if (!empty($row['archived_at'])) {
+            $skipped++;
+            continue;
+        }
+        $compliance = programActivityCompliance((int)$appId);
+        if ($compliance !== null && !$compliance['ok']) {
+            $skipped++; // no longer eligible for this program's activities
+            continue;
+        }
+
+        if ($type === 'cash') {
+            $amount = getProgramAmount($programId) ?? (float)$row['amount'];
+            $ins = $conn->prepare("INSERT INTO assistance_beneficiaries (application_id, type, amount, status, round_no) VALUES (?, 'cash', ?, 'pending', ?)");
+            $ins->bind_param('idi', $appId, $amount, $next);
+        } else {
+            $defaults = getProgramInKind($programId);
+            $items = $defaults['items'] ?? $row['items'];
+            $qty = $defaults['quantity'] ?? $row['quantity'];
+            $ins = $conn->prepare("INSERT INTO assistance_beneficiaries (application_id, type, items, quantity, status, round_no) VALUES (?, 'in_kind', ?, ?, 'pending', ?)");
+            $ins->bind_param('isii', $appId, $items, $qty, $next);
+        }
+        $ins->execute();
+        $newId = $ins->insert_id;
+        $ins->close();
+        $created++;
+
+        $fetch = $conn->prepare("SELECT * FROM assistance_beneficiaries WHERE beneficiary_id = ?");
+        $fetch->bind_param('i', $newId);
+        $fetch->execute();
+        $newRow = $fetch->get_result()->fetch_assoc();
+        $fetch->close();
+        if ($newRow) {
+            notifyBeneficiaryRelease((int)$appId, $newRow, false);
+        }
+    }
+
+    logAudit('Started Release Round', 'Program #' . $programId . ' (' . ($type === 'cash' ? 'Cash' : 'In-Kind') . ') round ' . $next . ': ' . $created . ' added, ' . $skipped . ' skipped');
+    if ($created === 0) {
+        return ['ok' => false, 'message' => 'Nobody is eligible for round ' . $next . ' right now (' . $skipped . ' skipped).'];
+    }
+    return ['ok' => true, 'message' => 'Round ' . $next . ' started: ' . $created . ' beneficiar' . ($created === 1 ? 'y' : 'ies') . ' added with a pending payout and emailed' . ($skipped ? ' (' . $skipped . ' skipped - archived or no longer eligible)' : '') . '.'];
+}
