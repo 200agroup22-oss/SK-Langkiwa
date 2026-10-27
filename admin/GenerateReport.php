@@ -764,16 +764,31 @@ switch ($type) {
                 // Activity counts are scoped to the report's date range (an activity's actual
                 // activity_date), not just the current academic term, so this reflects real
                 // participation history over whatever period was picked.
-                $stmt = $conn->prepare("SELECT s.scholar_id, u.first_name, u.last_name, s.school, s.course, s.year_level,
-                (SELECT COUNT(*) FROM attendance att JOIN activities act ON act.activity_id = att.activity_id
-                    WHERE att.scholar_id = s.scholar_id AND act.activity_date BETWEEN ? AND ? AND act.archived_at IS NULL) AS total_activities,
-                (SELECT COUNT(*) FROM attendance att JOIN activities act ON act.activity_id = att.activity_id
-                    WHERE att.scholar_id = s.scholar_id AND att.status = 'present' AND act.activity_date BETWEEN ? AND ? AND act.archived_at IS NULL) AS present_count
-            FROM scholars s
-            JOIN users u ON u.user_id = s.user_id
-            WHERE s.status = 'active'
-            ORDER BY s.scholar_id ASC");
-                $stmt->bind_param('ssss', $from, $to, $from, $to);
+                if ($termAcademicYear !== null) {
+                    // A specific term was picked: list every scholar who has a saved allowance record for it - whatever
+                    // their status is today (a scholar archived or pending renewal now was still in that term) - using the
+                    // activities and eligibility saved on that record, the same figures the Allowance Distribution page shows.
+                    $stmt = $conn->prepare("SELECT s.scholar_id, u.first_name, u.last_name, s.school, s.course, s.year_level,
+                    ad.activities_required AS total_activities, ad.activities_completed AS present_count,
+                    ad.eligibility, ad.amount
+                FROM allowance_distributions ad
+                JOIN scholars s ON s.scholar_id = ad.scholar_id
+                JOIN users u ON u.user_id = s.user_id
+                WHERE ad.academic_year = ? AND ad.semester = ?
+                ORDER BY s.scholar_id ASC");
+                    $stmt->bind_param('ss', $termAcademicYear, $termSemester);
+                } else {
+                    $stmt = $conn->prepare("SELECT s.scholar_id, u.first_name, u.last_name, s.school, s.course, s.year_level,
+                    (SELECT COUNT(*) FROM attendance att JOIN activities act ON act.activity_id = att.activity_id
+                        WHERE att.scholar_id = s.scholar_id AND act.activity_date BETWEEN ? AND ? AND act.archived_at IS NULL) AS total_activities,
+                    (SELECT COUNT(*) FROM attendance att JOIN activities act ON act.activity_id = att.activity_id
+                        WHERE att.scholar_id = s.scholar_id AND att.status = 'present' AND act.activity_date BETWEEN ? AND ? AND act.archived_at IS NULL) AS present_count
+                FROM scholars s
+                JOIN users u ON u.user_id = s.user_id
+                WHERE s.status = 'active'
+                ORDER BY s.scholar_id ASC");
+                    $stmt->bind_param('ssss', $from, $to, $from, $to);
+                }
                 $stmt->execute();
                 $scholarRows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                 $stmt->close();
@@ -786,18 +801,9 @@ switch ($type) {
                 foreach ($scholarRows as $row) {
                     $scholarId = (int)$row['scholar_id'];
                     if ($termAcademicYear !== null) {
-                        // A specific past/other term was picked — read whatever record already exists for
-                        // it instead of ensureAllowanceRecord(), which always operates on the CURRENT term
-                        // and would wrongly create a fresh "pending" row for a term that isn't active.
-                        $termStmt = $conn->prepare("SELECT eligibility, amount FROM allowance_distributions WHERE scholar_id = ? AND academic_year = ? AND semester = ?");
-                        $termStmt->bind_param('iss', $scholarId, $termAcademicYear, $termSemester);
-                        $termStmt->execute();
-                        $termRecord = $termStmt->get_result()->fetch_assoc();
-                        $termStmt->close();
-                        if (!$termRecord) {
-                            continue; // not a scholar in that term (joined later), so they have no place in its report
-                        }
-                        $allowance = $termRecord;
+                        // The saved record of the chosen term (never ensureAllowanceRecord(), which works on the CURRENT
+                        // term and would create a fresh "pending" row for a term that isn't active).
+                        $allowance = ['eligibility' => $row['eligibility'], 'amount' => $row['amount']];
                     } else {
                         $allowance = ensureAllowanceRecord($scholarId);
                     }
