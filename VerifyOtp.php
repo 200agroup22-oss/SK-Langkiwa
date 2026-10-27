@@ -28,11 +28,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             otpMarkSent($pending['email']);
 
             $name = $pending['purpose'] === 'register' ? ($pending['data']['first_name'] ?? '') : '';
-            sendOtpEmail($pending['email'], $name, $pending['code'], $pending['purpose']);
-
-            setFlash('success', 'A new code has been sent to ' . $pending['email'] . '.');
-            header("Location: VerifyOtp.php");
-            exit();
+            if (sendOtpEmail($pending['email'], $name, $pending['code'], $pending['purpose'])) {
+                setFlash('success', 'A new code has been sent to ' . $pending['email'] . '.');
+                header("Location: VerifyOtp.php");
+                exit();
+            }
+            otpClearCooldown($pending['email']);
+            $error = 'We could not send the code right now. Please try again in a moment.';
         }
     }
 

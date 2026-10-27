@@ -64,6 +64,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (empty($errors) && ($wait = otpCooldownRemaining($email)) > 0) {
+        // They went back to this page after a code was already sent: take them to the code page, not an error.
+        $pendingOtp = $_SESSION['otp_pending'] ?? null;
+        if ($pendingOtp && ($pendingOtp['purpose'] ?? '') === 'register' && strtolower($pendingOtp['email'] ?? '') === strtolower($email)) {
+            setFlash('success', 'A code was already sent to ' . $email . '. Enter it below, or request a new one in ' . $wait . ' second' . ($wait === 1 ? '' : 's') . '.');
+            header("Location: VerifyOtp.php");
+            exit();
+        }
         $errors[] = 'A code was just sent to this email. Please wait ' . $wait . ' second' . ($wait === 1 ? '' : 's') . ' before requesting another one.';
     }
 
@@ -77,10 +84,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'gender' => $gender,
             'password_hash' => $passwordHash,
         ]);
-        sendOtpEmail($email, $firstName, $code, 'register');
-
-        header("Location: VerifyOtp.php");
-        exit();
+        if (sendOtpEmail($email, $firstName, $code, 'register')) {
+            setFlash('success', 'A 6-digit code was sent to ' . $email . '. Enter it below to finish creating your account.');
+            header("Location: VerifyOtp.php");
+            exit();
+        }
+        // The email could not be sent: do not leave a pending code or a cooldown behind.
+        unset($_SESSION['otp_pending']);
+        otpClearCooldown($email);
+        setFlash('error', 'We could not send the verification email right now. Please check the email address and try again in a moment.');
     } else {
         setFlash('error', implode(' ', $errors));
     }

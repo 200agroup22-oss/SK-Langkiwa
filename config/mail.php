@@ -23,6 +23,14 @@ define('BREVO_SENDER_NAME', siteName());
 function sendOtpEmail($toEmail, $toName, $otpCode, $purpose)
 {
     if (BREVO_API_KEY === '') {
+        // No key set. On a local test machine the code goes to the debug log so registration still works; on
+        // the live site that would silently send nothing, so it counts as a failed send and the page says so.
+        $host = strtolower($_SERVER['SERVER_NAME'] ?? 'localhost');
+        $isLocal = in_array($host, ['localhost', '127.0.0.1', '::1'], true) || substr($host, -10) === '.localhost';
+        if (!$isLocal) {
+            error_log('OTP email not sent: BREVO_API_KEY is not set on this server.');
+            return false;
+        }
         $line = date('Y-m-d H:i:s') . " | $purpose | $toEmail | OTP: $otpCode\n";
         file_put_contents(__DIR__ . '/otp_debug.log', $line, FILE_APPEND);
         return true;

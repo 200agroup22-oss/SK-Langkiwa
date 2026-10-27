@@ -270,6 +270,16 @@ function otpCooldownRemaining($email)
     return $row ? max(0, (int)$row['last_sent'] + OTP_RESEND_SECONDS - time()) : 0;
 }
 
+function otpClearCooldown($email)
+{
+    global $conn;
+    $key = hash('sha256', strtolower(trim($email)));
+    $stmt = $conn->prepare("DELETE FROM otp_cooldowns WHERE email_key = ?");
+    $stmt->bind_param('s', $key);
+    $stmt->execute();
+    $stmt->close();
+}
+
 function otpMarkSent($email)
 {
     global $conn;

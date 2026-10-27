@@ -21,12 +21,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($user['status'] !== 'active') {
         setFlash('error', 'This account is inactive. Please contact the SK office.');
     } elseif (($wait = otpCooldownRemaining($email)) > 0) {
+        $pendingOtp = $_SESSION['otp_pending'] ?? null;
+        if ($pendingOtp && ($pendingOtp['purpose'] ?? '') === 'reset' && strtolower($pendingOtp['email'] ?? '') === strtolower($email)) {
+            setFlash('success', 'A code was already sent to ' . $email . '. Enter it below, or request a new one in ' . $wait . ' second' . ($wait === 1 ? '' : 's') . '.');
+            header("Location: VerifyOtp.php");
+            exit();
+        }
         setFlash('error', 'A code was just sent to this email. Please wait ' . $wait . ' second' . ($wait === 1 ? '' : 's') . ' before requesting another one.');
     } else {
         $code = startOtp('reset', $email);
-        sendOtpEmail($email, $user['first_name'], $code, 'reset');
-        header("Location: VerifyOtp.php");
-        exit();
+        if (sendOtpEmail($email, $user['first_name'], $code, 'reset')) {
+            setFlash('success', 'A 6-digit code was sent to ' . $email . '. Enter it below to reset your password.');
+            header("Location: VerifyOtp.php");
+            exit();
+        }
+        unset($_SESSION['otp_pending']);
+        otpClearCooldown($email);
+        setFlash('error', 'We could not send the code right now. Please try again in a moment.');
     }
 }
 
