@@ -1,18 +1,17 @@
 <?php
-// Some pages that include this nav (e.g. the applicant Home) don't load config/forms.php, which is
-// what normally brings in this helper — load it directly so the Program Activities link can show.
+// One navigation bar for applicants and scholars, so the header looks the same on every page and only
+// the scholar-only links (Activities, Allowance, Update Requirements) are added for a scholar.
+// includes/scholarnav.php simply loads this file.
 require_once __DIR__ . '/../config/program_activities.php';
 $me = currentUser();
-
-// A scholar always gets the scholar navigation bar, even on the applicant-side pages they can open
-// (Application Status, My Assistance, application forms), so the header never changes under them.
-if (($me['role'] ?? '') === 'scholar') {
-    include __DIR__ . '/scholarnav.php';
-    return;
-}
+$isScholarNav = ($me['role'] ?? '') === 'scholar';
 
 $homeUrl = dashboardUrlForRole($me['role'] ?? 'applicant');
 $roleLabel = ucfirst($me['role'] ?? 'applicant');
+$applyUrl = APP_BASE . ($isScholarNav ? '/applicant/EducationAssistanceForm.php' : '/applicant/ApplicationForm.php');
+
+$navLinkAttrs = 'style="font-size: 14px; color: #fff;" onmouseover="this.style.background=\'rgba(255,255,255,0.25)\';" onmouseout="this.style.background=\'\';"';
+$navLinkClass = 'nav-link d-flex align-items-center gap-1 fw-semibold px-3 py-1 rounded';
 ?>
 <!-- Navbar -->
 <nav class="navbar navbar-expand-lg shadow-sm fixed-top" style="background: linear-gradient(90deg, #45b84d, #aadaad); padding: 8px 0;">
@@ -44,47 +43,47 @@ $roleLabel = ucfirst($me['role'] ?? 'applicant');
             <!-- Center Links -->
             <ul class="navbar-nav mx-auto gap-1">
                 <li class="nav-item">
-                    <a class="nav-link d-flex align-items-center gap-1 fw-semibold px-3 py-1 rounded" href="<?php echo $homeUrl; ?>"
-                        style="font-size: 14px; color: #fff;"
-                        onmouseover="this.style.background='rgba(255,255,255,0.25)';"
-                        onmouseout="this.style.background='';">
+                    <a class="<?php echo $navLinkClass; ?>" href="<?php echo $homeUrl; ?>" <?php echo $navLinkAttrs; ?>>
                         <i class="bi bi-grid-fill"></i> Home
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="<?php echo APP_BASE; ?>/applicant/ApplicationForm.php" class="nav-link d-flex align-items-center gap-1 fw-semibold px-3 py-1 rounded"
-                        style="font-size: 14px; color: #fff;"
-                        onmouseover="this.style.background='rgba(255,255,255,0.25)';"
-                        onmouseout="this.style.background='';">
-                        <i class="bi bi-pencil-square"></i> Application Form
+                    <a class="<?php echo $navLinkClass; ?>" href="<?php echo $applyUrl; ?>" <?php echo $navLinkAttrs; ?>>
+                        <i class="bi bi-pencil-square"></i> Apply for Assistance
                     </a>
                 </li>
-                <li class="nav-item">
-                    <a href="<?php echo APP_BASE; ?>/applicant/ApplicationStatus.php" class="nav-link d-flex align-items-center gap-1 fw-semibold px-3 py-1 rounded"
-                        style="font-size: 14px; color: #fff;"
-                        onmouseover="this.style.background='rgba(255,255,255,0.25)';"
-                        onmouseout="this.style.background='';">
-                        <i class="bi bi-shield-check"></i> Application Status
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="<?php echo APP_BASE; ?>/applicant/MyAssistance.php" class="nav-link d-flex align-items-center gap-1 fw-semibold px-3 py-1 rounded"
-                        style="font-size: 14px; color: #fff;"
-                        onmouseover="this.style.background='rgba(255,255,255,0.25)';"
-                        onmouseout="this.style.background='';">
-                        <i class="bi bi-heart-fill"></i> My Assistance
-                    </a>
-                </li>
-                <?php if (function_exists('userHasProgramActivities') && !empty($me['user_id']) && userHasProgramActivities((int)$me['user_id'])): ?>
+                <?php if ($isScholarNav): ?>
                     <li class="nav-item">
-                        <a href="<?php echo APP_BASE; ?>/applicant/ProgramActivities.php" class="nav-link d-flex align-items-center gap-1 fw-semibold px-3 py-1 rounded"
-                            style="font-size: 14px; color: #fff;"
-                            onmouseover="this.style.background='rgba(255,255,255,0.25)';"
-                            onmouseout="this.style.background='';">
-                            <i class="bi bi-calendar-event-fill"></i> Program Activities
+                        <a class="<?php echo $navLinkClass; ?>" href="<?php echo APP_BASE; ?>/scholar/Activities.php" <?php echo $navLinkAttrs; ?>>
+                            <i class="bi bi-calendar-event-fill"></i> Activities
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="<?php echo $navLinkClass; ?>" href="<?php echo APP_BASE; ?>/scholar/Allowance.php" <?php echo $navLinkAttrs; ?>>
+                            <i class="bi bi-cash-coin"></i> Allowance
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="<?php echo $navLinkClass; ?>" href="<?php echo APP_BASE; ?>/scholar/UpdateRequirements.php" <?php echo $navLinkAttrs; ?>>
+                            <i class="bi bi-clipboard-check-fill"></i> Update Requirements
+                        </a>
+                    </li>
+                <?php elseif (function_exists('userHasProgramActivities') && !empty($me['user_id']) && userHasProgramActivities((int)$me['user_id'])): ?>
+                    <li class="nav-item">
+                        <a class="<?php echo $navLinkClass; ?>" href="<?php echo APP_BASE; ?>/applicant/ProgramActivities.php" <?php echo $navLinkAttrs; ?>>
+                            <i class="bi bi-calendar-event-fill"></i> Activities
                         </a>
                     </li>
                 <?php endif; ?>
+                <li class="nav-item dropdown">
+                    <a class="<?php echo $navLinkClass; ?> dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false" <?php echo $navLinkAttrs; ?>>
+                        <i class="bi bi-folder2-open"></i> My Applications
+                    </a>
+                    <ul class="dropdown-menu shadow border-0 rounded-3 mt-1">
+                        <li><a class="dropdown-item d-flex align-items-center gap-2 py-2" href="<?php echo APP_BASE; ?>/applicant/ApplicationStatus.php"><i class="bi bi-shield-check"></i> Application Status</a></li>
+                        <li><a class="dropdown-item d-flex align-items-center gap-2 py-2" href="<?php echo APP_BASE; ?>/applicant/MyAssistance.php"><i class="bi bi-heart-fill"></i> My Assistance</a></li>
+                    </ul>
+                </li>
             </ul>
 
             <!-- Right Side: Role Badge + User Dropdown -->
@@ -112,7 +111,6 @@ $roleLabel = ucfirst($me['role'] ?? 'applicant');
 
                     <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3 mt-1" style="min-width: 170px;">
                         <li><a class="dropdown-item d-flex align-items-center gap-2 py-2" href="<?php echo APP_BASE; ?>/UserProfile.php"><i class="bi bi-person-circle"></i> My Profile</a></li>
-                        <li><a class="dropdown-item d-flex align-items-center gap-2 py-2" href="<?php echo APP_BASE; ?>/applicant/ApplicationStatus.php"><i class="bi bi-file-earmark-text"></i> My Application</a></li>
                         <li>
                             <hr class="dropdown-divider my-1">
                         </li>

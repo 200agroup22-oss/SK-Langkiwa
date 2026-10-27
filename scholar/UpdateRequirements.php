@@ -170,6 +170,38 @@ $reqError = getFlash('error');
             color: #fff;
         }
 
+        /* Every requirement column lines up: labels reserve two lines so the Attach File boxes start at the
+           same height, and long file names wrap inside the status box instead of stretching it. */
+        .req-label {
+            display: flex;
+            align-items: flex-start;
+            min-height: 2.8em;
+            line-height: 1.4;
+            margin-bottom: 6px;
+        }
+
+        .doc-status {
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            min-width: 0;
+        }
+
+        .doc-status .doc-name {
+            min-width: 0;
+            flex: 1 1 auto;
+            overflow-wrap: anywhere;
+            word-break: break-all;
+        }
+
+        .doc-status i {
+            flex: 0 0 auto;
+            margin-top: 2px;
+        }
+
+        .req-grid>[class*="col-"] {
+            min-width: 0;
+        }
+
         .doc-status {
             background-color: #e8f5e9;
             border: 1px solid #a5d6a7;
@@ -281,10 +313,10 @@ $reqError = getFlash('error');
                 <hr class="mb-4">
 
                 <!-- File Uploads -->
-                <div class="row mb-4 align-items-end">
+                <div class="row mb-4 align-items-start req-grid">
                     <?php foreach ($docFields as $field): ?>
                         <div class="col-md-3">
-                            <label class="form-label"><?php echo e($field['label']); ?><br>&nbsp;</label>
+                            <label class="form-label req-label"><?php echo e($field['label']); ?></label>
                             <?php if ($windowOpen): ?>
                                 <label class="file-box w-100">
                                     <i class="bi bi-upload file-box-icon"></i> &nbsp;&nbsp;<span class="file-box-label">Attach File</span>
@@ -294,11 +326,11 @@ $reqError = getFlash('error');
                             <?php endif; ?>
                             <?php if (!empty($currentFiles[$field['field_id']])): ?>
                                 <div class="doc-status mt-2">
-                                    <i class="bi bi-check-circle-fill"></i> <?php echo e($currentFiles[$field['field_id']]); ?>
+                                    <i class="bi bi-check-circle-fill"></i> <span class="doc-name"><?php echo e($currentFiles[$field['field_id']]); ?></span>
                                 </div>
                             <?php else: ?>
                                 <div class="doc-status mt-2" style="background:#fff3cd;border-color:#ffe69c;color:#856404;">
-                                    <i class="bi bi-exclamation-circle-fill"></i> Not yet submitted this term
+                                    <i class="bi bi-exclamation-circle-fill"></i> <span class="doc-name">Not yet submitted this term</span>
                                 </div>
                             <?php endif; ?>
                         </div>
