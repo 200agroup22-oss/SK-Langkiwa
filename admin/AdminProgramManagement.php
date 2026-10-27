@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/../config/forms.php';
-// Content Management is Super Admin only now â committee_admin (and secretary/treasurer) no
+// Content Management is Super Admin only now — committee_admin (and secretary/treasurer) no
 // longer get any access here, scoped or otherwise.
 requireRole('admin');
 
@@ -8,7 +8,7 @@ $me = currentUser();
 $isSuperAdmin = $me['role'] === 'admin';
 $myCommitteeIds = $isSuperAdmin ? [] : getUserCommitteeIds($me['user_id']);
 // Named distinctly from includes/adminsidebar.php's own committeeAllowed() (included later on this
-// same page) so the two don't collide â both do the same thing, scoped to this page's variables.
+// same page) so the two don't collide — both do the same thing, scoped to this page's variables.
 function pmCanAccessCommittee($committeeId)
 {
     global $isSuperAdmin, $myCommitteeIds;
@@ -29,7 +29,7 @@ function announcementCommitteeId($announcementId)
     return ($row && $row['committee_id'] !== null) ? (int)$row['committee_id'] : null;
 }
 
-// General announcements (no committee_id â sent site-wide) are super-admin only; a per-committee
+// General announcements (no committee_id — sent site-wide) are super-admin only; a per-committee
 // one just needs the usual committee check.
 function pmCanAccessAnnouncementCommittee($committeeId)
 {
@@ -50,7 +50,7 @@ function slugifyCode($name)
 // ---- POST handlers (redirect-after-POST) ----
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-    // -- Committees (super admin only â a committee_admin manages programs/announcements within
+    // -- Committees (super admin only — a committee_admin manages programs/announcements within
     // their assigned committee(s), but never the committee list itself) --
     if (isset($_POST['add_committee']) && !$isSuperAdmin) {
         setFlash('error', 'Only a Super Admin can add committees.');
@@ -69,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->close();
 
             // Every assistance application form needs a way to say whether the request is for
-            // cash or in-kind assistance â seed it here so a new committee never launches without
+            // cash or in-kind assistance — seed it here so a new committee never launches without
             // it (and never gets it set up as some other custom set of options by mistake).
             $atLabel = 'Type of Assistance';
             $atKey = 'assistance_type';
@@ -268,7 +268,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setFlash('success', 'Program restored.');
     }
 
-    // -- Announcements (the only place in the admin that can post one â Configuration's old
+    // -- Announcements (the only place in the admin that can post one — Configuration's old
     // "Announcements" section was a second, more limited copy of this same feature and has been
     // removed in favor of this single one) --
     if (isset($_POST['save_announcement'])) {
@@ -331,7 +331,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setFlash('success', 'Announcement restored.');
     }
 
-    // -- Site Settings (this tab owns: site_name, tagline, welcome_message, contact_number, email, sk_office_address, facebook_url, allow_public_applications, show_announcements, current_academic_year, current_semester, requirements_deadline, requirements_open) â super admin only, it's site-wide. --
+    // -- Site Settings (this tab owns: site_name, tagline, welcome_message, contact_number, email, sk_office_address, facebook_url, allow_public_applications, show_announcements, current_academic_year, current_semester, requirements_deadline, requirements_open) — super admin only, it's site-wide. --
     if (isset($_POST['save_site_settings']) && !$isSuperAdmin) {
         setFlash('error', 'Only a Super Admin can change Site Settings.');
     } elseif (isset($_POST['save_site_settings'])) {
@@ -377,7 +377,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($label === '') {
                 continue;
             }
-            // Skip any tab that isn't under one of this admin's assigned committees â a
+            // Skip any tab that isn't under one of this admin's assigned committees — a
             // committee_admin submitting this form only ever sees their own tabs anyway, but this
             // guards against a tampered request touching someone else's.
             if (!$isSuperAdmin) {
@@ -439,7 +439,7 @@ if (!$isSuperAdmin) {
 
 $announcements = $conn->query("SELECT a.*, c.name AS committee_name, c.icon AS committee_icon FROM announcements a LEFT JOIN committees c ON c.committee_id = a.committee_id WHERE a.archived_at IS NULL ORDER BY a.announcement_id ASC")->fetch_all(MYSQLI_ASSOC);
 if (!$isSuperAdmin) {
-    // Committee admins never see General (site-wide, no committee_id) announcements here â only
+    // Committee admins never see General (site-wide, no committee_id) announcements here — only
     // a Super Admin posts those.
     $announcements = array_values(array_filter($announcements, fn($a) => $a['committee_id'] !== null && pmCanAccessCommittee($a['committee_id'])));
 }
@@ -452,7 +452,7 @@ if (!$isSuperAdmin) {
 $settings = $conn->query("SELECT * FROM site_settings WHERE id = 1")->fetch_assoc();
 
 // Built-in tracks (program_tabs rows with no program_id) count as programs too, matching the
-// per-committee "X programs" badge below â otherwise these stats undercount whenever a committee
+// per-committee "X programs" badge below — otherwise these stats undercount whenever a committee
 // has no catalog programs of its own yet.
 $statBuiltInTotal = 0;
 $statBuiltInActive = 0;
@@ -485,7 +485,7 @@ function assistBadgeClass($type)
     return $type === 'in_kind' ? 'assist-kind' : 'assist-cash';
 }
 
-// One badge per type a program actually offers â a 'both' program gets two badges
+// One badge per type a program actually offers — a 'both' program gets two badges
 // (Cash + In-Kind) side by side instead of a single combined label.
 function assistBadges($type)
 {
@@ -1135,7 +1135,7 @@ $activeLink = 'AdminProgramManagement';
                             ?>
                                 <div class="program-item" data-program-id="<?php echo $pid; ?>" data-program-name="<?php echo e(strtolower($p['name'])); ?>" data-status="<?php echo e(ucfirst($p['status'])); ?>" data-assist="<?php echo e(implode(',', array_column(assistBadges($p['assistance_type']), 1))); ?>" data-created="<?php echo $p['created_at'] ? strtotime($p['created_at']) : 0; ?>">
                                     <div>
-                                        <div class="p-name">#<?php echo $pid; ?> â <?php echo e($p['name']); ?></div>
+                                        <div class="p-name">#<?php echo $pid; ?> — <?php echo e($p['name']); ?></div>
                                         <div class="p-meta">
                                             <?php foreach (assistBadges($p['assistance_type']) as [$badgeType, $badgeLabel]): ?>
                                                 <span class="assist-tag <?php echo assistBadgeClass($badgeType); ?>"><?php echo e($badgeLabel); ?></span>
@@ -1144,11 +1144,11 @@ $activeLink = 'AdminProgramManagement';
                                             <?php if ($hasWindow): ?>
                                                 <span title="Application period"><i class="bi bi-calendar-range me-1"></i><?php
                                                                                                                             echo $p['app_start_date'] ? date('M j, Y', strtotime($p['app_start_date'])) : 'Anytime';
-                                                                                                                            echo ' â ';
+                                                                                                                            echo ' – ';
                                                                                                                             echo $p['app_end_date'] ? date('M j, Y', strtotime($p['app_end_date'])) : 'No end date';
                                                                                                                             ?></span>
                                             <?php else: ?>
-                                                <span><i class="bi bi-calendar3 me-1"></i><?php echo $p['created_at'] ? date('M j, Y', strtotime($p['created_at'])) : 'â'; ?></span>
+                                                <span><i class="bi bi-calendar3 me-1"></i><?php echo $p['created_at'] ? date('M j, Y', strtotime($p['created_at'])) : '—'; ?></span>
                                             <?php endif; ?>
                                             <span class="status-pill <?php echo $p['status'] === 'active' ? 'status-active' : 'status-inactive'; ?>"><?php echo ucfirst($p['status']); ?></span>
                                             <?php if ($closedReason && $p['status'] === 'active'): ?>
@@ -1186,11 +1186,11 @@ $activeLink = 'AdminProgramManagement';
                                 <div class="modal-content border-0 shadow">
                                     <form method="post">
                                         <div class="modal-header brand-header">
-                                            <h5 class="modal-title text-white fw-bold"><i class="bi bi-layout-sidebar-inset me-2"></i> Manage Tabs â <?php echo e($c['name']); ?></h5>
+                                            <h5 class="modal-title text-white fw-bold"><i class="bi bi-layout-sidebar-inset me-2"></i> Manage Tabs — <?php echo e($c['name']); ?></h5>
                                             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                                         </div>
                                         <div class="modal-body p-4">
-                                            <p class="text-muted" style="font-size:13px;">These are the sidebar sections shown under <?php echo e($c['name']); ?> on both the admin and applicant sides. Rename a tab or hide it from the sidebar without deleting any data â the underlying pages and applications stay intact either way.</p>
+                                            <p class="text-muted" style="font-size:13px;">These are the sidebar sections shown under <?php echo e($c['name']); ?> on both the admin and applicant sides. Rename a tab or hide it from the sidebar without deleting any data — the underlying pages and applications stay intact either way.</p>
                                             <?php foreach ($tabsByCommittee[$cid] as $t): $tid = (int)$t['tab_id']; ?>
                                                 <div class="row g-2 align-items-center mb-3 pb-3" style="border-bottom:1px solid #eee;">
                                                     <div class="col-md-8">
@@ -1290,7 +1290,7 @@ $activeLink = 'AdminProgramManagement';
             </div>
         </div>
 
-        <!-- TAB: Site Settings (super admin only â site-wide, not scoped to a committee) -->
+        <!-- TAB: Site Settings (super admin only — site-wide, not scoped to a committee) -->
         <?php if ($isSuperAdmin): ?>
             <div class="tab-pane-custom" id="settingsTab">
                 <div class="settings-card">
@@ -1340,7 +1340,7 @@ $activeLink = 'AdminProgramManagement';
                             </div>
                             <div class="col-12">
                                 <div class="alert alert-warning py-2 mb-0" style="font-size:12.5px;">
-                                    <i class="bi bi-exclamation-triangle-fill me-1"></i> This is what "iSKolar ng Langkiwa" applications, activities, and allowance distribution treat as the active term. Changing it starts a fresh activity/allowance tracking period for every scholar going forward â past terms' records stay intact and remain visible in Reports.
+                                    <i class="bi bi-exclamation-triangle-fill me-1"></i> This is what "iSKolar ng Langkiwa" applications, activities, and allowance distribution treat as the active term. Changing it starts a fresh activity/allowance tracking period for every scholar going forward — past terms' records stay intact and remain visible in Reports.
                                 </div>
                             </div>
                         </div>
@@ -1610,28 +1610,28 @@ $activeLink = 'AdminProgramManagement';
                             </div>
                             <div class="col-6">
                                 <div class="info-label">Amount</div>
-                                <div class="info-value"><?php echo $p['amount'] !== null ? 'â±' . number_format($p['amount'], 2) : 'â'; ?></div>
+                                <div class="info-value"><?php echo $p['amount'] !== null ? '₱' . number_format($p['amount'], 2) : '—'; ?></div>
                             </div>
                             <div class="col-6">
                                 <div class="info-label">Release Schedule</div>
-                                <div class="info-value"><?php echo e($p['release_schedule'] ?: 'â'); ?></div>
+                                <div class="info-value"><?php echo e($p['release_schedule'] ?: '—'); ?></div>
                             </div>
                             <div class="col-6">
                                 <div class="info-label">Application Start</div>
-                                <div class="info-value"><?php echo e($p['app_start_date'] ?: 'â'); ?></div>
+                                <div class="info-value"><?php echo e($p['app_start_date'] ?: '—'); ?></div>
                             </div>
                             <div class="col-6">
                                 <div class="info-label">Application End</div>
-                                <div class="info-value"><?php echo e($p['app_end_date'] ?: 'â'); ?></div>
+                                <div class="info-value"><?php echo e($p['app_end_date'] ?: '—'); ?></div>
                             </div>
                             <div class="col-12">
                                 <div class="info-label">Description</div>
-                                <div class="info-value"><?php echo nl2br(e($p['description'] ?: 'â')); ?></div>
+                                <div class="info-value"><?php echo nl2br(e($p['description'] ?: '—')); ?></div>
                             </div>
                             <div class="col-12">
                                 <div class="info-label">Eligibility Requirements</div>
                                 <div class="info-value">
-                                    <?php if (empty($reqLines)): ?>â<?php else: ?>
+                                    <?php if (empty($reqLines)): ?>—<?php else: ?>
                                     <ul class="mb-0 ps-3">
                                         <?php foreach ($reqLines as $rl): if (trim($rl) === '') continue; ?><li><?php echo e($rl); ?></li><?php endforeach; ?>
                                     </ul>
@@ -1767,7 +1767,7 @@ $activeLink = 'AdminProgramManagement';
         </div>
     <?php endforeach; ?>
 
-    <!-- Add/Edit Announcement Modal (shared â openAddAnnouncement()/openEditAnnouncement() below swap it between the two) -->
+    <!-- Add/Edit Announcement Modal (shared — openAddAnnouncement()/openEditAnnouncement() below swap it between the two) -->
     <div class="modal fade" id="addAnnouncementModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content border-0 shadow">
@@ -1891,7 +1891,7 @@ $activeLink = 'AdminProgramManagement';
                         <div class="ann-preview">
                             <div class="ann-title"><?php echo e($a['title']); ?></div>
                             <div class="ann-body"><?php echo nl2br(e($a['message'])); ?></div>
-                            <?php if ($a['event_date']): ?><div class="ann-detail"><strong>When:</strong> <?php echo date('F j, Y', strtotime($a['event_date'])); ?><?php echo $a['event_time'] ? ' â ' . date('g:i A', strtotime($a['event_time'])) : ''; ?></div><?php endif; ?>
+                            <?php if ($a['event_date']): ?><div class="ann-detail"><strong>When:</strong> <?php echo date('F j, Y', strtotime($a['event_date'])); ?><?php echo $a['event_time'] ? ' — ' . date('g:i A', strtotime($a['event_time'])) : ''; ?></div><?php endif; ?>
                             <?php if ($a['event_where']): ?><div class="ann-detail"><strong>Where:</strong> <?php echo e($a['event_where']); ?></div><?php endif; ?>
                             <?php if ($a['notes']): ?><div class="ann-detail"><strong>Note:</strong> <?php echo e($a['notes']); ?></div><?php endif; ?>
                             <div class="ann-meta">Posted: <?php echo date('F j, Y', strtotime($a['posted_at'])); ?></div>
@@ -2118,7 +2118,7 @@ $activeLink = 'AdminProgramManagement';
         if (programSortSelect) programSortSelect.addEventListener('change', applyProgramFilters);
         applyProgramFilters();
 
-        // Assistance Type is now two checkboxes (Cash / In-Kind) instead of one required select â
+        // Assistance Type is now two checkboxes (Cash / In-Kind) instead of one required select —
         // require at least one checked per form so a program is never saved with neither.
         document.querySelectorAll('.assistance-type-check').forEach(function(box) {
             box.addEventListener('change', function() {
@@ -2142,7 +2142,7 @@ $activeLink = 'AdminProgramManagement';
             toggleInKind();
         });
 
-        // Add/Edit Announcement modal â one shared modal, reset to a blank "Add" state or
+        // Add/Edit Announcement modal — one shared modal, reset to a blank "Add" state or
         // populated into an "Edit" state depending on which button opened it.
         function openAddAnnouncement(committeeId) {
             document.getElementById('announcementIdInput').value = '';
@@ -2174,7 +2174,7 @@ $activeLink = 'AdminProgramManagement';
             document.getElementById('announcementModalTitle').innerHTML = '<i class="bi bi-pencil-square me-2"></i> Edit Announcement';
         }
 
-        // Client-side search (Announcements tab) â filters the announcements table rows by title.
+        // Client-side search (Announcements tab) — filters the announcements table rows by title.
         const announcementSearchInput = document.getElementById('announcementSearchInput');
         if (announcementSearchInput) {
             announcementSearchInput.addEventListener('input', function() {
@@ -2186,7 +2186,7 @@ $activeLink = 'AdminProgramManagement';
             });
         }
 
-        // Only prompt when the Academic Term itself actually changed â not on every unrelated
+        // Only prompt when the Academic Term itself actually changed — not on every unrelated
         // settings save (site name, contact info, etc.).
         const siteSettingsForm = document.getElementById('siteSettingsForm');
         if (siteSettingsForm) {
