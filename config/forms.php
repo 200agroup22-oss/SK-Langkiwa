@@ -1311,9 +1311,44 @@ function scholarReleaseDetails()
 }
 
 // Convenience for the page handlers right after a beneficiary was added.
+// A beneficiary added after a recurring program has already started its rounds joins the CURRENT round (not
+// round 1), so the next "Start next release round" does not pay them twice. Called for every new beneficiary
+// (manual add and auto-add) right before the release notice goes out.
+function alignNewBeneficiaryRound($applicationId, $type)
+{
+    global $conn;
+    try {
+        ensureBeneficiaryRoundColumn();
+        $stmt = $conn->prepare("SELECT a.committee_id, a.program_id,
+                (SELECT COUNT(*) FROM assistance_beneficiaries x WHERE x.application_id = a.application_id AND x.type = ?) AS payouts
+            FROM applications a WHERE a.application_id = ?");
+        $stmt->bind_param('si', $type, $applicationId);
+        $stmt->execute();
+        $app = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!$app || (int)$app['payouts'] !== 1) {
+            return; // not a brand-new beneficiary
+        }
+        $programId = $app['program_id'] !== null ? (int)$app['program_id'] : null;
+        if (!programIsRecurring($programId, (int)$app['committee_id'])) {
+            return;
+        }
+        $current = currentReleaseRound((int)$app['committee_id'], $programId, $type);
+        if ($current > 1) {
+            $stmt = $conn->prepare("UPDATE assistance_beneficiaries SET round_no = ? WHERE application_id = ? AND type = ? AND round_no = 1");
+            $stmt->bind_param('iis', $current, $applicationId, $type);
+            $stmt->execute();
+            $stmt->close();
+        }
+    } catch (Throwable $ex) {
+        error_log('Align round failed: ' . $ex->getMessage());
+    }
+}
+
 function notifyBeneficiaryPendingRelease($applicationId, $type)
 {
     global $conn;
+    alignNewBeneficiaryRound($applicationId, $type);
     $stmt = $conn->prepare("SELECT * FROM assistance_beneficiaries WHERE application_id = ? AND type = ? AND status = 'pending' AND archived_at IS NULL ORDER BY beneficiary_id DESC LIMIT 1");
     $stmt->bind_param('is', $applicationId, $type);
     $stmt->execute();
@@ -1609,7 +1644,8 @@ function startNextReleaseRound($committeeId, $programId, $type)
 
     $current = max(array_map(fn($r) => (int)$r['round_no'], $latest));
     foreach ($latest as $row) {
-        if ((int)$row['round_no'] === $current && $row['status'] === 'pending' && empty($row['archived_at'])) {
+        // Anyone whose latest payout is still pending blocks the next round, whichever round that payout is in.
+        if ($row['status'] === 'pending' && empty($row['archived_at'])) {
             return ['ok' => false, 'message' => 'Round ' . $current . ' still has payouts waiting for release. Release them (or archive the ones that will not be paid) before starting round ' . ($current + 1) . '.'];
         }
     }

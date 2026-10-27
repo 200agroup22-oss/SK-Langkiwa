@@ -369,38 +369,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setFlash('success', 'Announcement restored.');
     }
 
-    // -- Site Settings (this tab owns: site_name, tagline, welcome_message, contact_number, email, sk_office_address, facebook_url, allow_public_applications, show_announcements, current_academic_year, current_semester, requirements_deadline, requirements_open) — super admin only, it's site-wide. --
-    if (isset($_POST['save_site_settings']) && !$isSuperAdmin) {
-        setFlash('error', 'Only a Super Admin can change Site Settings.');
-    } elseif (isset($_POST['save_site_settings'])) {
-        $siteName = trim($_POST['site_name'] ?? '');
-        $welcomeMessage = trim($_POST['welcome_message'] ?? '');
-        $contactNumber = trim($_POST['contact_number'] ?? '');
-        $email = trim($_POST['email'] ?? '');
-        $officeAddress = trim($_POST['sk_office_address'] ?? '');
-        $facebookUrl = trim($_POST['facebook_url'] ?? '');
-        $academicYear = trim($_POST['current_academic_year'] ?? '');
-        $semester = $_POST['current_semester'] ?? '';
-        $requirementsDeadlineInput = trim($_POST['requirements_deadline'] ?? '');
-        $requirementsDeadline = $requirementsDeadlineInput !== '' ? $requirementsDeadlineInput : null;
-        $requirementsOpen = isset($_POST['requirements_open']) ? 1 : 0;
-
-        if (!preg_match('/^\d{4}-\d{4}$/', $academicYear)) {
-            setFlash('error', 'Academic Year must be in the form YYYY-YYYY, e.g. 2026-2027.');
-        } elseif (!in_array($semester, ['1st Semester', '2nd Semester'], true)) {
-            setFlash('error', 'Invalid semester.');
-        } elseif ($requirementsDeadline !== null && !DateTime::createFromFormat('Y-m-d', $requirementsDeadline)) {
-            setFlash('error', 'Invalid requirements deadline date.');
-        } else {
-            $stmt = $conn->prepare("UPDATE site_settings SET site_name = ?, welcome_message = ?, contact_number = ?, email = ?, sk_office_address = ?, facebook_url = ?, current_academic_year = ?, current_semester = ?, requirements_deadline = ?, requirements_open = ? WHERE id = 1");
-            $stmt->bind_param('sssssssssi', $siteName, $welcomeMessage, $contactNumber, $email, $officeAddress, $facebookUrl, $academicYear, $semester, $requirementsDeadline, $requirementsOpen);
-            $stmt->execute();
-            $stmt->close();
-            logAudit('Updated Site Settings', 'General / contact / preferences / term: ' . $academicYear . ' ' . $semester);
-            setFlash('success', 'Site settings saved.');
-        }
-    }
-
     // -- Edit a built-in track (name, icon, slot limit, status, Activities) --
     if (isset($_POST['save_builtin_tab'])) {
         $tabId = (int)($_POST['tab_id'] ?? 0);
@@ -540,7 +508,6 @@ if (!$isSuperAdmin) {
     $archivedAnnouncements = array_values(array_filter($archivedAnnouncements, fn($a) => $a['committee_id'] !== null && pmCanAccessCommittee($a['committee_id'])));
 }
 
-$settings = $conn->query("SELECT * FROM site_settings WHERE id = 1")->fetch_assoc();
 
 // Built-in tracks (program_tabs rows with no program_id) count as programs too, matching the
 // per-committee "X programs" badge below — otherwise these stats undercount whenever a committee
@@ -1110,7 +1077,6 @@ $activeLink = 'AdminProgramManagement';
             <button class="content-tab-btn active" data-tab="programsTab"><i class="bi bi-diagram-3-fill"></i> Committees &amp; Programs</button>
             <button class="content-tab-btn" data-tab="announcementsTab"><i class="bi bi-bell-fill"></i> Announcements</button>
             <?php if ($isSuperAdmin): ?>
-                <button class="content-tab-btn" data-tab="settingsTab"><i class="bi bi-gear-fill"></i> Site Settings</button>
             <?php endif; ?>
         </div>
 
@@ -1341,7 +1307,7 @@ $activeLink = 'AdminProgramManagement';
                                                 <input type="hidden" name="has_settings" value="1">
                                                 <?php if (!$isAssist): ?>
                                                     <div class="col-12">
-                                                        <div class="alert alert-light border py-2 mb-0" style="font-size:12.5px;"><i class="bi bi-info-circle me-1"></i>These details are saved for iSKolar ng Langkiwa, but its allowance amount and term dates are still set in Configuration &gt; Site Settings.</div>
+                                                        <div class="alert alert-light border py-2 mb-0" style="font-size:12.5px;"><i class="bi bi-info-circle me-1"></i>These details are saved for iSKolar ng Langkiwa, but its allowance amount and term dates are still set in Configuration &gt; Settings.</div>
                                                     </div>
                                                 <?php endif; ?>
                                                 <div class="col-12">
@@ -1570,84 +1536,6 @@ $activeLink = 'AdminProgramManagement';
                 </div>
             </div>
         </div>
-
-        <!-- TAB: Site Settings (super admin only — site-wide, not scoped to a committee) -->
-        <?php if ($isSuperAdmin): ?>
-            <div class="tab-pane-custom" id="settingsTab">
-                <div class="settings-card">
-                    <form method="post" id="siteSettingsForm" data-orig-year="<?php echo e($settings['current_academic_year']); ?>" data-orig-semester="<?php echo e($settings['current_semester']); ?>">
-                        <div class="settings-section-title">General</div>
-                        <div class="row g-3">
-                            <div class="col-12">
-                                <label class="form-label">Site / Barangay Name</label>
-                                <input type="text" class="form-control" name="site_name" value="<?php echo e($settings['site_name']); ?>">
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">Welcome / About Message</label>
-                                <textarea class="form-control" name="welcome_message" rows="3" placeholder="Short message shown on the public homepage"><?php echo e($settings['welcome_message']); ?></textarea>
-                            </div>
-                        </div>
-
-                        <div class="settings-section-title">Academic Term</div>
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label">Current Academic Year</label>
-                                <input type="text" class="form-control" name="current_academic_year" id="settingAcademicYear" value="<?php echo e($settings['current_academic_year']); ?>" placeholder="e.g., 2026-2027" pattern="\d{4}-\d{4}" required>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Current Semester</label>
-                                <select class="form-select" name="current_semester" id="settingSemester" required>
-                                    <option value="1st Semester" <?php echo $settings['current_semester'] === '1st Semester' ? 'selected' : ''; ?>>1st Semester</option>
-                                    <option value="2nd Semester" <?php echo $settings['current_semester'] === '2nd Semester' ? 'selected' : ''; ?>>2nd Semester</option>
-                                </select>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Requirements Deadline</label>
-                                <input type="date" class="form-control" name="requirements_deadline" value="<?php echo e($settings['requirements_deadline']); ?>">
-                                <div class="form-text" style="font-size:11.5px;">Cutoff for scholars to submit updated requirements (Barangay Indigency, Grades, etc.) for the current term. Leave blank for no deadline.</div>
-                            </div>
-                            <div class="col-12">
-                                <div class="form-check form-switch mb-0">
-                                    <input class="form-check-input" type="checkbox" role="switch" name="requirements_open" id="settingRequirementsOpen" <?php echo $settings['requirements_open'] ? 'checked' : ''; ?>>
-                                    <label class="form-check-label" for="settingRequirementsOpen" style="font-size:13.5px;">Scholars can submit updated requirements right now</label>
-                                </div>
-                                <div class="form-text" style="font-size:11.5px;">Normally turned on automatically by "End Semester" (Scholars page) and off again once the deadline passes. Use this switch to open or close the window by hand.</div>
-                            </div>
-                            <div class="col-12">
-                                <div class="alert alert-warning py-2 mb-0" style="font-size:12.5px;">
-                                    <i class="bi bi-exclamation-triangle-fill me-1"></i> This is what "iSKolar ng Langkiwa" applications, activities, and allowance distribution treat as the active term. Changing it starts a fresh activity/allowance tracking period for every scholar going forward — past terms' records stay intact and remain visible in Reports.
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="settings-section-title">Contact Information</div>
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label">Contact Number</label>
-                                <input type="text" class="form-control" name="contact_number" value="<?php echo e($settings['contact_number']); ?>" placeholder="e.g., 0917 123 4567">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Email Address</label>
-                                <input type="email" class="form-control" name="email" value="<?php echo e($settings['email']); ?>" placeholder="e.g., sk.langkiwa@email.com">
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label">Office Address</label>
-                                <input type="text" class="form-control" name="sk_office_address" value="<?php echo e($settings['sk_office_address']); ?>" placeholder="e.g., Barangay Hall, Langkiwa">
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Facebook Page URL</label>
-                                <input type="text" class="form-control" name="facebook_url" value="<?php echo e($settings['facebook_url']); ?>" placeholder="https://facebook.com/...">
-                            </div>
-                        </div>
-
-                        <div class="d-flex justify-content-end mt-4 gap-2">
-                            <button type="reset" class="btn-outline-brand">Reset</button>
-                            <button type="submit" name="save_site_settings" class="btn-brand"><i class="bi bi-check-lg me-1"></i> Save Settings</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        <?php endif; ?>
 
     </div>
 
@@ -2492,24 +2380,6 @@ $activeLink = 'AdminProgramManagement';
                     const match = !q || (row.dataset.title || '').includes(q);
                     row.style.display = match ? '' : 'none';
                 });
-            });
-        }
-
-        // Only prompt when the Academic Term itself actually changed — not on every unrelated
-        // settings save (site name, contact info, etc.).
-        const siteSettingsForm = document.getElementById('siteSettingsForm');
-        if (siteSettingsForm) {
-            siteSettingsForm.addEventListener('submit', function(e) {
-                const yearChanged = document.getElementById('settingAcademicYear').value.trim() !== this.dataset.origYear;
-                const semesterChanged = document.getElementById('settingSemester').value !== this.dataset.origSemester;
-                // The shared confirm modal (includes/adminsidebar.php) shows this before the form submits.
-                if (yearChanged || semesterChanged) {
-                    this.dataset.confirm = 'Change the active Academic Term to "' + document.getElementById('settingAcademicYear').value.trim() + ', ' + document.getElementById('settingSemester').value + '"?\n\nThis starts a fresh activity/allowance tracking period for every scholar going forward. Past terms stay intact.';
-                    this.dataset.confirmTitle = 'Change Academic Term';
-                    this.dataset.confirmOk = 'Yes, Change Term';
-                } else {
-                    delete this.dataset.confirm;
-                }
             });
         }
     </script>

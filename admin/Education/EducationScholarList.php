@@ -722,7 +722,7 @@ $activeLink = 'EducationScholarList';
                         <div class="mb-2">
                             <label class="form-label fw-semibold" style="font-size:13px;">Requirements Deadline for <?php echo e($nextTerm['academic_year'] . ', ' . $nextTerm['semester']); ?></label>
                             <input type="date" class="form-control form-control-sm" name="requirements_deadline" value="<?php echo e(date('Y-m-d', strtotime('+30 days'))); ?>" min="<?php echo e(date('Y-m-d')); ?>">
-                            <div class="form-text" style="font-size:11px;">Scholars must submit their updated requirements by this date. Leave blank for no deadline — it can be set or changed later in Site Settings.</div>
+                            <div class="form-text" style="font-size:11px;">Scholars must submit their updated requirements by this date. Leave blank for no deadline — it can be set or changed later in Configuration &gt; Settings.</div>
                         </div>
                         <p class="text-muted mb-0" style="font-size:12px;">This advances the site's current academic year/semester and opens the requirements submission window for scholars (closed while a semester is ongoing). Existing attendance, allowance, and requirement records stay tied to the term that just ended.</p>
                     </div>

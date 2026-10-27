@@ -124,6 +124,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setFlash('success', 'SK Office info updated.');
     }
 
+    // Academic term (moved here from Content Management > Site Settings): the active term iSKolar uses, plus the
+    // scholar requirements deadline and the switch that opens or closes the submission window by hand.
+    if (isset($_POST['save_academic_term'])) {
+        $academicYear = trim($_POST['current_academic_year'] ?? '');
+        $semester = $_POST['current_semester'] ?? '';
+        $deadlineInput = trim($_POST['requirements_deadline'] ?? '');
+        $deadline = $deadlineInput !== '' ? $deadlineInput : null;
+        $requirementsOpen = isset($_POST['requirements_open']) ? 1 : 0;
+
+        if (!preg_match('/^\d{4}-\d{4}$/', $academicYear)) {
+            setFlash('error', 'Academic Year must be in the form YYYY-YYYY, e.g. 2026-2027.');
+        } elseif (!in_array($semester, ['1st Semester', '2nd Semester'], true)) {
+            setFlash('error', 'Invalid semester.');
+        } elseif ($deadline !== null && !DateTime::createFromFormat('Y-m-d', $deadline)) {
+            setFlash('error', 'Invalid requirements deadline date.');
+        } else {
+            $stmt = $conn->prepare("UPDATE site_settings SET current_academic_year = ?, current_semester = ?, requirements_deadline = ?, requirements_open = ? WHERE id = 1");
+            $stmt->bind_param('sssi', $academicYear, $semester, $deadline, $requirementsOpen);
+            $stmt->execute();
+            $stmt->close();
+            logAudit('Updated Site Settings', 'Academic term: ' . $academicYear . ' ' . $semester);
+            setFlash('success', 'Academic term saved.');
+        }
+    }
+
     if (isset($_POST['update_program_slots'])) {
         $tabId = (int)$_POST['tab_id'];
         $slotsRaw = trim($_POST['max_slots'] ?? '');
@@ -920,6 +945,51 @@ $activeLink = 'AdminConfiguration';
 
                 <div class="divider"></div>
 
+                <!-- Academic Term -->
+                <form method="post" id="academicTermForm" data-orig-year="<?php echo e($settings['current_academic_year']); ?>" data-orig-semester="<?php echo e($settings['current_semester']); ?>">
+                    <div class="mb-2">
+                        <div class="setting-label"><i class="bi bi-calendar3 text-success me-1"></i> Academic Term</div>
+                        <div class="setting-desc mt-1 mb-2">The active term for iSKolar ng Langkiwa: applications, activities and allowance distribution all follow it. End Semester moves it forward automatically.</div>
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                <label class="form-label" style="font-size:12px; font-weight:600;">Current Academic Year</label>
+                                <input type="text" class="form-control form-control-sm" style="font-size:13px;" name="current_academic_year" id="settingAcademicYear" value="<?php echo e($settings['current_academic_year']); ?>" placeholder="e.g., 2026-2027" pattern="\d{4}-\d{4}" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" style="font-size:12px; font-weight:600;">Current Semester</label>
+                                <select class="form-select form-select-sm" style="font-size:13px;" name="current_semester" id="settingSemester" required>
+                                    <option value="1st Semester" <?php echo $settings['current_semester'] === '1st Semester' ? 'selected' : ''; ?>>1st Semester</option>
+                                    <option value="2nd Semester" <?php echo $settings['current_semester'] === '2nd Semester' ? 'selected' : ''; ?>>2nd Semester</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" style="font-size:12px; font-weight:600;">Requirements Deadline</label>
+                                <input type="date" class="form-control form-control-sm" style="font-size:13px;" name="requirements_deadline" value="<?php echo e($settings['requirements_deadline']); ?>">
+                            </div>
+                            <div class="col-12">
+                                <div class="form-text" style="font-size:11.5px;">The deadline is the cutoff for scholars to submit their updated requirements this term. Leave it blank for no deadline.</div>
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check form-switch mb-0">
+                                    <input class="form-check-input" type="checkbox" role="switch" name="requirements_open" id="settingRequirementsOpen" <?php echo $settings['requirements_open'] ? 'checked' : ''; ?>>
+                                    <label class="form-check-label" for="settingRequirementsOpen" style="font-size:13px;">Scholars can submit updated requirements right now</label>
+                                </div>
+                                <div class="form-text" style="font-size:11.5px;">Normally turned on automatically by "End Semester" (Scholars page) and off again once the deadline passes. Use this switch to open or close the window by hand.</div>
+                            </div>
+                            <div class="col-12">
+                                <div class="alert alert-warning py-2 mb-0" style="font-size:12.5px;">
+                                    <i class="bi bi-exclamation-triangle-fill me-1"></i> Changing the term starts a fresh activity and allowance tracking period for every scholar going forward. Past terms' records stay intact and remain visible in Reports.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-end mt-2">
+                            <button type="submit" name="save_academic_term" class="btn btn-sm btn-success px-3">Save</button>
+                        </div>
+                    </div>
+                </form>
+
+                <div class="divider"></div>
+
                 <!-- SK Office -->
                 <form method="post">
                     <div class="mb-2">
@@ -1509,6 +1579,23 @@ $activeLink = 'AdminConfiguration';
             document.getElementById('fieldModalLabel' + tabId).innerHTML = '<i class="bi bi-pencil me-2"></i>Edit Field';
             toggleOptionsField(tabId);
         }
+
+        // Only ask for confirmation when the Academic Term itself changed, not on every save.
+        (function() {
+            const form = document.getElementById('academicTermForm');
+            if (!form) return;
+            form.addEventListener('submit', function() {
+                const year = document.getElementById('settingAcademicYear').value.trim();
+                const semester = document.getElementById('settingSemester').value;
+                if (year !== this.dataset.origYear || semester !== this.dataset.origSemester) {
+                    this.dataset.confirm = 'Change the active Academic Term to "' + year + ', ' + semester + '"?\n\nThis starts a fresh activity/allowance tracking period for every scholar going forward. Past terms stay intact.';
+                    this.dataset.confirmTitle = 'Change Academic Term';
+                    this.dataset.confirmOk = 'Yes, Change Term';
+                } else {
+                    delete this.dataset.confirm;
+                }
+            });
+        })();
     </script>
 </body>
 
