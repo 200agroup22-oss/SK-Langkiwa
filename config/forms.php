@@ -30,13 +30,17 @@ function getProgramTabs($committeeId, $onlyVisible = true)
     $stmt->close();
     $byTrack = [];
     foreach ($rows as $row) {
+        // "bi-hand-holding-heart-fill" does not exist in Bootstrap Icons (it renders blank) - older rows saved it.
+        if (($row['icon'] ?? '') === 'bi-hand-holding-heart-fill') {
+            $row['icon'] = 'bi-heart-fill';
+        }
         $byTrack[$row['track_code']] = $row;
     }
     return $byTrack;
 }
 
 // Returns a single tab's DB row (label/icon/is_visible/max_slots), or a sensible fallback if none is configured yet.
-function getProgramTab($committeeId, $trackCode, $fallbackLabel = 'Assistance Program', $fallbackIcon = 'bi-hand-holding-heart-fill')
+function getProgramTab($committeeId, $trackCode, $fallbackLabel = 'Assistance Program', $fallbackIcon = 'bi-heart-fill')
 {
     $tabs = getProgramTabs($committeeId, false);
     return $tabs[$trackCode] ?? ['label' => $fallbackLabel, 'icon' => $fallbackIcon, 'is_visible' => 1, 'max_slots' => null];

@@ -372,7 +372,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach ($tabs as $tabId => $data) {
             $tabId = (int)$tabId;
             $label = trim($data['label'] ?? '');
-            $icon = trim($data['icon'] ?? 'bi-hand-holding-heart-fill');
+            $icon = trim($data['icon'] ?? 'bi-heart-fill');
             $visible = isset($data['visible']) ? 1 : 0;
             if ($label === '') {
                 continue;
@@ -411,6 +411,9 @@ $archivedCommittees = $isSuperAdmin ? $conn->query("SELECT * FROM committees WHE
 
 $tabsByCommittee = [];
 foreach ($conn->query("SELECT * FROM program_tabs ORDER BY committee_id ASC, sort_order ASC") as $t) {
+    if (($t['icon'] ?? '') === 'bi-hand-holding-heart-fill') {
+        $t['icon'] = 'bi-heart-fill'; // the old default icon class does not exist and rendered blank
+    }
     $tabsByCommittee[(int)$t['committee_id']][] = $t;
 }
 
@@ -497,7 +500,7 @@ function assistBadges($type)
 
 $committeeIconChoices = ['bi-people-fill', 'bi-mortarboard-fill', 'bi-heart-pulse-fill', 'bi-trophy-fill', 'bi-flag-fill', 'bi-tree-fill', 'bi-palette-fill', 'bi-shield-fill-check', 'bi-music-note-beamed', 'bi-globe2', 'bi-star-fill', 'bi-bank', 'bi-briefcase-fill', 'bi-currency-exchange'];
 // Program tabs pick from the same icons plus a few that suit assistance programs.
-$tabIconChoices = array_merge($committeeIconChoices, ['bi-hand-holding-heart-fill', 'bi-cash-coin', 'bi-box-seam', 'bi-clipboard2-heart-fill']);
+$tabIconChoices = array_merge($committeeIconChoices, ['bi-heart-fill', 'bi-cash-coin', 'bi-box-seam', 'bi-clipboard2-heart-fill']);
 
 $activeLink = 'AdminProgramManagement';
 ?>

@@ -159,7 +159,7 @@ function benStatusBadge($status)
 
         <div class="mb-3">
             <div style="font-size: 22px; font-weight: 700; margin-bottom: 4px;">
-                <i class="bi bi-hand-holding-heart-fill text-success"></i> My Assistance
+                <i class="bi bi-heart-fill text-success"></i> My Assistance
             </div>
             <p class="text-muted mb-0" style="font-size: 13px;">Track your financial and in-kind assistance applications across all SK committees.</p>
         </div>

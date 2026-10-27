@@ -72,7 +72,7 @@ $roleLabel = ucfirst($me['role'] ?? 'applicant');
                         style="font-size: 14px; color: #fff;"
                         onmouseover="this.style.background='rgba(255,255,255,0.25)';"
                         onmouseout="this.style.background='';">
-                        <i class="bi bi-hand-holding-heart-fill"></i> My Assistance
+                        <i class="bi bi-heart-fill"></i> My Assistance
                     </a>
                 </li>
                 <?php if (function_exists('userHasProgramActivities') && !empty($me['user_id']) && userHasProgramActivities((int)$me['user_id'])): ?>

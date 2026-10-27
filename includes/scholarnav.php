@@ -72,7 +72,7 @@ $me = currentUser();
                     </a>
                     <ul class="dropdown-menu shadow border-0 rounded-3 mt-1">
                         <li><a class="dropdown-item d-flex align-items-center gap-2 py-2" href="<?php echo APP_BASE; ?>/applicant/ApplicationStatus.php"><i class="bi bi-shield-check"></i> Application Status</a></li>
-                        <li><a class="dropdown-item d-flex align-items-center gap-2 py-2" href="<?php echo APP_BASE; ?>/applicant/MyAssistance.php"><i class="bi bi-hand-holding-heart-fill"></i> My Assistance</a></li>
+                        <li><a class="dropdown-item d-flex align-items-center gap-2 py-2" href="<?php echo APP_BASE; ?>/applicant/MyAssistance.php"><i class="bi bi-heart-fill"></i> My Assistance</a></li>
                     </ul>
                 </li>
             </ul>
