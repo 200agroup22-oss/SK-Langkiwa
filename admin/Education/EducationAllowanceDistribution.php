@@ -52,6 +52,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute();
         $stmt->close();
         logAudit($newStatus === 'approved' ? 'Approved Allowance Payout' : 'Declined Allowance Payout', 'Scholar #' . $scholarId);
+
+        // Tell the scholar: where/when to claim an approved allowance, or that this term's payout was declined.
+        $termLabel = $term['current_academic_year'] . ', ' . $term['current_semester'];
+        if ($newStatus === 'approved') {
+            $stmt = $conn->prepare("SELECT amount FROM allowance_distributions WHERE scholar_id = ? AND academic_year = ? AND semester = ?");
+            $stmt->bind_param('iss', $scholarId, $term['current_academic_year'], $term['current_semester']);
+            $stmt->execute();
+            $amountRow = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            $release = scholarReleaseDetails();
+            notifyScholar(
+                $scholarId,
+                'Your iSKolar Allowance Is Ready for Release',
+                'Your allowance for <strong>' . htmlspecialchars($termLabel) . '</strong> has been approved.',
+                ['Program' => 'iSKolar ng Langkiwa', 'Term' => $termLabel, 'Allowance' => 'PHP ' . number_format((float)($amountRow['amount'] ?? 0), 2), 'Release date' => $release['when'], 'Venue' => $release['venue']],
+                'Please bring ' . htmlspecialchars($release['bring']) . ' when you claim your allowance.'
+            );
+        } else {
+            notifyScholar(
+                $scholarId,
+                'iSKolar Allowance Update',
+                'Your allowance for <strong>' . htmlspecialchars($termLabel) . '</strong> was not approved this term.',
+                [],
+                'Please contact the SK office if you have questions.'
+            );
+        }
         setFlash('success', 'Allowance payout ' . ($newStatus === 'approved' ? 'released' : $newStatus) . '.');
     }
     header("Location: EducationAllowanceDistribution.php");

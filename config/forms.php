@@ -470,6 +470,7 @@ function ensureBuiltinTabSettingsColumns()
         'eligibility_requirements' => 'TEXT NULL',
         'inkind_items' => 'VARCHAR(255) NULL',
         'inkind_quantity' => 'INT NULL',
+        'release_requirements' => 'TEXT NULL',
     ];
     foreach ($cols as $col => $def) {
         $exists = $conn->query("SHOW COLUMNS FROM program_tabs LIKE '$col'");
@@ -518,9 +519,26 @@ function builtinProgramRow($committeeId)
         'eligibility_requirements' => $tab['eligibility_requirements'],
         'inkind_items' => $tab['inkind_items'],
         'inkind_quantity' => $tab['inkind_quantity'],
+        'release_requirements' => $tab['release_requirements'] ?? null,
         'status' => 'active',
         'archived_at' => null,
     ];
+}
+
+// What a beneficiary must bring when claiming, from the program's "What to bring on release day" box (one item
+// per line or comma separated). Returns a readable list such as "Valid ID, Barangay Certificate"; with nothing
+// typed it falls back to "a valid ID". $program may be null.
+function releaseRequirementsText($program)
+{
+    $raw = (string)($program['release_requirements'] ?? '');
+    $items = [];
+    foreach (preg_split('/[\r\n,]+/', $raw) as $item) {
+        $item = trim($item);
+        if ($item !== '') {
+            $items[] = $item;
+        }
+    }
+    return $items ? implode(', ', $items) : 'a valid ID';
 }
 
 // Given a `programs` row (or null, meaning no specific program was selected — the generic/base
@@ -1201,7 +1219,7 @@ function ensureProgramReleaseColumns()
         return;
     }
     $done = true;
-    foreach (['release_date' => 'DATE NULL', 'release_time' => 'TIME NULL', 'release_venue' => 'VARCHAR(150) NULL'] as $col => $def) {
+    foreach (['release_date' => 'DATE NULL', 'release_time' => 'TIME NULL', 'release_venue' => 'VARCHAR(150) NULL', 'release_requirements' => 'TEXT NULL'] as $col => $def) {
         $exists = $conn->query("SHOW COLUMNS FROM programs LIKE '$col'");
         if ($exists && $exists->num_rows === 0) {
             $conn->query("ALTER TABLE programs ADD COLUMN $col $def");
@@ -1238,6 +1256,7 @@ function notifyBeneficiaryRelease($applicationId, array $beneficiary, $updated =
             'date' => $program['release_date'] ?? null,
             'time' => $program['release_time'] ?? null,
             'venue' => $program['release_venue'] ?? null,
+            'bring' => releaseRequirementsText($program),
         ];
         sendReleaseScheduleEmail($row['email'], trim($row['first_name'] . ' ' . $row['last_name']), $details, $updated);
 
@@ -1281,13 +1300,13 @@ function scholarReleaseDetails()
 {
     global $conn;
     ensureBuiltinTabSettingsColumns();
-    $res = $conn->query("SELECT pt.release_date, pt.release_time, pt.release_venue FROM program_tabs pt JOIN committees c ON c.committee_id = pt.committee_id WHERE c.code = 'education' AND pt.track_code = 'scholarship' AND pt.program_id IS NULL LIMIT 1");
+    $res = $conn->query("SELECT pt.release_date, pt.release_time, pt.release_venue, pt.release_requirements FROM program_tabs pt JOIN committees c ON c.committee_id = pt.committee_id WHERE c.code = 'education' AND pt.track_code = 'scholarship' AND pt.program_id IS NULL LIMIT 1");
     $row = $res ? $res->fetch_assoc() : null;
     $when = 'To be announced by the SK office';
     if (!empty($row['release_date'])) {
         $when = date('F j, Y', strtotime($row['release_date'])) . (!empty($row['release_time']) ? ' at ' . date('g:i A', strtotime($row['release_time'])) : '');
     }
-    return ['when' => $when, 'venue' => !empty($row['release_venue']) ? $row['release_venue'] : 'To be announced by the SK office'];
+    return ['when' => $when, 'venue' => !empty($row['release_venue']) ? $row['release_venue'] : 'To be announced by the SK office', 'bring' => releaseRequirementsText($row)];
 }
 
 // Convenience for the page handlers right after a beneficiary was added.

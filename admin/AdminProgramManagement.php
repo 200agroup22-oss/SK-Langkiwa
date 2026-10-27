@@ -182,12 +182,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $relTime = ($_POST['release_time'] ?? '') !== '' ? $_POST['release_time'] : null;
             $relVenueRaw = trim($_POST['release_venue'] ?? '');
             $relVenue = $relVenueRaw !== '' ? $relVenueRaw : null;
-            $stmt = $conn->prepare("UPDATE programs SET release_date = ?, release_time = ?, release_venue = ? WHERE program_id = ?");
-            $stmt->bind_param('sssi', $relDate, $relTime, $relVenue, $programId);
+            $relReq = trim($_POST['release_requirements'] ?? '') ?: null;
+            $stmt = $conn->prepare("UPDATE programs SET release_date = ?, release_time = ?, release_venue = ?, release_requirements = ? WHERE program_id = ?");
+            $stmt->bind_param('ssssi', $relDate, $relTime, $relVenue, $relReq, $programId);
             $stmt->execute();
             $stmt->close();
-            // A changed schedule is emailed again to everyone still waiting for their release.
-            if ($relDate !== null && (($oldProgram['release_date'] ?? null) !== $relDate || substr((string)($oldProgram['release_time'] ?? ''), 0, 5) !== substr((string)$relTime, 0, 5) || ($oldProgram['release_venue'] ?? null) !== $relVenue)) {
+            // A changed schedule (or list of things to bring) is emailed again to everyone still waiting for their release.
+            if ($relDate !== null && (($oldProgram['release_date'] ?? null) !== $relDate || substr((string)($oldProgram['release_time'] ?? ''), 0, 5) !== substr((string)$relTime, 0, 5) || ($oldProgram['release_venue'] ?? null) !== $relVenue || (($oldProgram['release_requirements'] ?? null) ?: null) !== $relReq)) {
                 notifyProgramReleaseScheduleChanged($programId);
             }
             if ($programTab = getProgramTabByProgramId($programId)) {
@@ -224,8 +225,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $relTime = ($_POST['release_time'] ?? '') !== '' ? $_POST['release_time'] : null;
             $relVenueRaw = trim($_POST['release_venue'] ?? '');
             $relVenue = $relVenueRaw !== '' ? $relVenueRaw : null;
-            $stmt = $conn->prepare("UPDATE programs SET release_date = ?, release_time = ?, release_venue = ? WHERE program_id = ?");
-            $stmt->bind_param('sssi', $relDate, $relTime, $relVenue, $newId);
+            $relReq = trim($_POST['release_requirements'] ?? '') ?: null;
+            $stmt = $conn->prepare("UPDATE programs SET release_date = ?, release_time = ?, release_venue = ?, release_requirements = ? WHERE program_id = ?");
+            $stmt->bind_param('ssssi', $relDate, $relTime, $relVenue, $relReq, $newId);
             $stmt->execute();
             $stmt->close();
             if (isset($_POST['has_activities']) && ($programTab = getProgramTabByProgramId($newId))) {
@@ -438,8 +440,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $elig = trim($_POST['eligibility_requirements'] ?? '') ?: null;
                 $ikItems = trim($_POST['inkind_items'] ?? '') ?: null;
                 $ikQty = ($ikItems !== null && (int)($_POST['inkind_quantity'] ?? 0) > 0) ? (int)$_POST['inkind_quantity'] : null;
-                $stmt = $conn->prepare("UPDATE program_tabs SET description = ?, amount = ?, release_schedule = ?, app_start_date = ?, app_end_date = ?, release_date = ?, release_time = ?, release_venue = ?, eligibility_requirements = ?, inkind_items = ?, inkind_quantity = ? WHERE tab_id = ?");
-                $stmt->bind_param('sdssssssssii', $desc, $amount, $sched, $appStart, $appEnd, $relDate, $relTime, $relVenue, $elig, $ikItems, $ikQty, $tabId);
+                $relReq = trim($_POST['release_requirements'] ?? '') ?: null;
+                $stmt = $conn->prepare("UPDATE program_tabs SET description = ?, amount = ?, release_schedule = ?, app_start_date = ?, app_end_date = ?, release_date = ?, release_time = ?, release_venue = ?, release_requirements = ?, eligibility_requirements = ?, inkind_items = ?, inkind_quantity = ? WHERE tab_id = ?");
+                $stmt->bind_param('sdsssssssssii', $desc, $amount, $sched, $appStart, $appEnd, $relDate, $relTime, $relVenue, $relReq, $elig, $ikItems, $ikQty, $tabId);
                 $stmt->execute();
                 $stmt->close();
                 // A changed release schedule is emailed again to everyone still waiting for their release.
@@ -1410,6 +1413,11 @@ $activeLink = 'AdminProgramManagement';
                                                     <input type="text" class="form-control" name="release_venue" maxlength="150" placeholder="e.g. Barangay Langkiwa Covered Court" value="<?php echo e($t['release_venue'] ?? ''); ?>" <?php echo $dis; ?>>
                                                 </div>
                                                 <div class="col-12">
+                                                    <label class="form-label">What to bring on release day <span class="text-muted fw-normal">(one per line)</span></label>
+                                                    <textarea class="form-control" name="release_requirements" rows="2" placeholder="e.g.&#10;Valid ID&#10;Barangay Certificate" <?php echo $dis; ?>><?php echo e($t['release_requirements'] ?? ''); ?></textarea>
+                                                    <div class="form-text" style="font-size:11.5px;">Shown in the release email and on the release slip. Leave blank for "a valid ID".</div>
+                                                </div>
+                                                <div class="col-12">
                                                     <label class="form-label">Eligibility Requirements <span class="text-muted fw-normal">(one per line)</span></label>
                                                     <div class="form-text mb-1" style="font-size:11.5px;">Informational only here - the application form is edited in Configuration &gt; Forms.</div>
                                                     <textarea class="form-control" name="eligibility_requirements" rows="3" <?php echo $dis; ?>><?php echo e($t['eligibility_requirements'] ?? ''); ?></textarea>
@@ -1836,6 +1844,11 @@ $activeLink = 'AdminProgramManagement';
                                 <input type="text" class="form-control" name="release_venue" maxlength="150" placeholder="e.g. Barangay Langkiwa Covered Court" value="">
                             </div>
                             <div class="col-12">
+                                <label class="form-label">What to bring on release day <span class="text-muted fw-normal">(one per line)</span></label>
+                                <textarea class="form-control" name="release_requirements" rows="2" placeholder="e.g.&#10;Valid ID&#10;Barangay Certificate"></textarea>
+                                <div class="form-text" style="font-size:11.5px;">Shown in the release email and on the release slip. Leave blank for "a valid ID".</div>
+                            </div>
+                            <div class="col-12">
                                 <label class="form-label">Eligibility Requirements <span class="text-muted fw-normal">(one per line)</span></label>
                                 <div class="form-text mb-1" style="font-size:11.5px;">Each line becomes a required document upload on this program's application form. You can change the form later in Configuration &gt; Forms.</div>
                                 <textarea class="form-control" name="eligibility_requirements" rows="3" placeholder="e.g.&#10;Barangay Indigency&#10;Valid ID"></textarea>
@@ -2018,6 +2031,11 @@ $activeLink = 'AdminProgramManagement';
                                 <div class="col-md-5">
                                     <label class="form-label">Release Venue</label>
                                     <input type="text" class="form-control" name="release_venue" maxlength="150" placeholder="e.g. Barangay Langkiwa Covered Court" value="<?php echo e($p['release_venue'] ?? ''); ?>">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">What to bring on release day <span class="text-muted fw-normal">(one per line)</span></label>
+                                    <textarea class="form-control" name="release_requirements" rows="2" placeholder="e.g.&#10;Valid ID&#10;Barangay Certificate"><?php echo e($p['release_requirements'] ?? ''); ?></textarea>
+                                    <div class="form-text" style="font-size:11.5px;">Shown in the release email and on the release slip. Leave blank for "a valid ID".</div>
                                 </div>
                                 <div class="col-12">
                                     <label class="form-label">Eligibility Requirements <span class="text-muted fw-normal">(one per line)</span></label>

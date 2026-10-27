@@ -283,7 +283,7 @@ $slipNo = 'RS-' . str_pad((string)$row['beneficiary_id'], 5, '0', STR_PAD_LEFT);
             </tr>
         </table>
 
-        <div class="remind">Please bring a <strong>valid ID</strong> when you claim your assistance. The officer will check it before handing over the assistance.</div>
+        <div class="remind">Please bring <strong><?php echo e(releaseRequirementsText($program)); ?></strong> when you claim your assistance. The officer will check it before handing over the assistance.</div>
 
         <div><span class="box"></span>Valid ID checked &nbsp;&nbsp;&nbsp; ID presented: ______________________________</div>
 

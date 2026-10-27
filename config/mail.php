@@ -231,7 +231,7 @@ function sendReleaseScheduleEmail($toEmail, $toName, array $details, $updated = 
         . $row('Release date', $whenText)
         . $row('Venue', $venueText)
         . '</table>'
-        . '<p>Please bring a valid ID when you claim your assistance. You can also check your status under <strong>My Assistance</strong> in your account.</p>'
+        . '<p>Please bring <strong>' . htmlspecialchars($details['bring'] ?? 'a valid ID') . '</strong> when you claim your assistance. You can also check your status under <strong>My Assistance</strong> in your account.</p>'
         . '<p style="color:#888;font-size:12px;">This is an automated message - please do not reply.</p></div>';
 
     $payload = [
