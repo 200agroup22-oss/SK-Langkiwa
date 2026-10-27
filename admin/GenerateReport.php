@@ -570,8 +570,46 @@ switch ($type) {
             }
             $stmt->close();
 
+            // iSKolar scholars are paid through Allowance Distribution (not Cash Assistance), so their released
+            // allowance is listed here too for the Education committee / iSKolar scope. A chosen Term decides
+            // which payouts are shown; with no term, the payout's approval date must fall inside the period.
+            if ($committeeCode === 'education' && ($trackCode === 'scholarship' || ($programId === 0 && $trackCode === ''))) {
+                $sql = "SELECT ad.distribution_id, u.first_name, u.last_name, ad.amount, ad.decided_at
+                FROM allowance_distributions ad
+                JOIN scholars s ON s.scholar_id = ad.scholar_id
+                JOIN users u ON u.user_id = s.user_id
+                WHERE ad.status = 'approved'";
+                if ($termAcademicYear !== null) {
+                    $stmt = $conn->prepare($sql . " AND ad.academic_year = ? AND ad.semester = ? ORDER BY ad.distribution_id ASC");
+                    $stmt->bind_param('ss', $termAcademicYear, $termSemester);
+                } else {
+                    $stmt = $conn->prepare($sql . " AND ad.decided_at BETWEEN ? AND ? ORDER BY ad.distribution_id ASC");
+                    $stmt->bind_param('ss', $fromInclusive, $toInclusive);
+                }
+                $stmt->execute();
+                foreach ($stmt->get_result() as $row) {
+                    $rows[] = [
+                        'AL-' . $row['distribution_id'],
+                        trim($row['first_name'] . ' ' . $row['last_name']),
+                        'Education (iSKolar allowance)',
+                        number_format((float)$row['amount'], 2),
+                        'Released',
+                        $row['decided_at'] ? date('Y-m-d', strtotime($row['decided_at'])) : '—',
+                        '—',
+                    ];
+                }
+                $stmt->close();
+            }
+
             renderTable($pdf, $headers, $widths, $rows);
             renderTotalLine($pdf, 'Total Beneficiaries: ' . count($rows));
+            $releasedTotal = 0.0;
+            foreach ($rows as $r) {
+                if ($r[4] === 'Released') {
+                    $releasedTotal += (float)str_replace(',', '', $r[3]);
+                }
+            }
+            renderTotalLine($pdf, 'Total Funds Released: PHP ' . number_format($releasedTotal, 2));
             break;
         }
 
