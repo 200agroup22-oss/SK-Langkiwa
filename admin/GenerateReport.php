@@ -247,6 +247,28 @@ function sectionTitle($pdf, $text)
     $pdf->SetTextColor(30, 30, 30);
 }
 
+// Released iSKolar allowances (allowance_distributions approved by an officer). A chosen Term decides which
+// payouts are listed; with no term, the approval date must fall inside the report period.
+function fetchReleasedAllowances($conn, $termAcademicYear, $termSemester, $fromInclusive, $toInclusive)
+{
+    $sql = "SELECT ad.distribution_id, u.first_name, u.last_name, ad.amount, ad.decided_at
+        FROM allowance_distributions ad
+        JOIN scholars s ON s.scholar_id = ad.scholar_id
+        JOIN users u ON u.user_id = s.user_id
+        WHERE ad.status = 'approved'";
+    if ($termAcademicYear !== null) {
+        $stmt = $conn->prepare($sql . " AND ad.academic_year = ? AND ad.semester = ? ORDER BY ad.distribution_id ASC");
+        $stmt->bind_param('ss', $termAcademicYear, $termSemester);
+    } else {
+        $stmt = $conn->prepare($sql . " AND ad.decided_at BETWEEN ? AND ? ORDER BY ad.distribution_id ASC");
+        $stmt->bind_param('ss', $fromInclusive, $toInclusive);
+    }
+    $stmt->execute();
+    $out = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    return $out;
+}
+
 // Renders a bordered table with a repeating header row across page breaks.
 function renderTable($pdf, $headers, $widths, $rows)
 {
@@ -568,21 +590,8 @@ switch ($type) {
             // iSKolar scholars are paid through Allowance Distribution (not Cash Assistance), so their released
             // allowance is listed here too for the Education committee / iSKolar scope. A chosen Term decides
             // which payouts are shown; with no term, the payout's approval date must fall inside the period.
-            if ($committeeCode === 'education' && ($trackCode === 'scholarship' || ($programId === 0 && $trackCode === ''))) {
-                $sql = "SELECT ad.distribution_id, u.first_name, u.last_name, ad.amount, ad.decided_at
-                FROM allowance_distributions ad
-                JOIN scholars s ON s.scholar_id = ad.scholar_id
-                JOIN users u ON u.user_id = s.user_id
-                WHERE ad.status = 'approved'";
-                if ($termAcademicYear !== null) {
-                    $stmt = $conn->prepare($sql . " AND ad.academic_year = ? AND ad.semester = ? ORDER BY ad.distribution_id ASC");
-                    $stmt->bind_param('ss', $termAcademicYear, $termSemester);
-                } else {
-                    $stmt = $conn->prepare($sql . " AND ad.decided_at BETWEEN ? AND ? ORDER BY ad.distribution_id ASC");
-                    $stmt->bind_param('ss', $fromInclusive, $toInclusive);
-                }
-                $stmt->execute();
-                foreach ($stmt->get_result() as $row) {
+            if (($committeeId === 0 || $committeeCode === 'education') && ($trackCode === 'scholarship' || ($programId === 0 && $trackCode === ''))) {
+                foreach (fetchReleasedAllowances($conn, $termAcademicYear, $termSemester, $fromInclusive, $toInclusive) as $row) {
                     $rows[] = [
                         'AL-' . $row['distribution_id'],
                         trim($row['first_name'] . ' ' . $row['last_name']),
@@ -593,7 +602,6 @@ switch ($type) {
                         '—',
                     ];
                 }
-                $stmt->close();
             }
 
             renderTable($pdf, $headers, $widths, $rows);
@@ -698,6 +706,23 @@ switch ($type) {
                 ];
             }
             $stmt->close();
+
+            // iSKolar scholars are paid through Allowance Distribution, so a released allowance counts as a
+            // disbursement too (Education, or all committees, with iSKolar in scope).
+            if (($committeeId === 0 || $committeeCode === 'education') && ($trackCode === 'scholarship' || ($programId === 0 && $trackCode === ''))) {
+                foreach (fetchReleasedAllowances($conn, $termAcademicYear, $termSemester, $fromInclusive, $toInclusive) as $row) {
+                    $rows[] = [
+                        'AL-' . $row['distribution_id'],
+                        trim($row['first_name'] . ' ' . $row['last_name']),
+                        'Education (iSKolar allowance)',
+                        'Allowance',
+                        number_format((float)$row['amount'], 2),
+                        $row['decided_at'] ? date('Y-m-d', strtotime($row['decided_at'])) : '—',
+                        '—',
+                        '—',
+                    ];
+                }
+            }
 
             renderTable($pdf, $headers, $widths, $rows);
             renderTotalLine($pdf, 'Total Beneficiaries: ' . count($rows));
