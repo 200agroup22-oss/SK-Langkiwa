@@ -47,6 +47,8 @@ function slugifyCode($name)
     return trim($slug, '_');
 }
 
+ensureProgramTabArchiveColumn();
+
 // ---- POST handlers (redirect-after-POST) ----
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
@@ -241,6 +243,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setFlash('success', 'Program status updated.');
     }
 
+    // -- Built-in tabs (iSKolar ng Langkiwa / Assistance Program): archive and restore. Archiving hides the
+    // tab everywhere (sidebar, applicant side) and moves it to Program Archives; nothing is deleted. --
+    if (isset($_POST['archive_tab']) || isset($_POST['restore_tab'])) {
+        $archTabId = (int)($_POST['tab_id'] ?? 0);
+        $archTab = getProgramTabById($archTabId);
+        if (!$archTab || !pmCanAccessCommittee((int)$archTab['committee_id'])) {
+            setFlash('error', 'You can only manage programs for your assigned committee(s).');
+        } elseif (isset($_POST['archive_tab'])) {
+            $stmt = $conn->prepare("UPDATE program_tabs SET is_visible = 0, archived_at = NOW() WHERE tab_id = ?");
+            $stmt->bind_param('i', $archTabId);
+            $stmt->execute();
+            $stmt->close();
+            logAudit('Archived Program', $archTab['label'] . ' (tab #' . $archTabId . ')');
+            setFlash('success', $archTab['label'] . ' archived.');
+        } else {
+            $stmt = $conn->prepare("UPDATE program_tabs SET is_visible = 1, archived_at = NULL WHERE tab_id = ?");
+            $stmt->bind_param('i', $archTabId);
+            $stmt->execute();
+            $stmt->close();
+            logAudit('Restored Program', $archTab['label'] . ' (tab #' . $archTabId . ')');
+            setFlash('success', $archTab['label'] . ' restored.');
+        }
+    }
+
     if (isset($_POST['archive_program']) && !pmCanAccessCommittee(programCommitteeId((int)$_POST['program_id']))) {
         setFlash('error', 'You can only manage programs for your assigned committee(s).');
     } elseif (isset($_POST['archive_program'])) {
@@ -410,12 +436,14 @@ if (!$isSuperAdmin) {
 $archivedCommittees = $isSuperAdmin ? $conn->query("SELECT * FROM committees WHERE archived_at IS NOT NULL ORDER BY archived_at DESC")->fetch_all(MYSQLI_ASSOC) : [];
 
 $tabsByCommittee = [];
-foreach ($conn->query("SELECT * FROM program_tabs ORDER BY committee_id ASC, sort_order ASC") as $t) {
+foreach ($conn->query("SELECT * FROM program_tabs WHERE archived_at IS NULL ORDER BY committee_id ASC, sort_order ASC") as $t) {
     if (($t['icon'] ?? '') === 'bi-hand-holding-heart-fill') {
         $t['icon'] = 'bi-heart-fill'; // the old default icon class does not exist and rendered blank
     }
     $tabsByCommittee[(int)$t['committee_id']][] = $t;
 }
+
+$archivedTabs = $conn->query("SELECT t.*, c.name AS committee_name FROM program_tabs t JOIN committees c ON c.committee_id = t.committee_id WHERE t.archived_at IS NOT NULL ORDER BY t.archived_at DESC")->fetch_all(MYSQLI_ASSOC);
 
 $programsResult = $conn->query("SELECT * FROM programs WHERE archived_at IS NULL ORDER BY committee_id ASC, program_id ASC");
 $allPrograms = $programsResult->fetch_all(MYSQLI_ASSOC);
@@ -1120,6 +1148,10 @@ $activeLink = 'AdminProgramManagement';
                                                 <i class="bi <?php echo $t['is_visible'] ? 'bi-slash-circle' : 'bi-check-circle'; ?>"></i>
                                                 <?php echo $t['is_visible'] ? 'Deactivate' : 'Activate'; ?>
                                             </button>
+                                        </form>
+                                        <form method="post" class="d-inline" data-confirm="This hides <?php echo e($t['label']); ?> everywhere. Nothing is deleted - you can restore it from Program Archives." data-confirm-title="Archive Program" data-confirm-ok="Yes, Archive">
+                                            <input type="hidden" name="tab_id" value="<?php echo $tid; ?>">
+                                            <button type="submit" name="archive_tab" class="action-btn btn-archive-program"><i class="bi bi-archive"></i> Archive</button>
                                         </form>
                                     </div>
                                 </div>
@@ -2008,9 +2040,26 @@ $activeLink = 'AdminProgramManagement';
                 </div>
                 <div class="modal-body p-4">
                     <div id="archivedProgramsContainer">
-                        <?php if (empty($archivedPrograms)): ?>
+                        <?php if (empty($archivedPrograms) && empty($archivedTabs)): ?>
                             <p class="text-muted text-center mb-0">No archived programs.</p>
                         <?php endif; ?>
+                        <?php foreach ($archivedTabs as $at): ?>
+                            <div class="program-item">
+                                <div>
+                                    <div class="p-name"><?php echo e($at['label']); ?></div>
+                                    <div class="p-meta">
+                                        <span><?php echo e($at['committee_name']); ?></span>
+                                        <span><i class="bi bi-calendar3 me-1"></i>Archived <?php echo date('M j, Y', strtotime($at['archived_at'])); ?></span>
+                                    </div>
+                                </div>
+                                <div class="program-actions">
+                                    <form method="post">
+                                        <input type="hidden" name="tab_id" value="<?php echo (int)$at['tab_id']; ?>">
+                                        <button type="submit" name="restore_tab" class="action-btn btn-view"><i class="bi bi-arrow-counterclockwise"></i> Restore</button>
+                                    </form>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
                         <?php foreach ($archivedPrograms as $ap): ?>
                             <div class="program-item">
                                 <div>

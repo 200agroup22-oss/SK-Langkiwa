@@ -1320,3 +1320,18 @@ function programOffersBothTypes($committeeId, $programId)
     }
     return false;
 }
+
+// Built-in tabs (iSKolar / Assistance Program) can be archived like programs: program_tabs.archived_at.
+function ensureProgramTabArchiveColumn()
+{
+    global $conn;
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+    $exists = $conn->query("SHOW COLUMNS FROM program_tabs LIKE 'archived_at'");
+    if ($exists && $exists->num_rows === 0) {
+        $conn->query("ALTER TABLE program_tabs ADD COLUMN archived_at DATETIME NULL");
+    }
+}

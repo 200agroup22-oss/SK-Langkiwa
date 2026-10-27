@@ -319,7 +319,8 @@ $settings = $conn->query("SELECT * FROM site_settings WHERE id = 1")->fetch_asso
 $importantDates = $conn->query("SELECT * FROM important_dates ORDER BY event_date ASC")->fetch_all(MYSQLI_ASSOC);
 
 // ---- Application / Program Settings: slot limits per committee+track program ----
-$programTabRows = $conn->query("SELECT t.*, c.name AS committee_name FROM program_tabs t JOIN committees c ON c.committee_id = t.committee_id ORDER BY c.committee_id ASC, t.sort_order ASC")->fetch_all(MYSQLI_ASSOC);
+ensureProgramTabArchiveColumn();
+$programTabRows = $conn->query("SELECT t.*, c.name AS committee_name FROM program_tabs t JOIN committees c ON c.committee_id = t.committee_id WHERE t.archived_at IS NULL ORDER BY c.committee_id ASC, t.sort_order ASC")->fetch_all(MYSQLI_ASSOC);
 foreach ($programTabRows as &$row) {
     $row['approved_count'] = getApprovedCount((int)$row['committee_id'], $row['track_code'], !empty($row['program_id']) ? (int)$row['program_id'] : null);
 }
