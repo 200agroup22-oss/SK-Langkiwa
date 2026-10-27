@@ -1291,13 +1291,13 @@ $activeLink = 'AdminProgramManagement';
                     <?php foreach ($builtInTabs as $t): $etid = (int)$t['tab_id']; ?>
                         <!-- Edit built-in tab -->
                         <div class="modal fade" id="editTabModal<?php echo $etid; ?>" tabindex="-1" aria-hidden="true">
-                            <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
-                                <div class="modal-content border-0 shadow">
+                            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                                <div class="modal-content" style="border-radius:12px; border:none;">
                                     <form method="post">
                                         <input type="hidden" name="tab_id" value="<?php echo $etid; ?>">
-                                        <div class="modal-header brand-header">
+                                        <div class="modal-header" style="background:linear-gradient(90deg,#45b84d,#aadaad); border-radius:12px 12px 0 0;">
                                             <h5 class="modal-title text-white fw-bold"><i class="bi bi-pencil-square me-2"></i> Edit Program</h5>
-                                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                                         </div>
                                         <div class="modal-body p-4">
                                             <div class="row g-3">
@@ -1307,7 +1307,64 @@ $activeLink = 'AdminProgramManagement';
                                                 </div>
                                                 <div class="col-md-6">
                                                     <label class="form-label">Committee</label>
-                                                    <input type="text" class="form-control" value="<?php echo e($c['name']); ?>" disabled>
+                                                    <select class="form-select" disabled>
+                                                        <option><?php echo e($c['name']); ?></option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-12">
+                                                    <div class="alert alert-light border py-2 mb-0" style="font-size:12.5px;"><i class="bi bi-info-circle me-1"></i>This is a built-in program. The greyed-out fields don't apply to it: set amounts per beneficiary on its Cash / In-Kind pages, and edit its application form in Configuration &gt; Forms.</div>
+                                                </div>
+                                                <div class="col-12">
+                                                    <label class="form-label">Program Description</label>
+                                                    <textarea class="form-control" rows="3" disabled></textarea>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label class="form-label d-block">Assistance Type <span class="text-muted fw-normal">(select one or both)</span></label>
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" checked disabled id="tabAtCash<?php echo $etid; ?>">
+                                                        <label class="form-check-label" for="tabAtCash<?php echo $etid; ?>">Cash Assistance</label>
+                                                    </div>
+                                                    <div class="form-check">
+                                                        <input class="form-check-input" type="checkbox" checked disabled id="tabAtKind<?php echo $etid; ?>">
+                                                        <label class="form-check-label" for="tabAtKind<?php echo $etid; ?>">In-Kind Assistance</label>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label class="form-label">Amount / Value</label>
+                                                    <div class="input-group">
+                                                        <span class="input-group-text">&#8369;</span>
+                                                        <input type="number" class="form-control" disabled>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label class="form-label">Release Schedule</label>
+                                                    <select class="form-select" disabled>
+                                                        <option>Select schedule</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Application Period Start</label>
+                                                    <input type="date" class="form-control" disabled>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label">Application Period End</label>
+                                                    <input type="date" class="form-control" disabled>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label class="form-label">Release Date <span class="text-muted fw-normal">(for the email)</span></label>
+                                                    <input type="date" class="form-control" disabled>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label">Release Time</label>
+                                                    <input type="time" class="form-control" disabled>
+                                                </div>
+                                                <div class="col-md-5">
+                                                    <label class="form-label">Release Venue</label>
+                                                    <input type="text" class="form-control" placeholder="e.g. Barangay Langkiwa Covered Court" disabled>
+                                                </div>
+                                                <div class="col-12">
+                                                    <label class="form-label">Eligibility Requirements <span class="text-muted fw-normal">(one per line)</span></label>
+                                                    <textarea class="form-control" rows="3" disabled></textarea>
                                                 </div>
                                                 <div class="col-12">
                                                     <label class="form-label">Icon</label>
@@ -1337,9 +1394,6 @@ $activeLink = 'AdminProgramManagement';
                                                         <input class="form-check-input" type="checkbox" role="switch" name="has_activities" id="tabActivities<?php echo $etid; ?>" <?php echo !empty($t['has_activities']) ? 'checked' : ''; ?>>
                                                         <label class="form-check-label" for="tabActivities<?php echo $etid; ?>" style="font-size:13.5px;">Enable Activities tab (activities and QR attendance for approved beneficiaries)</label>
                                                     </div>
-                                                </div>
-                                                <div class="col-12">
-                                                    <span class="text-muted" style="font-size:12px;"><i class="bi bi-info-circle me-1"></i>Amount, release schedule and application dates don't apply to this built-in program; set an amount per beneficiary on its Cash / In-Kind pages.</span>
                                                 </div>
                                             </div>
                                         </div>
