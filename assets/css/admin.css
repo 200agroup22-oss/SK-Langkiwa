@@ -792,3 +792,22 @@ a.doc-item:hover {
 .pagination .page-link:focus {
   box-shadow: 0 0 0 2px rgba(69, 184, 77, 0.15);
 }
+
+/* "No applications found" block shown inside the Applicants tables — centered with a soft icon. */
+.empty-state {
+  text-align: center;
+  padding: 30px 12px;
+  color: #777;
+}
+
+.empty-state i {
+  display: block;
+  font-size: 36px;
+  color: #a5d6a7;
+  margin-bottom: 8px;
+}
+
+.empty-state p {
+  margin: 0;
+  font-size: 13.5px;
+}

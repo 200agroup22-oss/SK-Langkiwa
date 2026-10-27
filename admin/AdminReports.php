@@ -1007,7 +1007,7 @@ $activeLink = 'AdminReports';
                             </select>
                             <div class="form-text" style="font-size:11.5px;" id="reportProgramHint">Pick a committee to filter by a specific program, or leave it on "All Programs".</div>
                         </div>
-                        <div class="mb-3">
+                        <div class="mb-3" id="reportTermWrap" style="display:none;">
                             <label for="reportTerm" class="form-label">Term</label>
                             <select class="form-select" id="reportTerm" disabled>
                                 <option value="" selected>N/A</option>
@@ -1015,7 +1015,7 @@ $activeLink = 'AdminReports';
                                     <option value="<?php echo e($t['academic_year'] . '|' . $t['semester']); ?>"><?php echo e($t['academic_year'] . ' - ' . $t['semester']); ?><?php echo $i === 0 ? ' (Current)' : ''; ?></option>
                                 <?php endforeach; ?>
                             </select>
-                            <div class="form-text" style="font-size:11.5px;" id="reportTermHint">Only applies to Education (Activity Participation Report) — pick a specific academic term, or leave as N/A for other committees.</div>
+                            <div class="form-text" style="font-size:11.5px;" id="reportTermHint">Shown for iSKolar ng Langkiwa only - pick the academic term to report on.</div>
                         </div>
                         <div class="mb-3">
                             <label for="reportSort" class="form-label">Sort By</label>
@@ -1285,10 +1285,22 @@ $activeLink = 'AdminReports';
         // Term only ever applies to Education (scholarship allowance is tracked per academic
         // term; nothing else in the app is) — every other committee shows it locked on "N/A".
         function updateTermAvailability() {
-            const isEducation = reportCommitteeSelect.value === 'education' && !logReportTypes.includes(reportTypeSelect.value);
-            reportTermSelect.disabled = !isEducation;
-            reportTermSelect.value = isEducation ? reportTermSelect.options[1].value : '';
+            // The Term only exists for iSKolar ng Langkiwa (scholarship terms), so it is shown (and sent)
+            // only while Education + iSKolar ng Langkiwa is the chosen scope.
+            const isIskolar = reportCommitteeSelect.value === 'education' &&
+                reportProgramSelect.value === 'track:scholarship' &&
+                !logReportTypes.includes(reportTypeSelect.value);
+            const wrap = document.getElementById('reportTermWrap');
+            if (wrap) wrap.style.display = isIskolar ? '' : 'none';
+            const wasDisabled = reportTermSelect.disabled;
+            reportTermSelect.disabled = !isIskolar;
+            if (!isIskolar) {
+                reportTermSelect.value = '';
+            } else if (wasDisabled || reportTermSelect.value === '') {
+                reportTermSelect.value = reportTermSelect.options[1].value;
+            }
         }
+        reportProgramSelect.addEventListener('change', updateTermAvailability);
 
         reportCommitteeSelect.addEventListener('change', function() {
             const code = this.value;

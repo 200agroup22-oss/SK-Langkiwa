@@ -105,7 +105,7 @@ $termParam = $_GET['term'] ?? '';
 $termAcademicYear = null;
 $termSemester = null;
 $termLabel = '';
-if ($committeeCode === 'education' && $termParam !== '' && $termParam !== 'current') {
+if ($committeeCode === 'education' && ($_GET['program'] ?? '') === 'track:scholarship' && $termParam !== '' && $termParam !== 'current') {
     $termParts = explode('|', $termParam, 2);
     if (count($termParts) === 2 && $termParts[0] !== '' && $termParts[1] !== '') {
         $termAcademicYear = $termParts[0];
