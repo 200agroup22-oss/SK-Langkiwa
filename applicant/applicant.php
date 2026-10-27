@@ -155,7 +155,17 @@ usort($archivedAnnouncements, fn($a, $b) => strtotime($b['archived_at']) <=> str
             border: 1px solid #ddd;
             border-radius: 10px;
             padding: 18px 20px;
-            height: 100%;
+        }
+
+        /* Each column stacks its cards; the last card stretches to fill the column so a row stays even, and a
+           card never takes the column's full height (that made stacked cards overlap the next one). */
+        .main-cols>[class*="col-"] {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .main-cols>[class*="col-"]>.section-card:last-child {
+            flex: 1 1 auto;
         }
 
         .section-title {
@@ -263,11 +273,11 @@ usort($archivedAnnouncements, fn($a, $b) => strtotime($b['archived_at']) <=> str
         </div>
 
         <!-- Main Row -->
-        <div class="row g-3">
+        <div class="row g-3 main-cols">
 
             <!-- Requirements -->
             <!-- Left: 3 cards stacked -->
-            <div class="col-lg-3 col-md-6">
+            <div class="col-lg-3 col-md-6 order-md-1 order-lg-1">
 
                 <!-- About the Program -->
                 <div class="section-card mb-3">
@@ -288,7 +298,7 @@ usort($archivedAnnouncements, fn($a, $b) => strtotime($b['archived_at']) <=> str
             </div>
 
             <!-- Important Dates + Quick Action -->
-            <div class="col-lg-6 col-md-12">
+            <div class="col-lg-6 col-md-12 order-md-3 order-lg-2">
 
                 <div class="section-card mb-3">
                     <div class="section-title"><i class="bi bi-calendar2-event"></i> Important Dates</div>
@@ -313,12 +323,6 @@ usort($archivedAnnouncements, fn($a, $b) => strtotime($b['archived_at']) <=> str
                                         <td><?php echo date('F j, Y', strtotime($d['event_date'])); ?></td>
                                     </tr>
                                 <?php endforeach; ?>
-                                <?php if (!empty($settings['requirements_deadline'])): ?>
-                                    <tr>
-                                        <td>iSKolar Updated Requirements Deadline</td>
-                                        <td><?php echo date('F j, Y', strtotime($settings['requirements_deadline'])); ?></td>
-                                    </tr>
-                                <?php endif; ?>
                             </tbody>
                         </table>
                     </div>
@@ -344,7 +348,7 @@ usort($archivedAnnouncements, fn($a, $b) => strtotime($b['archived_at']) <=> str
             </div>
 
             <!-- Announcements -->
-            <div class="col-lg-3 col-md-6">
+            <div class="col-lg-3 col-md-6 order-md-2 order-lg-3">
                 <div class="section-card">
                     <div class="section-title d-flex justify-content-between align-items-center">
                         <span><i class="bi bi-bell-fill text-danger"></i> Announcement
