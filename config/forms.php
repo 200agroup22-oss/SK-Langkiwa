@@ -1353,6 +1353,23 @@ function ensureBeneficiaryRoundColumn()
     if ($exists && $exists->num_rows === 0) {
         $conn->query("ALTER TABLE assistance_beneficiaries ADD COLUMN round_no INT NOT NULL DEFAULT 1");
     }
+
+    // A person now has one payout row per (application, type, round). Older databases still carry a UNIQUE key on
+    // application_id alone (or on application_id + type), which blocks a second round. The new key is added first
+    // because application_id is a foreign key and needs an index covering it before the old ones can be dropped.
+    try {
+        $hasNew = $conn->query("SHOW INDEX FROM assistance_beneficiaries WHERE Key_name = 'uniq_application_type_round'")->num_rows > 0;
+        if (!$hasNew) {
+            $conn->query("ALTER TABLE assistance_beneficiaries ADD UNIQUE KEY uniq_application_type_round (application_id, type, round_no)");
+        }
+        foreach (['application_id', 'uniq_application_type'] as $oldKey) {
+            if ($conn->query("SHOW INDEX FROM assistance_beneficiaries WHERE Key_name = '$oldKey'")->num_rows > 0) {
+                $conn->query("ALTER TABLE assistance_beneficiaries DROP INDEX `$oldKey`");
+            }
+        }
+    } catch (Throwable $ex) {
+        error_log('Beneficiary index update failed: ' . $ex->getMessage());
+    }
 }
 
 function programIsRecurring($programId)
