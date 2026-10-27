@@ -405,7 +405,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // -- Edit a built-in track (name, icon, slot limit, status, Activities) --
     if (isset($_POST['save_builtin_tab'])) {
         $tabId = (int)($_POST['tab_id'] ?? 0);
-        $tabRow = $conn->query("SELECT committee_id FROM program_tabs WHERE tab_id = " . $tabId)->fetch_assoc();
+        ensureBuiltinTabSettingsColumns();
+        $tabRow = $conn->query("SELECT * FROM program_tabs WHERE tab_id = " . $tabId)->fetch_assoc();
         $label = trim($_POST['label'] ?? '');
         if (!$tabRow || !pmCanAccessCommittee($tabRow['committee_id'])) {
             setFlash('error', 'You can only manage programs for your assigned committee(s).');
@@ -422,6 +423,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->bind_param('ssiiiii', $label, $icon, $visible, $slots, $hasAct, $minAct, $tabId);
             $stmt->execute();
             $stmt->close();
+
+            // The Assistance Program track also keeps the same settings a custom program has.
+            if ($tabRow['track_code'] === 'assistance' && empty($tabRow['program_id']) && isset($_POST['has_settings'])) {
+                $nz = fn($k) => (($_POST[$k] ?? '') !== '') ? $_POST[$k] : null;
+                $desc = trim($_POST['description'] ?? '') ?: null;
+                $amount = $nz('amount') !== null ? (float)$_POST['amount'] : null;
+                $sched = in_array($_POST['release_schedule'] ?? '', ['One-time', 'Per Semester', 'Monthly', 'Quarterly'], true) ? $_POST['release_schedule'] : null;
+                $appStart = $nz('app_start_date');
+                $appEnd = $nz('app_end_date');
+                $relDate = $nz('release_date');
+                $relTime = $nz('release_time');
+                $relVenue = trim($_POST['release_venue'] ?? '') ?: null;
+                $elig = trim($_POST['eligibility_requirements'] ?? '') ?: null;
+                $ikItems = trim($_POST['inkind_items'] ?? '') ?: null;
+                $ikQty = ($ikItems !== null && (int)($_POST['inkind_quantity'] ?? 0) > 0) ? (int)$_POST['inkind_quantity'] : null;
+                $stmt = $conn->prepare("UPDATE program_tabs SET description = ?, amount = ?, release_schedule = ?, app_start_date = ?, app_end_date = ?, release_date = ?, release_time = ?, release_venue = ?, eligibility_requirements = ?, inkind_items = ?, inkind_quantity = ? WHERE tab_id = ?");
+                $stmt->bind_param('sdssssssssii', $desc, $amount, $sched, $appStart, $appEnd, $relDate, $relTime, $relVenue, $elig, $ikItems, $ikQty, $tabId);
+                $stmt->execute();
+                $stmt->close();
+                // A changed release schedule is emailed again to everyone still waiting for their release.
+                if ($relDate !== null && (($tabRow['release_date'] ?? null) !== $relDate || substr((string)($tabRow['release_time'] ?? ''), 0, 5) !== substr((string)$relTime, 0, 5) || ($tabRow['release_venue'] ?? null) !== $relVenue)) {
+                    notifyProgramReleaseScheduleChanged(null, (int)$tabRow['committee_id']);
+                }
+            }
             logAudit('Updated Program', $label . ' (built-in tab #' . $tabId . ')');
             setFlash('success', 'Program updated.');
         }
@@ -1311,12 +1336,17 @@ $activeLink = 'AdminProgramManagement';
                                                         <option><?php echo e($c['name']); ?></option>
                                                     </select>
                                                 </div>
-                                                <div class="col-12">
-                                                    <div class="alert alert-light border py-2 mb-0" style="font-size:12.5px;"><i class="bi bi-info-circle me-1"></i>This is a built-in program. The greyed-out fields don't apply to it: set amounts per beneficiary on its Cash / In-Kind pages, and edit its application form in Configuration &gt; Forms.</div>
-                                                </div>
+                                                <?php $isAssist = $t['track_code'] === 'assistance';
+                                                $dis = $isAssist ? '' : ' disabled'; ?>
+                                                <?php if ($isAssist): ?><input type="hidden" name="has_settings" value="1"><?php endif; ?>
+                                                <?php if (!$isAssist): ?>
+                                                    <div class="col-12">
+                                                        <div class="alert alert-light border py-2 mb-0" style="font-size:12.5px;"><i class="bi bi-info-circle me-1"></i>iSKolar ng Langkiwa runs on school terms and allowances (Configuration &gt; Site Settings), so these fields don't apply to it.</div>
+                                                    </div>
+                                                <?php endif; ?>
                                                 <div class="col-12">
                                                     <label class="form-label">Program Description</label>
-                                                    <textarea class="form-control" rows="3" disabled></textarea>
+                                                    <textarea class="form-control" name="description" rows="3" <?php echo $dis; ?>><?php echo e($t['description'] ?? ''); ?></textarea>
                                                 </div>
                                                 <div class="col-md-4">
                                                     <label class="form-label d-block">Assistance Type <span class="text-muted fw-normal">(select one or both)</span></label>
@@ -1328,43 +1358,61 @@ $activeLink = 'AdminProgramManagement';
                                                         <input class="form-check-input" type="checkbox" checked disabled id="tabAtKind<?php echo $etid; ?>">
                                                         <label class="form-check-label" for="tabAtKind<?php echo $etid; ?>">In-Kind Assistance</label>
                                                     </div>
+                                                    <div class="form-text" style="font-size:11px;">Applicants choose Cash or In-Kind on the form.</div>
                                                 </div>
                                                 <div class="col-md-4">
                                                     <label class="form-label">Amount / Value</label>
                                                     <div class="input-group">
                                                         <span class="input-group-text">&#8369;</span>
-                                                        <input type="number" class="form-control" disabled>
+                                                        <input type="number" step="0.01" class="form-control" name="amount" value="<?php echo e($t['amount'] ?? ''); ?>" <?php echo $dis; ?>>
                                                     </div>
                                                 </div>
                                                 <div class="col-md-4">
                                                     <label class="form-label">Release Schedule</label>
-                                                    <select class="form-select" disabled>
-                                                        <option>Select schedule</option>
+                                                    <select class="form-select" name="release_schedule" <?php echo $dis; ?>>
+                                                        <option value="">Select schedule</option>
+                                                        <?php foreach (['One-time', 'Per Semester', 'Monthly', 'Quarterly'] as $sch): ?>
+                                                            <option <?php echo ($t['release_schedule'] ?? '') === $sch ? 'selected' : ''; ?>><?php echo $sch; ?></option>
+                                                        <?php endforeach; ?>
                                                     </select>
+                                                </div>
+                                                <div class="col-12">
+                                                    <div class="row g-3">
+                                                        <div class="col-md-8">
+                                                            <label class="form-label">In-Kind Items</label>
+                                                            <input type="text" class="form-control" name="inkind_items" maxlength="255" placeholder="e.g. Rice, canned goods, school supplies kit" value="<?php echo e($t['inkind_items'] ?? ''); ?>" <?php echo $dis; ?>>
+                                                            <div class="form-text" style="font-size:11.5px;">Pre-filled when you add a beneficiary under In-Kind Assistance.</div>
+                                                        </div>
+                                                        <div class="col-md-4">
+                                                            <label class="form-label">Quantity per Beneficiary</label>
+                                                            <input type="number" min="1" class="form-control" name="inkind_quantity" placeholder="1" value="<?php echo e($t['inkind_quantity'] ?? ''); ?>" <?php echo $dis; ?>>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                                 <div class="col-md-6">
                                                     <label class="form-label">Application Period Start</label>
-                                                    <input type="date" class="form-control" disabled>
+                                                    <input type="date" class="form-control" name="app_start_date" value="<?php echo e($t['app_start_date'] ?? ''); ?>" <?php echo $dis; ?>>
                                                 </div>
                                                 <div class="col-md-6">
                                                     <label class="form-label">Application Period End</label>
-                                                    <input type="date" class="form-control" disabled>
+                                                    <input type="date" class="form-control" name="app_end_date" value="<?php echo e($t['app_end_date'] ?? ''); ?>" <?php echo $dis; ?>>
                                                 </div>
                                                 <div class="col-md-4">
                                                     <label class="form-label">Release Date <span class="text-muted fw-normal">(for the email)</span></label>
-                                                    <input type="date" class="form-control" disabled>
+                                                    <input type="date" class="form-control" name="release_date" value="<?php echo e($t['release_date'] ?? ''); ?>" <?php echo $dis; ?>>
                                                 </div>
                                                 <div class="col-md-3">
                                                     <label class="form-label">Release Time</label>
-                                                    <input type="time" class="form-control" disabled>
+                                                    <input type="time" class="form-control" name="release_time" value="<?php echo e(substr((string)($t['release_time'] ?? ''), 0, 5)); ?>" <?php echo $dis; ?>>
                                                 </div>
                                                 <div class="col-md-5">
                                                     <label class="form-label">Release Venue</label>
-                                                    <input type="text" class="form-control" placeholder="e.g. Barangay Langkiwa Covered Court" disabled>
+                                                    <input type="text" class="form-control" name="release_venue" maxlength="150" placeholder="e.g. Barangay Langkiwa Covered Court" value="<?php echo e($t['release_venue'] ?? ''); ?>" <?php echo $dis; ?>>
                                                 </div>
                                                 <div class="col-12">
                                                     <label class="form-label">Eligibility Requirements <span class="text-muted fw-normal">(one per line)</span></label>
-                                                    <textarea class="form-control" rows="3" disabled></textarea>
+                                                    <div class="form-text mb-1" style="font-size:11.5px;">Informational only here - the application form is edited in Configuration &gt; Forms.</div>
+                                                    <textarea class="form-control" name="eligibility_requirements" rows="3" <?php echo $dis; ?>><?php echo e($t['eligibility_requirements'] ?? ''); ?></textarea>
                                                 </div>
                                                 <div class="col-12">
                                                     <label class="form-label">Icon</label>

@@ -29,6 +29,10 @@ $displayName = $programName ?: 'Health';
 
 // Slot limit (Configuration > Application / Program Settings): once the approved applicants reach it, nobody
 // can apply any more — the form is locked instead of letting people apply for a slot that is gone.
+// No program picked = the committee's built-in Assistance Program, which can have its own application period.
+if (!$programClosed && $programId === null) {
+    $programClosed = programClosedReason(getProgramById(0, $committeeId));
+}
 if (!$programClosed && isProgramFull($committeeId, 'assistance', $programId)) {
     $programClosed = 'This program has reached its maximum number of beneficiaries and is no longer accepting applications.';
 }

@@ -415,15 +415,97 @@ function isProgramFull($committeeId, $trackCode, $programId = null)
 
 // Looks up a `programs` catalog row by id, including the fields needed to decide whether it's
 // currently accepting applications (status, app_start_date, app_end_date, archived_at).
-function getProgramById($programId)
+// With no program id (0 / null) it returns the settings of the committee's built-in "Assistance Program"
+// track, shaped like a programs row, or null when none were set. The committee is $committeeId when given,
+// otherwise the page's own $committeeId.
+function getProgramById($programId, $committeeId = null)
 {
     global $conn;
+    if (empty($programId)) {
+        return builtinProgramRow($committeeId ?? ($GLOBALS['committeeId'] ?? null));
+    }
     $stmt = $conn->prepare("SELECT * FROM programs WHERE program_id = ?");
     $stmt->bind_param('i', $programId);
     $stmt->execute();
     $row = $stmt->get_result()->fetch_assoc();
     $stmt->close();
     return $row ?: null;
+}
+
+// ---- Built-in track settings ----
+// A built-in "Assistance Program" has no programs row, so the same settings a program has (amount, release
+// schedule, dates, in-kind items ...) are kept on its program_tabs row instead.
+function ensureBuiltinTabSettingsColumns()
+{
+    global $conn;
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+    $cols = [
+        'description' => 'TEXT NULL',
+        'amount' => 'DECIMAL(12,2) NULL',
+        'release_schedule' => 'VARCHAR(30) NULL',
+        'app_start_date' => 'DATE NULL',
+        'app_end_date' => 'DATE NULL',
+        'release_date' => 'DATE NULL',
+        'release_time' => 'TIME NULL',
+        'release_venue' => 'VARCHAR(150) NULL',
+        'eligibility_requirements' => 'TEXT NULL',
+        'inkind_items' => 'VARCHAR(255) NULL',
+        'inkind_quantity' => 'INT NULL',
+    ];
+    foreach ($cols as $col => $def) {
+        $exists = $conn->query("SHOW COLUMNS FROM program_tabs LIKE '$col'");
+        if ($exists && $exists->num_rows === 0) {
+            $conn->query("ALTER TABLE program_tabs ADD COLUMN $col $def");
+        }
+    }
+}
+
+// The committee's built-in Assistance Program settings as a programs-shaped row, or null when it has no
+// settings at all (then the track behaves exactly as before: manual amounts, no dates).
+function builtinProgramRow($committeeId)
+{
+    global $conn;
+    if (empty($committeeId)) {
+        return null;
+    }
+    ensureBuiltinTabSettingsColumns();
+    $stmt = $conn->prepare("SELECT * FROM program_tabs WHERE committee_id = ? AND track_code = 'assistance' AND program_id IS NULL AND archived_at IS NULL LIMIT 1");
+    $stmt->bind_param('i', $committeeId);
+    $stmt->execute();
+    $tab = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$tab) {
+        return null;
+    }
+    $configured = (float)($tab['amount'] ?? 0) > 0 || trim((string)($tab['inkind_items'] ?? '')) !== ''
+        || !empty($tab['release_schedule']) || !empty($tab['app_start_date']) || !empty($tab['app_end_date'])
+        || !empty($tab['release_date']) || !empty($tab['release_venue']);
+    if (!$configured) {
+        return null;
+    }
+    return [
+        'program_id' => null,
+        'committee_id' => (int)$tab['committee_id'],
+        'name' => $tab['label'],
+        'description' => $tab['description'],
+        'assistance_type' => 'both',
+        'amount' => $tab['amount'],
+        'release_schedule' => $tab['release_schedule'],
+        'app_start_date' => $tab['app_start_date'],
+        'app_end_date' => $tab['app_end_date'],
+        'release_date' => $tab['release_date'],
+        'release_time' => $tab['release_time'],
+        'release_venue' => $tab['release_venue'],
+        'eligibility_requirements' => $tab['eligibility_requirements'],
+        'inkind_items' => $tab['inkind_items'],
+        'inkind_quantity' => $tab['inkind_quantity'],
+        'status' => 'active',
+        'archived_at' => null,
+    ];
 }
 
 // Given a `programs` row (or null, meaning no specific program was selected — the generic/base
@@ -473,12 +555,12 @@ function programClosedState($program)
 
 // The amount set on a program in Content Management (programs.amount), or null if none/zero. Cash
 // Assistance pages use it as the default amount for a new beneficiary so it isn't typed twice.
-function getProgramAmount($programId)
+function getProgramAmount($programId, $committeeId = null)
 {
-    if (empty($programId)) {
+    $program = getProgramById((int)$programId, $committeeId);
+    if (!$program) {
         return null;
     }
-    $program = getProgramById((int)$programId);
     $amount = $program['amount'] ?? null;
     return ($amount !== null && (float)$amount > 0) ? (float)$amount : null;
 }
@@ -501,12 +583,12 @@ function ensureProgramInKindColumns()
     }
 }
 
-function getProgramInKind($programId)
+function getProgramInKind($programId, $committeeId = null)
 {
-    if (empty($programId)) {
+    $program = getProgramById((int)$programId, $committeeId);
+    if (!$program) {
         return null;
     }
-    $program = getProgramById((int)$programId);
     $items = trim((string)($program['inkind_items'] ?? ''));
     if ($items === '') {
         return null;
@@ -518,23 +600,23 @@ function getProgramInKind($programId)
 function getProgramInKindForApplication($applicationId)
 {
     global $conn;
-    $stmt = $conn->prepare("SELECT program_id FROM applications WHERE application_id = ?");
+    $stmt = $conn->prepare("SELECT program_id, committee_id FROM applications WHERE application_id = ?");
     $stmt->bind_param('i', $applicationId);
     $stmt->execute();
     $row = $stmt->get_result()->fetch_assoc();
     $stmt->close();
-    return $row ? getProgramInKind($row['program_id']) : null;
+    return $row ? getProgramInKind($row['program_id'], (int)$row['committee_id']) : null;
 }
 
 function getProgramAmountForApplication($applicationId)
 {
     global $conn;
-    $stmt = $conn->prepare("SELECT program_id FROM applications WHERE application_id = ?");
+    $stmt = $conn->prepare("SELECT program_id, committee_id FROM applications WHERE application_id = ?");
     $stmt->bind_param('i', $applicationId);
     $stmt->execute();
     $row = $stmt->get_result()->fetch_assoc();
     $stmt->close();
-    return $row ? getProgramAmount($row['program_id']) : null;
+    return $row ? getProgramAmount($row['program_id'], (int)$row['committee_id']) : null;
 }
 
 // "Type of Assistance" (Cash vs In-Kind) only means something for a program that offers both. A
@@ -1129,7 +1211,7 @@ function notifyBeneficiaryRelease($applicationId, array $beneficiary, $updated =
             return; // walk-in applicants have no real email
         }
 
-        $program = !empty($row['program_id']) ? getProgramById((int)$row['program_id']) : null;
+        $program = getProgramById((int)$row['program_id'], (int)$row['committee_id']);
         $type = $beneficiary['type'] ?? 'cash';
         $what = $type === 'cash'
             ? 'PHP ' . number_format((float)($beneficiary['amount'] ?? 0), 2)
@@ -1170,13 +1252,15 @@ function notifyBeneficiaryPendingRelease($applicationId, $type)
 }
 
 // The release schedule of a program changed: tell everyone still waiting for their release.
-function notifyProgramReleaseScheduleChanged($programId)
+function notifyProgramReleaseScheduleChanged($programId, $committeeId = null)
 {
     global $conn;
+    $programId = $programId ?: null; // null = the committee's built-in Assistance Program
+    $committeeId = $committeeId ?? 0;
     $stmt = $conn->prepare("SELECT ab.*, a.application_id AS app_id FROM assistance_beneficiaries ab
         JOIN applications a ON a.application_id = ab.application_id
-        WHERE a.program_id = ? AND ab.status = 'pending' AND ab.archived_at IS NULL");
-    $stmt->bind_param('i', $programId);
+        WHERE a.program_id <=> ? AND (? = 0 OR a.committee_id = ?) AND ab.status = 'pending' AND ab.archived_at IS NULL");
+    $stmt->bind_param('iii', $programId, $committeeId, $committeeId);
     $stmt->execute();
     $bens = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
@@ -1401,12 +1485,9 @@ function ensureBeneficiaryRoundColumn()
     }
 }
 
-function programIsRecurring($programId)
+function programIsRecurring($programId, $committeeId = null)
 {
-    if ($programId === null) {
-        return false;
-    }
-    $program = getProgramById((int)$programId);
+    $program = getProgramById((int)$programId, $committeeId);
     return $program && in_array($program['release_schedule'] ?? '', ['Monthly', 'Quarterly', 'Per Semester'], true);
 }
 
@@ -1417,7 +1498,7 @@ function currentReleaseRound($committeeId, $programId, $type)
     ensureBeneficiaryRoundColumn();
     $stmt = $conn->prepare("SELECT COALESCE(MAX(ab.round_no), 1) FROM assistance_beneficiaries ab
         JOIN applications a ON a.application_id = ab.application_id
-        WHERE a.committee_id = ? AND a.program_id = ? AND ab.type = ?");
+        WHERE a.committee_id = ? AND a.program_id <=> ? AND ab.type = ?");
     $stmt->bind_param('iis', $committeeId, $programId, $type);
     $stmt->execute();
     $round = (int)$stmt->get_result()->fetch_row()[0];
@@ -1430,13 +1511,13 @@ function startNextReleaseRound($committeeId, $programId, $type)
 {
     global $conn;
     ensureBeneficiaryRoundColumn();
-    if ($programId === null || !programIsRecurring($programId)) {
+    if (!programIsRecurring($programId, $committeeId)) {
         return ['ok' => false, 'message' => 'This program is not a recurring (Monthly / Quarterly / Per Semester) program.'];
     }
 
     $stmt = $conn->prepare("SELECT ab.*, a.application_id AS app_id FROM assistance_beneficiaries ab
         JOIN applications a ON a.application_id = ab.application_id
-        WHERE a.committee_id = ? AND a.program_id = ? AND ab.type = ? AND a.status = 'approved' AND a.archived_at IS NULL
+        WHERE a.committee_id = ? AND a.program_id <=> ? AND ab.type = ? AND a.status = 'approved' AND a.archived_at IS NULL
         ORDER BY a.application_id ASC, ab.round_no DESC, ab.beneficiary_id DESC");
     $stmt->bind_param('iis', $committeeId, $programId, $type);
     $stmt->execute();
@@ -1475,11 +1556,11 @@ function startNextReleaseRound($committeeId, $programId, $type)
         }
 
         if ($type === 'cash') {
-            $amount = getProgramAmount($programId) ?? (float)$row['amount'];
+            $amount = getProgramAmount($programId, $committeeId) ?? (float)$row['amount'];
             $ins = $conn->prepare("INSERT INTO assistance_beneficiaries (application_id, type, amount, status, round_no) VALUES (?, 'cash', ?, 'pending', ?)");
             $ins->bind_param('idi', $appId, $amount, $next);
         } else {
-            $defaults = getProgramInKind($programId);
+            $defaults = getProgramInKind($programId, $committeeId);
             $items = $defaults['items'] ?? $row['items'];
             $qty = $defaults['quantity'] ?? $row['quantity'];
             $ins = $conn->prepare("INSERT INTO assistance_beneficiaries (application_id, type, items, quantity, status, round_no) VALUES (?, 'in_kind', ?, ?, 'pending', ?)");

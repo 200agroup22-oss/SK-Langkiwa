@@ -328,12 +328,10 @@ function programTabHasActivities($committeeId, $programId, $track = 'assistance'
 // eligible beneficiaries can be added automatically instead of by hand.
 function autoAddBeneficiariesEnabled($committeeId, $programId, $type)
 {
-    // Any custom program with a default amount / items set adds its approved (and, with Activities, eligible)
-    // applicants by itself; the built-in tabs have no defaults and stay manual.
-    if ($programId === null) {
-        return false;
-    }
-    return $type === 'cash' ? getProgramAmount($programId) !== null : getProgramInKind($programId) !== null;
+    // Any program (custom, or a built-in Assistance Program with its settings filled in) that has a default
+    // amount / items adds its approved (and, with Activities, eligible) applicants by itself; without defaults
+    // it stays manual.
+    return $type === 'cash' ? getProgramAmount($programId, $committeeId) !== null : getProgramInKind($programId, $committeeId) !== null;
 }
 
 // For a program with Activities: every approved applicant who is now eligible (all activities done, or
@@ -348,7 +346,7 @@ function autoAddEligibleBeneficiaries($committeeId, $programId, $type)
     }
     $stmt = $conn->prepare("SELECT a.application_id FROM applications a
         LEFT JOIN assistance_beneficiaries ab ON ab.application_id = a.application_id AND ab.type = ?
-        WHERE a.committee_id = ? AND a.program_id = ? AND a.status = 'approved' AND a.archived_at IS NULL AND ab.beneficiary_id IS NULL
+        WHERE a.committee_id = ? AND a.program_id <=> ? AND a.status = 'approved' AND a.archived_at IS NULL AND ab.beneficiary_id IS NULL
         ORDER BY a.application_id ASC");
     $stmt->bind_param('sii', $type, $committeeId, $programId);
     $stmt->execute();
@@ -363,11 +361,11 @@ function autoAddEligibleBeneficiaries($committeeId, $programId, $type)
             continue;
         }
         if ($type === 'cash') {
-            $amount = getProgramAmount($programId);
+            $amount = getProgramAmount($programId, $committeeId);
             $ins = $conn->prepare("INSERT INTO assistance_beneficiaries (application_id, type, amount, status) VALUES (?, 'cash', ?, 'pending')");
             $ins->bind_param('id', $applicationId, $amount);
         } else {
-            $defaults = getProgramInKind($programId);
+            $defaults = getProgramInKind($programId, $committeeId);
             $ins = $conn->prepare("INSERT INTO assistance_beneficiaries (application_id, type, items, quantity, status) VALUES (?, 'in_kind', ?, ?, 'pending')");
             $ins->bind_param('isi', $applicationId, $defaults['items'], $defaults['quantity']);
         }
