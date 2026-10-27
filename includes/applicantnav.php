@@ -69,11 +69,13 @@ $navLinkClass = 'nav-link d-flex align-items-center gap-1 fw-semibold px-3 py-1 
                         </a>
                     </li>
                 <?php else: ?>
-                    <li class="nav-item">
-                        <a class="<?php echo $navLinkClass; ?>" href="<?php echo APP_BASE; ?>/applicant/ProgramActivities.php" <?php echo $navLinkAttrs; ?>>
-                            <i class="bi bi-calendar-event-fill"></i> Activities
-                        </a>
-                    </li>
+                    <?php if (function_exists('userHasProgramActivities') && !empty($me['user_id']) && userHasProgramActivities((int)$me['user_id'])): ?>
+                        <li class="nav-item">
+                            <a class="<?php echo $navLinkClass; ?>" href="<?php echo APP_BASE; ?>/applicant/ProgramActivities.php" <?php echo $navLinkAttrs; ?>>
+                                <i class="bi bi-calendar-event-fill"></i> Activities
+                            </a>
+                        </li>
+                    <?php endif; ?>
                     <li class="nav-item">
                         <a class="<?php echo $navLinkClass; ?>" href="<?php echo APP_BASE; ?>/applicant/MyAssistance.php" <?php echo $navLinkAttrs; ?>>
                             <i class="bi bi-cash-coin"></i> Allowance
