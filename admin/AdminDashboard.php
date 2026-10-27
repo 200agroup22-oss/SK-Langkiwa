@@ -19,15 +19,13 @@ $totalBeneficiaries = (int)($conn->query("SELECT COUNT(*) c FROM applications WH
 // Total Applicants: distinct users who have ever submitted an application (not archived).
 $totalApplicants = (int)($conn->query("SELECT COUNT(DISTINCT user_id) c FROM applications WHERE archived_at IS NULL" . $committeeFilterApplications)->fetch_assoc()['c'] ?? 0);
 
-// Approved This Month: applications actually decided (approved) within the current calendar
-// month — a much more actionable "how are we doing lately" figure than an all-time total, and
-// more relevant to a scholarship/assistance program than a generic activity-attendance count.
-$approvedThisMonth = (int)($conn->query(
-    "SELECT COUNT(*) c FROM applications
-     WHERE status = 'approved' AND archived_at IS NULL
-     AND YEAR(decided_at) = YEAR(CURDATE()) AND MONTH(decided_at) = MONTH(CURDATE())"
-        . $committeeFilterApplications
-)->fetch_assoc()['c'] ?? 0);
+// Programs Open Now: active programs whose application window is open today (not archived, active, and
+// inside their start/end dates) — the same rule applicants are held to when they try to apply.
+$openProgramsRows = $conn->query(
+    "SELECT * FROM programs WHERE archived_at IS NULL"
+        . ($isSuperAdmin ? '' : " AND committee_id IN ($committeeIdList)")
+)->fetch_all(MYSQLI_ASSOC);
+$openPrograms = count(array_filter($openProgramsRows, fn($p) => programClosedReason($p) === null));
 
 // ---- Application Status Breakdown ----
 $statusCounts = ['pending' => 0, 'approved' => 0, 'declined' => 0];
@@ -46,15 +44,19 @@ $eligibleForPayout = (int)($conn->query(
      WHERE ad.eligibility = 'eligible'" . ($isSuperAdmin ? '' : " AND a.committee_id IN ($committeeIdList)")
 )->fetch_assoc()['c'] ?? 0);
 
-// ---- Submitted Applications per day-of-week (aggregated across all non-archived applications) ----
-$weeklyCounts = array_fill(0, 7, 0); // index 0=Mon .. 6=Sun, matching chart labels
-$dowResult = $conn->query("SELECT DAYOFWEEK(submitted_at) dow, COUNT(*) c FROM applications WHERE archived_at IS NULL" . $committeeFilterApplications . " GROUP BY dow");
-// MySQL DAYOFWEEK(): 1=Sunday, 2=Monday, ... 7=Saturday
-$dowToIndex = [2 => 0, 3 => 1, 4 => 2, 5 => 3, 6 => 4, 7 => 5, 1 => 6];
-foreach ($dowResult as $row) {
-    $idx = $dowToIndex[(int)$row['dow']] ?? null;
-    if ($idx !== null) {
-        $weeklyCounts[$idx] = (int)$row['c'];
+// ---- Submitted Applications over the last 7 days (real calendar dates, today last). Archived ones are
+// included so archiving an old semester doesn't wipe the recent history from the chart. ----
+$weeklyLabels = [];
+$weeklyCounts = [];
+for ($i = 6; $i >= 0; $i--) {
+    $day = date('Y-m-d', strtotime("-$i day"));
+    $weeklyLabels[$day] = date('M j', strtotime($day));
+    $weeklyCounts[$day] = 0;
+}
+$dayResult = $conn->query("SELECT DATE(submitted_at) d, COUNT(*) c FROM applications WHERE submitted_at >= CURDATE() - INTERVAL 6 DAY" . $committeeFilterApplications . " GROUP BY DATE(submitted_at)");
+foreach ($dayResult as $row) {
+    if (isset($weeklyCounts[$row['d']])) {
+        $weeklyCounts[$row['d']] = (int)$row['c'];
     }
 }
 
@@ -304,11 +306,11 @@ $activeLink = 'AdminDashboard';
             <div class="col-md-4">
                 <div class="stat-card">
                     <div class="stat-icon" style="background:#fff3e0;">
-                        <i class="bi bi-calendar2-check-fill" style="color:#f59e0b;"></i>
+                        <i class="bi bi-door-open-fill" style="color:#f59e0b;"></i>
                     </div>
                     <div>
-                        <div class="label">Approved This Month</div>
-                        <div class="value"><?php echo $approvedThisMonth; ?></div>
+                        <div class="label">Programs Open Now</div>
+                        <div class="value"><?php echo $openPrograms; ?></div>
                     </div>
                 </div>
             </div>
@@ -387,7 +389,7 @@ $activeLink = 'AdminDashboard';
         <div class="row g-3 mb-3">
             <div class="col-md-6">
                 <div class="chart-card" style="height:280px;">
-                    <div class="chart-title"><i class="bi bi-bar-chart-line-fill me-1" style="color:#45b84d;"></i> Submitted Applications per Day of Week</div>
+                    <div class="chart-title"><i class="bi bi-bar-chart-line-fill me-1" style="color:#45b84d;"></i> Submitted Applications - Last 7 Days</div>
                     <div style="position:relative; height:210px;">
                         <canvas id="appChart"></canvas>
                     </div>
@@ -413,7 +415,7 @@ $activeLink = 'AdminDashboard';
         new Chart(document.getElementById('appChart'), {
             type: 'line',
             data: {
-                labels: ['Mon', 'Tue', 'Wed', 'Thur', 'Fri', 'Sat', 'Sun'],
+                labels: <?php echo json_encode(array_values($weeklyLabels)); ?>,
                 datasets: [{
                     data: weeklyData,
                     borderColor: '#2e7d32',
