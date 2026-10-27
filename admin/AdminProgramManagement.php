@@ -905,8 +905,8 @@ $activeLink = 'AdminProgramManagement';
         }
 
         .builtin-tab-item {
-            border-color: #d8cdf2;
-            background: #faf8ff;
+            border-color: #ededed;
+            background: #fcfcfc;
         }
 
         /* Announcement view-modal preview */
