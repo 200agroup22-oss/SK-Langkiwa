@@ -13,8 +13,19 @@ $stmt->execute();
 $existing = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
+// Someone who is already an iSKolar scholar (active, or waiting on a renewal decision) doesn't apply again:
+// they keep their place by submitting requirements under Update Requirements.
+$isCurrentScholar = ($me['role'] ?? '') === 'scholar';
+if (!$isCurrentScholar) {
+    $stmt = $conn->prepare("SELECT 1 FROM scholars WHERE user_id = ? AND status IN ('active', 'pending') LIMIT 1");
+    $stmt->bind_param('i', $me['user_id']);
+    $stmt->execute();
+    $isCurrentScholar = (bool)$stmt->get_result()->fetch_row();
+    $stmt->close();
+}
+
 $formError = null;
-if (!$existing && $_SERVER['REQUEST_METHOD'] === 'POST') {
+if (!$existing && !$isCurrentScholar && $_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach ($identity as $key => $val) {
         $_POST[$key] = $val;
     }
@@ -165,7 +176,12 @@ if (!$existing && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="form-card mx-auto" style="max-width: 850px;">
                     <h4 class="text-center mb-4"><?php echo e(mb_strtoupper(formTitleFor($committeeId, 'scholarship', null, 'Scholar Application Form'))); ?></h4>
 
-                    <?php if ($existing): ?>
+                    <?php if ($isCurrentScholar): ?>
+                        <div class="alert alert-info py-2 mb-0">
+                            You are already an iSKolar ng Langkiwa scholar, so you don't need to apply again.
+                            Submit your documents each term under <a href="<?php echo APP_BASE; ?>/scholar/UpdateRequirements.php">Update Requirements</a>.
+                        </div>
+                    <?php elseif ($existing): ?>
                         <div class="alert alert-info py-2 mb-0">
                             You already have an Education application on file (status: <strong><?php echo e(ucfirst($existing['status'])); ?></strong>).
                             <a href="ApplicationStatus.php">Check your Application Status page</a>, or use the sidebar to apply to another committee.
