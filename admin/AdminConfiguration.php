@@ -835,8 +835,11 @@ $activeLink = 'AdminConfiguration';
                     </div>
                     <div class="mt-3 d-flex gap-2">
                         <button type="submit" name="save_theme" class="btn btn-sm btn-success"><i class="bi bi-save me-1"></i> Save Colors</button>
-                        <button type="submit" name="reset_theme" class="btn btn-sm btn-outline-secondary" onclick="return confirm('Reset colors to the default green?');"><i class="bi bi-arrow-counterclockwise me-1"></i> Reset to Default</button>
+                        <button type="submit" form="resetThemeForm" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-counterclockwise me-1"></i> Reset to Default</button>
                     </div>
+                </form>
+                <form id="resetThemeForm" method="post" data-confirm="Reset the system colors to the default green?" data-confirm-title="Reset Colors" data-confirm-ok="Yes, Reset" data-confirm-variant="success">
+                    <input type="hidden" name="reset_theme" value="1">
                 </form>
                 <script>
                     (function() {
