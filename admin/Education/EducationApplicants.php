@@ -29,11 +29,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['approve_renewal'])) {
         $redirectTab = '?tab=renewals';
         $scholarId = (int)$_POST['scholar_id'];
+
+        // A renewal can only be approved once every requirement document is submitted for the current term.
+        $termRow = $conn->query("SELECT current_academic_year, current_semester FROM site_settings WHERE id = 1")->fetch_assoc();
+        $requiredFileIds = array_column(array_filter(getFormFields($committeeId, $track), fn($f) => $f['input_type'] === 'file'), 'field_id');
+        $missingDocs = count($requiredFileIds);
+        if ($missingDocs > 0) {
+            $stmt = $conn->prepare("SELECT field_id FROM scholar_requirement_files WHERE scholar_id = ? AND academic_year = ? AND semester = ?");
+            $stmt->bind_param('iss', $scholarId, $termRow['current_academic_year'], $termRow['current_semester']);
+            $stmt->execute();
+            $submittedIds = array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'field_id');
+            $stmt->close();
+            $missingDocs = count(array_diff($requiredFileIds, $submittedIds));
+        }
+        if ($missingDocs > 0) {
+            setFlash('error', 'This scholar has not submitted all requirements yet (' . $missingDocs . ' missing), so the renewal cannot be approved.');
+            header('Location: ' . basename($_SERVER['PHP_SELF']) . $redirectTab);
+            exit();
+        }
+
         $stmt = $conn->prepare("UPDATE scholars SET status = 'active' WHERE scholar_id = ? AND status = 'pending'");
         $stmt->bind_param('i', $scholarId);
         $stmt->execute();
         $stmt->close();
         logAudit('Approved Scholar Renewal', 'Scholar #' . $scholarId);
+        $renewTerm = $conn->query("SELECT current_academic_year, current_semester FROM site_settings WHERE id = 1")->fetch_assoc();
+        notifyScholar(
+            $scholarId,
+            'Your iSKolar Renewal Was Approved',
+            'Congratulations! Your renewal as an iSKolar ng Langkiwa scholar was <strong>approved</strong>.',
+            ['Term' => ($renewTerm['current_academic_year'] ?? '') . ', ' . ($renewTerm['current_semester'] ?? '')],
+            'You are back on the active scholars list. Log in to see your activities for this term.'
+        );
         setFlash('success', 'Renewal approved — scholar is back on the active list.');
     }
 
@@ -53,6 +80,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->close();
 
         logAudit('Declined Scholar Renewal', 'Scholar #' . $scholarId);
+        notifyScholar(
+            $scholarId,
+            'Your iSKolar Renewal Was Declined',
+            'Your renewal as an iSKolar ng Langkiwa scholar was <strong>declined</strong>.',
+            [],
+            'Please contact the SK office if you have questions.'
+        );
         setFlash('success', 'Renewal declined — scholar archived.');
     }
 
@@ -495,7 +529,14 @@ $activeLink = 'EducationApplicants';
                                     <td colspan="<?php echo 5 + count($renewalDocFields); ?>" class="text-center text-muted py-4">No scholars pending renewal.</td>
                                 </tr>
                             <?php endif; ?>
-                            <?php foreach ($pagedPendingScholars as $ps): ?>
+                            <?php foreach ($pagedPendingScholars as $ps):
+                                $missingCount = 0;
+                                foreach ($renewalDocFields as $rfCheck) {
+                                    if (empty($renewalFiles[$ps['scholar_id']][$rfCheck['field_id']])) {
+                                        $missingCount++;
+                                    }
+                                }
+                            ?>
                                 <tr>
                                     <td><?php echo str_pad($ps['scholar_id'], 3, '0', STR_PAD_LEFT); ?></td>
                                     <td><?php echo e($ps['first_name'] . ' ' . $ps['last_name']); ?></td>
@@ -525,7 +566,7 @@ $activeLink = 'EducationApplicants';
                                             <form method="post" data-confirm="Approve renewal for <?php echo e($ps['first_name'] . ' ' . $ps['last_name']); ?>? They will go back on the active Scholars list." data-confirm-title="Approve Renewal" data-confirm-ok="Yes, Approve" data-confirm-variant="success">
                                                 <input type="hidden" name="scholar_id" value="<?php echo $ps['scholar_id']; ?>">
                                                 <?php if (!isViewOnlyOfficer()): ?>
-                                                    <button type="submit" name="approve_renewal" class="btn btn-sm btn-outline-success py-0 px-2" style="font-size:11px;"><i class="bi bi-check-lg"></i> Approve</button>
+                                                    <button type="submit" name="approve_renewal" class="btn btn-sm btn-outline-success py-0 px-2" style="font-size:11px;" <?php echo $missingCount > 0 ? ' disabled title="' . $missingCount . ' requirement' . ($missingCount === 1 ? '' : 's') . ' not submitted yet"' : ''; ?>><i class="bi bi-check-lg"></i> Approve</button>
                                                 <?php endif; ?>
                                             </form>
                                             <form method="post" data-confirm="Decline renewal for <?php echo e($ps['first_name'] . ' ' . $ps['last_name']); ?>? They will be archived and lose scholar-portal access." data-confirm-title="Decline Renewal" data-confirm-ok="Yes, Decline">
