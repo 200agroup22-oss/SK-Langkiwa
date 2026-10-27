@@ -59,12 +59,24 @@ $stmt->execute();
 $existing = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
+// A program that offers both Cash and In-Kind: someone who applied for one type can still apply for the
+// other (only the type they have not applied for is offered). Otherwise one application per program.
+$allowedAssistanceTypes = null;
+if ($existing && $programRow && ($programRow['assistance_type'] ?? '') === 'both') {
+    $remainingTypes = remainingAssistanceTypes($me['user_id'], $committeeId, $programId);
+    if (!empty($remainingTypes)) {
+        $existing = null;
+        $allowedAssistanceTypes = $remainingTypes;
+    }
+}
+
 $formError = null;
 if (!$existing && !$programClosed && $_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach ($identity as $key => $val) {
         $_POST[$key] = $val;
     }
     $errors = validateDynamicSubmission($committeeId, $_POST, $_FILES, [], $track, $programId);
+    $errors = array_merge($errors, validateAssistanceTypeChoice($_POST, $allowedAssistanceTypes));
     if (empty($errors)) {
         $settings = $conn->query("SELECT current_academic_year, current_semester FROM site_settings WHERE id = 1")->fetch_assoc();
 

@@ -774,6 +774,32 @@ function renderDynamicFormFields($committeeId, $existingAnswers = [], $existingF
 
             case 'radio':
                 $options = json_decode($field['options'] ?? '[]', true) ?: [];
+                if (fieldMatchesKey($field, 'assistance_type')) {
+                    // Cash and In-Kind can both be requested in one application, so this is a checkbox group
+                    // (the stored answer is a comma-separated list, e.g. "Cash Assistance, In-kind Assistance").
+                    global $allowedAssistanceTypes;
+                    $chosen = array_map('trim', explode(',', (string)$value));
+                    $groupRequired = $field['is_required'] ? '1' : '0';
+                    echo '<div class="assistance-type-group" data-required="' . $groupRequired . '">';
+                    foreach ($options as $i => $opt) {
+                        $optType = (stripos($opt, 'kind') !== false) ? 'in_kind' : 'cash';
+                        if (is_array($allowedAssistanceTypes) && !in_array($optType, $allowedAssistanceTypes, true)) {
+                            continue;
+                        }
+                        $id = $idPrefix . $name . '_' . $i;
+                        $checked = in_array($opt, $chosen, true) ? 'checked' : '';
+                        echo '<div class="form-check">';
+                        echo '<input class="form-check-input" type="checkbox" name="' . $name . '[]" id="' . e($id) . '" value="' . e($opt) . '" ' . $checked . ' onchange="var g=this.closest(\'.assistance-type-group\');var b=g.querySelectorAll(\'input\');var a=[].some.call(b,function(c){return c.checked;});if(g.dataset.required===\'1\'){[].forEach.call(b,function(c){c.required=!a;});}">';
+                        echo '<label class="form-check-label" for="' . e($id) . '">' . e($opt) . '</label>';
+                        echo '</div>';
+                    }
+                    echo '<div class="form-text" style="font-size:11.5px;">You can choose one or both.</div>';
+                    echo '</div>';
+                    if ($field['is_required']) {
+                        echo '<script>(function(){var g=document.currentScript.previousElementSibling;var b=g.querySelectorAll("input");var a=[].some.call(b,function(c){return c.checked;});[].forEach.call(b,function(c){c.required=!a;});})();</script>';
+                    }
+                    break;
+                }
                 foreach ($options as $i => $opt) {
                     $id = $idPrefix . $name . '_' . $i;
                     $checked = ($value === $opt) ? 'checked' : '';
@@ -857,7 +883,11 @@ function validateDynamicSubmission($committeeId, array $post, array $files, arra
                 $errors[] = $field['label'] . ' is required.';
             }
         } elseif ($field['is_required']) {
-            if (trim($post[$key] ?? '') === '') {
+            $postedValue = $post[$key] ?? '';
+            if (is_array($postedValue)) {
+                $postedValue = implode(', ', $postedValue);
+            }
+            if (trim($postedValue) === '') {
                 $errors[] = $field['label'] . ' is required.';
             }
         }
@@ -1015,10 +1045,15 @@ function assistanceTypeAnswerMatches($answer, $pageType)
     if ($answer === '') {
         return true;
     }
-    if (stripos($answer, 'in-kind') !== false || stripos($answer, 'in kind') !== false || stripos($answer, 'inkind') !== false) {
+    $hasInKind = stripos($answer, 'in-kind') !== false || stripos($answer, 'in kind') !== false || stripos($answer, 'inkind') !== false;
+    $hasCash = stripos($answer, 'cash') !== false;
+    if ($hasInKind && $hasCash) {
+        return true; // asked for both
+    }
+    if ($hasInKind) {
         return $pageType === 'in_kind';
     }
-    if (stripos($answer, 'cash') !== false) {
+    if ($hasCash) {
         return $pageType === 'cash';
     }
     return true;
@@ -1058,6 +1093,9 @@ function saveDynamicSubmission($applicationId, $committeeId, array $post, array 
         }
 
         $value = $post[$key] ?? '';
+        if (is_array($value)) {
+            $value = implode(', ', array_map('trim', $value));
+        }
         $insAns = $conn->prepare("INSERT INTO application_answers (application_id, field_id, value) VALUES (?, ?, ?)");
         $insAns->bind_param('iis', $applicationId, $fieldId, $value);
         $insAns->execute();
@@ -1188,4 +1226,50 @@ function createRequirementFieldsForProgram($committeeId, $programId, $requiremen
         $insert->execute();
     }
     $insert->close();
+}
+
+// ---- Applying for both Cash and In-Kind ----
+// Which assistance types this person has already applied for in a program (non-declined, non-archived
+// applications). An application with no recognisable Type of Assistance answer counts as covering both.
+function remainingAssistanceTypes($userId, $committeeId, $programId)
+{
+    global $conn;
+    $fields = getFormFields($committeeId, 'assistance', $programId, true);
+    $stmt = $conn->prepare("SELECT application_id FROM applications WHERE user_id = ? AND committee_id = ? AND program_id <=> ? AND status != 'declined' AND archived_at IS NULL");
+    $stmt->bind_param('iii', $userId, $committeeId, $programId);
+    $stmt->execute();
+    $appIds = array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'application_id');
+    $stmt->close();
+
+    $taken = ['cash' => false, 'in_kind' => false];
+    foreach ($appIds as $appId) {
+        $answer = answerByKey(['answers' => getApplicationAnswers((int)$appId), 'application_id' => (int)$appId], $fields, 'assistance_type');
+        $hasInKind = stripos($answer, 'kind') !== false;
+        $hasCash = stripos($answer, 'cash') !== false;
+        if (!$hasInKind && !$hasCash) {
+            $taken['cash'] = $taken['in_kind'] = true;
+        } else {
+            $taken['cash'] = $taken['cash'] || $hasCash;
+            $taken['in_kind'] = $taken['in_kind'] || $hasInKind;
+        }
+    }
+    return array_values(array_keys(array_filter($taken, fn($t) => !$t)));
+}
+
+// Server-side check that the chosen types are only ones still open to this applicant.
+function validateAssistanceTypeChoice(array $post, $allowedTypes)
+{
+    if (!is_array($allowedTypes)) {
+        return [];
+    }
+    $errors = [];
+    $chosen = $post['assistance_type'] ?? [];
+    foreach ((array)$chosen as $opt) {
+        $type = (stripos($opt, 'kind') !== false) ? 'in_kind' : 'cash';
+        if (!in_array($type, $allowedTypes, true)) {
+            $errors[] = 'You already applied for ' . ($type === 'cash' ? 'Cash' : 'In-Kind') . ' Assistance in this program.';
+            break;
+        }
+    }
+    return $errors;
 }
