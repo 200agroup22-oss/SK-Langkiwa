@@ -32,11 +32,6 @@ if (!$isFullAdmin && in_array($type, ['activity-log', 'audit-log'], true)) {
 
 // ---- Validate committee (must be 'all' or a real committee code) ----
 $committeeCode = $_GET['committee'] ?? 'all';
-// The Activity Participation Report only covers Education's iSKolar scholars, whatever was sent.
-if ($type === 'scholars') {
-    $committeeCode = 'education';
-    $_GET['program'] = 'track:scholarship';
-}
 $committeeId = 0; // sentinel for "all"
 $committeeLabel = 'All Committees';
 if ($committeeCode !== 'all') {
@@ -710,13 +705,41 @@ switch ($type) {
         }
 
     case 'scholars': {
-            $headers = ['Scholar ID', 'Full Name', 'School', 'Course', 'Year Level', 'Activities (Present/Held)', 'Eligibility', 'Allowance Amount'];
-            $widths = [22, 48, 45, 40, 20, 45, 32, 25];
+            // Activity Participation covers iSKolar's scholars AND every program (or built-in track) that has its
+            // Activities tab turned on, narrowed by the chosen committee / program.
+            ensureProgramActivitySchema();
+            ensureProgramTabArchiveColumn();
+            $includeScholars = ($committeeId === 0 || $committeeCode === 'education')
+                && $programId === 0 && ($trackCode === '' || $trackCode === 'scholarship');
+            $programTabs = [];
+            if ($trackCode !== 'scholarship') {
+                $tabSql = "SELECT pt.tab_id, pt.committee_id, pt.program_id, pt.track_code, pt.label, c.name AS committee_name
+                FROM program_tabs pt JOIN committees c ON c.committee_id = pt.committee_id
+                WHERE pt.has_activities = 1 AND pt.archived_at IS NULL AND pt.track_code <> 'scholarship' AND (? = 0 OR pt.committee_id = ?)";
+                if ($programId > 0) {
+                    $tabSql .= ' AND pt.program_id = ' . (int)$programId;
+                } elseif ($trackCode !== '') {
+                    $tabSql .= " AND pt.program_id IS NULL AND pt.track_code = '" . $conn->real_escape_string($trackCode) . "'";
+                }
+                $tabSql .= ' ORDER BY c.committee_id ASC, pt.sort_order ASC, pt.tab_id ASC';
+                $stmt = $conn->prepare($tabSql);
+                $stmt->bind_param('ii', $committeeId, $committeeId);
+                $stmt->execute();
+                $programTabs = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                $stmt->close();
+            }
 
-            // Activity counts are scoped to the report's date range (an activity's actual
-            // activity_date), not just the current academic term, so this reflects real
-            // participation history over whatever period was picked.
-            $stmt = $conn->prepare("SELECT s.scholar_id, u.first_name, u.last_name, s.school, s.course, s.year_level,
+            if ($includeScholars) {
+                if (!empty($programTabs)) {
+                    sectionTitle($pdf, 'iSKolar ng Langkiwa - Scholars');
+                }
+                $headers = ['Scholar ID', 'Full Name', 'School', 'Course', 'Year Level', 'Activities (Present/Held)', 'Eligibility', 'Allowance Amount'];
+                $widths = [22, 48, 45, 40, 20, 45, 32, 25];
+
+                // Activity counts are scoped to the report's date range (an activity's actual
+                // activity_date), not just the current academic term, so this reflects real
+                // participation history over whatever period was picked.
+                $stmt = $conn->prepare("SELECT s.scholar_id, u.first_name, u.last_name, s.school, s.course, s.year_level,
                 (SELECT COUNT(*) FROM attendance att JOIN activities act ON act.activity_id = att.activity_id
                     WHERE att.scholar_id = s.scholar_id AND act.activity_date BETWEEN ? AND ? AND act.archived_at IS NULL) AS total_activities,
                 (SELECT COUNT(*) FROM attendance att JOIN activities act ON act.activity_id = att.activity_id
@@ -725,47 +748,114 @@ switch ($type) {
             JOIN users u ON u.user_id = s.user_id
             WHERE s.status = 'active'
             ORDER BY s.scholar_id ASC");
-            $stmt->bind_param('ssss', $from, $to, $from, $to);
-            $stmt->execute();
-            $scholarRows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-            $stmt->close();
+                $stmt->bind_param('ssss', $from, $to, $from, $to);
+                $stmt->execute();
+                $scholarRows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                $stmt->close();
 
-            $yearLevelLabel = fn($n) => $n ? $n . (['', 'st', 'nd', 'rd'][$n] ?? 'th') . ' Year' : '—';
+                $yearLevelLabel = fn($n) => $n ? $n . (['', 'st', 'nd', 'rd'][$n] ?? 'th') . ' Year' : '—';
 
-            $rows = [];
-            $totalPresent = 0;
-            $totalHeld = 0;
-            foreach ($scholarRows as $row) {
-                $scholarId = (int)$row['scholar_id'];
-                if ($termAcademicYear !== null) {
-                    // A specific past/other term was picked — read whatever record already exists for
-                    // it instead of ensureAllowanceRecord(), which always operates on the CURRENT term
-                    // and would wrongly create a fresh "pending" row for a term that isn't active.
-                    $termStmt = $conn->prepare("SELECT eligibility, amount FROM allowance_distributions WHERE scholar_id = ? AND academic_year = ? AND semester = ?");
-                    $termStmt->bind_param('iss', $scholarId, $termAcademicYear, $termSemester);
-                    $termStmt->execute();
-                    $termRecord = $termStmt->get_result()->fetch_assoc();
-                    $termStmt->close();
-                    $allowance = $termRecord ?: ['eligibility' => 'no_record', 'amount' => 0];
-                } else {
-                    $allowance = ensureAllowanceRecord($scholarId);
+                $rows = [];
+                $totalPresent = 0;
+                $totalHeld = 0;
+                foreach ($scholarRows as $row) {
+                    $scholarId = (int)$row['scholar_id'];
+                    if ($termAcademicYear !== null) {
+                        // A specific past/other term was picked — read whatever record already exists for
+                        // it instead of ensureAllowanceRecord(), which always operates on the CURRENT term
+                        // and would wrongly create a fresh "pending" row for a term that isn't active.
+                        $termStmt = $conn->prepare("SELECT eligibility, amount FROM allowance_distributions WHERE scholar_id = ? AND academic_year = ? AND semester = ?");
+                        $termStmt->bind_param('iss', $scholarId, $termAcademicYear, $termSemester);
+                        $termStmt->execute();
+                        $termRecord = $termStmt->get_result()->fetch_assoc();
+                        $termStmt->close();
+                        $allowance = $termRecord ?: ['eligibility' => 'no_record', 'amount' => 0];
+                    } else {
+                        $allowance = ensureAllowanceRecord($scholarId);
+                    }
+                    $rows[] = [
+                        str_pad($scholarId, 3, '0', STR_PAD_LEFT),
+                        trim($row['first_name'] . ' ' . $row['last_name']),
+                        $row['school'] ?: '—',
+                        $row['course'] ?: '—',
+                        $yearLevelLabel((int)$row['year_level']),
+                        $row['present_count'] . ' / ' . $row['total_activities'],
+                        ucfirst(str_replace('_', ' ', $allowance['eligibility'])),
+                        number_format((float)$allowance['amount'], 2),
+                    ];
+                    $totalPresent += (int)$row['present_count'];
+                    $totalHeld += (int)$row['total_activities'];
                 }
-                $rows[] = [
-                    str_pad($scholarId, 3, '0', STR_PAD_LEFT),
-                    trim($row['first_name'] . ' ' . $row['last_name']),
-                    $row['school'] ?: '—',
-                    $row['course'] ?: '—',
-                    $yearLevelLabel((int)$row['year_level']),
-                    $row['present_count'] . ' / ' . $row['total_activities'],
-                    ucfirst(str_replace('_', ' ', $allowance['eligibility'])),
-                    number_format((float)$allowance['amount'], 2),
-                ];
-                $totalPresent += (int)$row['present_count'];
-                $totalHeld += (int)$row['total_activities'];
+
+                renderTable($pdf, $headers, $widths, $rows);
+                renderTotalLine($pdf, 'Total Scholars: ' . count($rows) . '   |   Activity Participation: ' . $totalPresent . ' / ' . $totalHeld);
+            } // end iSKolar scholars section
+
+            // One section per program / track that has Activities: its approved beneficiaries, how many of the
+            // activities held in the date range they attended, how many they need, and whether they are eligible.
+            $ppHeaders = ['Applicant ID', 'Full Name', 'Activities Present / Held (period)', 'Needed to be Eligible', 'Eligibility'];
+            $ppWidths = [26, 80, 56, 48, 60];
+            foreach ($programTabs as $tab) {
+                if (!empty($tab['program_id'])) {
+                    $stmt = $conn->prepare("SELECT a.application_id, a.user_id, u.first_name, u.last_name FROM applications a
+                    JOIN users u ON u.user_id = a.user_id
+                    WHERE a.status = 'approved' AND a.archived_at IS NULL AND a.program_id = ? ORDER BY a.application_id ASC");
+                    $stmt->bind_param('i', $tab['program_id']);
+                } else {
+                    $stmt = $conn->prepare("SELECT a.application_id, a.user_id, u.first_name, u.last_name FROM applications a
+                    JOIN users u ON u.user_id = a.user_id
+                    WHERE a.status = 'approved' AND a.archived_at IS NULL AND a.committee_id = ? AND a.program_id IS NULL AND a.program_track = ?
+                    ORDER BY a.application_id ASC");
+                    $stmt->bind_param('is', $tab['committee_id'], $tab['track_code']);
+                }
+                $stmt->execute();
+                $beneficiaries = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                $stmt->close();
+
+                $countStmt = $conn->prepare("SELECT COUNT(*) AS held, COALESCE(SUM(att.status = 'present'), 0) AS present
+                FROM program_attendance att JOIN program_activities act ON act.activity_id = att.activity_id
+                WHERE att.user_id = ? AND act.tab_id = ? AND act.archived_at IS NULL AND act.activity_date BETWEEN ? AND ?");
+                $ppRows = [];
+                $ppPresent = 0;
+                $ppHeld = 0;
+                foreach ($beneficiaries as $b) {
+                    $tabId = (int)$tab['tab_id'];
+                    $userId = (int)$b['user_id'];
+                    // Eligibility first: it also creates any missing attendance rows for open activities.
+                    $compliance = programActivityCompliance((int)$b['application_id']);
+                    $countStmt->bind_param('iiss', $userId, $tabId, $from, $to);
+                    $countStmt->execute();
+                    $counts = $countStmt->get_result()->fetch_assoc();
+                    if ($compliance === null) {
+                        $needed = '—';
+                        $eligibility = '—';
+                    } else {
+                        $needed = $compliance['required'] . ' activit' . ((int)$compliance['required'] === 1 ? 'y' : 'ies');
+                        $eligibility = $compliance['ok'] ? 'Eligible' : 'Not Eligible';
+                        if (!empty($compliance['manual'])) {
+                            $eligibility .= ' (set by officer)';
+                        }
+                    }
+                    $ppRows[] = [
+                        str_pad((string)$b['application_id'], 3, '0', STR_PAD_LEFT),
+                        trim($b['first_name'] . ' ' . $b['last_name']),
+                        (int)$counts['present'] . ' / ' . (int)$counts['held'],
+                        $needed,
+                        $eligibility,
+                    ];
+                    $ppPresent += (int)$counts['present'];
+                    $ppHeld += (int)$counts['held'];
+                }
+                $countStmt->close();
+
+                sectionTitle($pdf, $tab['committee_name'] . ' - ' . $tab['label']);
+                renderTable($pdf, $ppHeaders, $ppWidths, $ppRows);
+                renderTotalLine($pdf, 'Total Beneficiaries: ' . count($ppRows) . '   |   Activity Participation: ' . $ppPresent . ' / ' . $ppHeld);
             }
 
-            renderTable($pdf, $headers, $widths, $rows);
-            renderTotalLine($pdf, 'Total Scholars: ' . count($rows) . '   |   Activity Participation: ' . $totalPresent . ' / ' . $totalHeld);
+            if (!$includeScholars && empty($programTabs)) {
+                renderTable($pdf, ['Program', 'Note'], [90, 180], []);
+            }
             break;
         }
 

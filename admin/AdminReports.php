@@ -1318,29 +1318,23 @@ $activeLink = 'AdminReports';
         });
 
         // Activity/Audit logs aren't scoped to a committee or program, so lock those filters out when picked.
-        // The Activity Participation Report only exists for Education's iSKolar scholars, so picking it
-        // fills in (and locks) Education + iSKolar ng Langkiwa automatically.
+        // The Activity Participation Report covers iSKolar scholars and every program that has Activities, so it
+        // uses the normal Committee / Program filters (leave them on "All" to include everything).
         reportTypeSelect.addEventListener('change', function() {
             const isLogReport = logReportTypes.includes(this.value);
             const isParticipation = this.value === 'scholars';
-            const educationOption = Array.from(reportCommitteeSelect.options).find(o => o.value === 'education');
 
-            reportCommitteeSelect.value = 'all';
+            reportCommitteeSelect.value = reportCommitteeSelect.options[0].value;
             reportCommitteeSelect.disabled = isLogReport;
-            reportProgramSelect.innerHTML = '<option value="all" selected>All Programs</option>';
-            reportProgramSelect.disabled = true;
+            reportCommitteeSelect.dispatchEvent(new Event('change')); // refills the Program list
+            if (isLogReport) {
+                reportProgramSelect.disabled = true;
+            }
             reportProgramHint.textContent = isLogReport ?
                 'Not applicable to this report — activity and audit logs are system-wide.' :
-                'Pick a committee to filter by a specific program, or leave it on "All Programs".';
-
-            if (isParticipation && educationOption) {
-                reportCommitteeSelect.value = 'education';
-                reportCommitteeSelect.dispatchEvent(new Event('change')); // fills in Education's programs
-                reportProgramSelect.value = 'track:scholarship';
-                reportCommitteeSelect.disabled = true;
-                reportProgramSelect.disabled = true;
-                reportProgramHint.textContent = 'Set automatically — this report covers Education scholars (iSKolar ng Langkiwa) only.';
-            }
+                (isParticipation ?
+                    'Covers iSKolar scholars and every program that has Activities. Choose a committee to narrow it to one program or iSKolar.' :
+                    'Pick a committee to filter by a specific program, or leave it on "All Programs".');
             updateTermAvailability();
         });
 
@@ -1351,11 +1345,9 @@ $activeLink = 'AdminReports';
             e.preventDefault();
             const reportType = document.getElementById('reportType').value;
             const isLogReport = logReportTypes.includes(reportType);
-            const isParticipation = reportType === 'scholars' && reportCommitteeSelect.value === 'education';
-            // Locked-on-purpose selects (Activity Participation) still send their value; a disabled
-            // committee/program otherwise means "not applicable", i.e. all.
+            // A disabled committee/program means "not applicable", i.e. all.
             const committee = isLogReport ? 'all' : reportCommitteeSelect.value;
-            const program = (reportProgramSelect.disabled && !isParticipation) ? 'all' : reportProgramSelect.value;
+            const program = reportProgramSelect.disabled ? 'all' : reportProgramSelect.value;
             const term = reportTermSelect.disabled ? '' : reportTermSelect.value;
             const dateFrom = document.getElementById('reportDateFrom').value;
             const dateTo = document.getElementById('reportDateTo').value;
