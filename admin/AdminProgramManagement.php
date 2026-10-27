@@ -139,7 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $hasCash = in_array('cash', $selectedTypes, true);
         $hasInKind = in_array('in_kind', $selectedTypes, true);
         $assistanceType = ($hasCash && $hasInKind) ? 'both' : ($hasInKind ? 'in_kind' : 'cash');
-        $amount = $_POST['amount'] !== '' ? (float)$_POST['amount'] : null;
+        $amount = ($_POST['amount'] ?? '') !== '' ? (float)$_POST['amount'] : null;
         $releaseSchedule = trim($_POST['release_schedule'] ?? '');
         $appStart = $_POST['app_start_date'] !== '' ? $_POST['app_start_date'] : null;
         $appEnd = $_POST['app_end_date'] !== '' ? $_POST['app_end_date'] : null;
@@ -374,7 +374,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setFlash('error', 'Only a Super Admin can change Site Settings.');
     } elseif (isset($_POST['save_site_settings'])) {
         $siteName = trim($_POST['site_name'] ?? '');
-        $tagline = trim($_POST['tagline'] ?? '');
         $welcomeMessage = trim($_POST['welcome_message'] ?? '');
         $contactNumber = trim($_POST['contact_number'] ?? '');
         $email = trim($_POST['email'] ?? '');
@@ -390,13 +389,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!preg_match('/^\d{4}-\d{4}$/', $academicYear)) {
             setFlash('error', 'Academic Year must be in the form YYYY-YYYY, e.g. 2026-2027.');
-        } elseif (!in_array($semester, ['1st Semester', '2nd Semester', '3rd Semester', 'Summer'], true)) {
+        } elseif (!in_array($semester, ['1st Semester', '2nd Semester'], true)) {
             setFlash('error', 'Invalid semester.');
         } elseif ($requirementsDeadline !== null && !DateTime::createFromFormat('Y-m-d', $requirementsDeadline)) {
             setFlash('error', 'Invalid requirements deadline date.');
         } else {
-            $stmt = $conn->prepare("UPDATE site_settings SET site_name = ?, tagline = ?, welcome_message = ?, contact_number = ?, email = ?, sk_office_address = ?, facebook_url = ?, allow_public_applications = ?, show_announcements = ?, current_academic_year = ?, current_semester = ?, requirements_deadline = ?, requirements_open = ? WHERE id = 1");
-            $stmt->bind_param('sssssssiisssi', $siteName, $tagline, $welcomeMessage, $contactNumber, $email, $officeAddress, $facebookUrl, $allowPublicApplications, $showAnnouncements, $academicYear, $semester, $requirementsDeadline, $requirementsOpen);
+            $stmt = $conn->prepare("UPDATE site_settings SET site_name = ?, welcome_message = ?, contact_number = ?, email = ?, sk_office_address = ?, facebook_url = ?, allow_public_applications = ?, show_announcements = ?, current_academic_year = ?, current_semester = ?, requirements_deadline = ?, requirements_open = ? WHERE id = 1");
+            $stmt->bind_param('ssssssiisssi', $siteName, $welcomeMessage, $contactNumber, $email, $officeAddress, $facebookUrl, $allowPublicApplications, $showAnnouncements, $academicYear, $semester, $requirementsDeadline, $requirementsOpen);
             $stmt->execute();
             $stmt->close();
             logAudit('Updated Site Settings', 'General / contact / preferences / term: ' . $academicYear . ' ' . $semester);
@@ -1586,10 +1585,6 @@ $activeLink = 'AdminProgramManagement';
                                 <input type="text" class="form-control" name="site_name" value="<?php echo e($settings['site_name']); ?>">
                             </div>
                             <div class="col-12">
-                                <label class="form-label">Tagline</label>
-                                <input type="text" class="form-control" name="tagline" value="<?php echo e($settings['tagline']); ?>" placeholder="e.g., Serbisyo Para sa Kabataan">
-                            </div>
-                            <div class="col-12">
                                 <label class="form-label">Welcome / About Message</label>
                                 <textarea class="form-control" name="welcome_message" rows="3" placeholder="Short message shown on the public homepage"><?php echo e($settings['welcome_message']); ?></textarea>
                             </div>
@@ -1606,8 +1601,6 @@ $activeLink = 'AdminProgramManagement';
                                 <select class="form-select" name="current_semester" id="settingSemester" required>
                                     <option value="1st Semester" <?php echo $settings['current_semester'] === '1st Semester' ? 'selected' : ''; ?>>1st Semester</option>
                                     <option value="2nd Semester" <?php echo $settings['current_semester'] === '2nd Semester' ? 'selected' : ''; ?>>2nd Semester</option>
-                                    <option value="3rd Semester" <?php echo $settings['current_semester'] === '3rd Semester' ? 'selected' : ''; ?>>3rd Semester</option>
-                                    <option value="Summer" <?php echo $settings['current_semester'] === 'Summer' ? 'selected' : ''; ?>>Summer</option>
                                 </select>
                             </div>
                             <div class="col-md-6">
@@ -1793,7 +1786,7 @@ $activeLink = 'AdminProgramManagement';
                                     <label class="form-check-label" for="newAtKind">In-Kind Assistance</label>
                                 </div>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-4 cash-fields">
                                 <label class="form-label">Amount / Value</label>
                                 <div class="input-group">
                                     <span class="input-group-text">&#8369;</span>
@@ -1983,11 +1976,11 @@ $activeLink = 'AdminProgramManagement';
                                         <label class="form-check-label" for="editAtKind<?php echo $pid; ?>">In-Kind Assistance</label>
                                     </div>
                                 </div>
-                                <div class="col-md-4">
+                                <div class="col-md-4 cash-fields" <?php echo in_array($p['assistance_type'], ['cash', 'both'], true) ? '' : ' style="display:none;"'; ?>>
                                     <label class="form-label">Amount / Value</label>
                                     <div class="input-group">
                                         <span class="input-group-text">&#8369;</span>
-                                        <input type="number" step="0.01" class="form-control" name="amount" value="<?php echo e($p['amount']); ?>">
+                                        <input type="number" step="0.01" class="form-control" name="amount" value="<?php echo e($p['amount']); ?>" <?php echo in_array($p['assistance_type'], ['cash', 'both'], true) ? '' : ' disabled'; ?>>
                                     </div>
                                 </div>
                                 <div class="col-md-4">
@@ -2459,6 +2452,19 @@ $activeLink = 'AdminProgramManagement';
             }
             box.addEventListener('change', toggleInKind);
             toggleInKind();
+        });
+        // The Amount input only shows while Cash Assistance is ticked (and is not submitted otherwise).
+        document.querySelectorAll('.assistance-type-check[value="cash"]').forEach(function(box) {
+            const form = box.closest('form');
+            const wrap = form.querySelector('.cash-fields');
+            if (!wrap) return;
+
+            function toggleCash() {
+                wrap.style.display = box.checked ? '' : 'none';
+                wrap.querySelectorAll('input').forEach(i => i.disabled = !box.checked);
+            }
+            box.addEventListener('change', toggleCash);
+            toggleCash();
         });
 
         // Add/Edit Announcement modal — one shared modal, reset to a blank "Add" state or

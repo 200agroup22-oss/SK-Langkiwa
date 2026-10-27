@@ -489,6 +489,7 @@ function builtinProgramRow($committeeId)
         return null;
     }
     ensureBuiltinTabSettingsColumns();
+    ensureProgramTabArchiveColumn();
     $stmt = $conn->prepare("SELECT * FROM program_tabs WHERE committee_id = ? AND track_code = 'assistance' AND program_id IS NULL AND archived_at IS NULL LIMIT 1");
     $stmt->bind_param('i', $committeeId);
     $stmt->execute();

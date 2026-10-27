@@ -24,9 +24,8 @@ function isRequirementsWindowOpen($term)
 
 // Walks the term forward one step. The regular cycle is just 1st Semester -> 2nd Semester ->
 // 1st Semester of the next academic year (e.g. 2025-2026 2nd Semester -> 2026-2027 1st
-// Semester). 3rd Semester / Summer are still selectable by hand in Site Settings for schools
-// that run a summer term, but they're a side branch, not part of the auto-advance cycle — ending
-// one of those also rolls straight into next year's 1st Semester.
+// Semester). Only 1st and 2nd Semester can be chosen in Site Settings now; if an older record still
+// holds another term, ending it also rolls straight into next year's 1st Semester.
 function getNextTerm($academicYear, $semester)
 {
     if ($semester === '1st Semester') {
@@ -154,8 +153,8 @@ function getScholarByUserId($userId)
 }
 
 // Gives an active scholar the activities that were already posted for "all scholars" before they were
-// approved — so a newly approved scholar can see (and attend) any activity that is still upcoming this
-// term, instead of only activities created after their approval. Past activities are not handed out.
+// approved — so a newly approved scholar sees every activity that is still open (not archived) this term,
+// instead of only activities created after their approval. Archiving an activity closes it.
 function syncScholarActivities($scholarId)
 {
     global $conn;
@@ -173,7 +172,7 @@ function syncScholarActivities($scholarId)
     $stmt = $conn->prepare("SELECT a.activity_id FROM activities a
         LEFT JOIN attendance att ON att.activity_id = a.activity_id AND att.scholar_id = ?
         WHERE a.committee_id = ? AND a.archived_at IS NULL AND a.audience = 'all'
-        AND a.academic_year = ? AND a.semester = ? AND a.activity_date >= CURDATE() AND att.attendance_id IS NULL");
+        AND a.academic_year = ? AND a.semester = ? AND att.attendance_id IS NULL");
     $stmt->bind_param('iiss', $scholarId, $committeeId, $term['current_academic_year'], $term['current_semester']);
     $stmt->execute();
     $missing = array_column($stmt->get_result()->fetch_all(MYSQLI_ASSOC), 'activity_id');
