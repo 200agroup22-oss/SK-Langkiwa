@@ -174,6 +174,14 @@ usort($archivedAnnouncements, fn($a, $b) => strtotime($b['archived_at']) <=> str
         /* Announcement widget pagination (paginateList() below) — same green theme as the rest of the app */
         #announcementPagination .pagination {
             margin-bottom: 0;
+            flex-wrap: wrap;
+            justify-content: center;
+            row-gap: 4px;
+        }
+
+        #announcementPagination {
+            max-width: 100%;
+            overflow-x: hidden;
         }
 
         #announcementPagination .page-link {

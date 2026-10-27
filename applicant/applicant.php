@@ -100,7 +100,7 @@ usort($archivedAnnouncements, fn($a, $b) => strtotime($b['archived_at']) <=> str
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Home</title>
+    <title>iSKolar ng Langkiwa</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <!-- Bootstrap Icons has no waving-hand glyph; this one icon comes from Google's Material Symbols (only waving_hand is downloaded) -->
@@ -225,6 +225,14 @@ usort($archivedAnnouncements, fn($a, $b) => strtotime($b['archived_at']) <=> str
         /* Announcement widget pagination (paginateList() below) — same green theme as the rest of the app */
         #announcementPagination .pagination {
             margin-bottom: 0;
+            flex-wrap: wrap;
+            justify-content: center;
+            row-gap: 4px;
+        }
+
+        #announcementPagination {
+            max-width: 100%;
+            overflow-x: hidden;
         }
 
         #announcementPagination .page-link {
