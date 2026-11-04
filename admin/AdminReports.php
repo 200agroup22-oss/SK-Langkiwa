@@ -584,6 +584,7 @@ $activeLink = 'AdminReports';
         table.report-table thead th {
             background-color: #a9d8ab;
             color: #1a3d1c;
+            text-transform: uppercase;
             font-size: 12.5px;
             font-weight: 700;
             padding: 12px 16px;

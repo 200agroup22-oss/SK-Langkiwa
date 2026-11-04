@@ -386,7 +386,7 @@ function renderTable($pdf, $headers, $widths, $rows)
     }
 
     if ($excelMode) {
-        $excelBlocks[] = ['table', $headers, $widths, $rows]; // already sorted above
+        $excelBlocks[] = ['table', array_map('strtoupper', $headers), $widths, $rows]; // already sorted above; headings in capitals
         return;
     }
 
@@ -414,7 +414,7 @@ function renderTable($pdf, $headers, $widths, $rows)
         $wrapped = [];
         $maxLines = 1;
         foreach ($headers as $i => $hd) {
-            $wrapped[$i] = wrapCellText($pdf, $hd, $widths[$i]);
+            $wrapped[$i] = wrapCellText($pdf, strtoupper($hd), $widths[$i]); // table headings are printed in capitals
             $maxLines = max($maxLines, count($wrapped[$i]));
         }
         $h = max(8, $maxLines * $lineH + 3);
