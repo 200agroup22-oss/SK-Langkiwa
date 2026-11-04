@@ -935,6 +935,115 @@ function ownIdentityFields($userId)
     ];
 }
 
+// ---- Structured address (Barangay Langkiwa) ----
+// The "complete_address" field is asked as separate boxes (Blk / Lot, house number, unit / apartment, floor,
+// street, purok / subdivision) and saved as one readable line, so every list, report and slip that already shows
+// the address keeps working. Barangay Langkiwa is added automatically.
+const ADDRESS_PARTS = [
+    'blk'    => ['label' => 'Block (Blk)',                 'prefix' => 'Blk ',       'placeholder' => 'e.g. 5',       'col' => 'col-6 col-md-3'],
+    'lot'    => ['label' => 'Lot',                         'prefix' => 'Lot ',       'placeholder' => 'e.g. 12',      'col' => 'col-6 col-md-3'],
+    'house'  => ['label' => 'House No.',                   'prefix' => 'House No. ', 'placeholder' => 'e.g. 123',     'col' => 'col-6 col-md-3'],
+    'unit'   => ['label' => 'Apartment / Unit No.',        'prefix' => 'Unit ',      'placeholder' => 'e.g. 2B',      'col' => 'col-6 col-md-3'],
+    'floor'  => ['label' => 'Floor',                       'prefix' => 'Floor ',     'placeholder' => 'e.g. 3rd',     'col' => 'col-6 col-md-3'],
+    'street' => ['label' => 'Street',                      'prefix' => '',           'placeholder' => 'Street name',  'col' => 'col-12 col-md-5'],
+    'area'   => ['label' => 'Purok / Subdivision / Sitio', 'prefix' => '',           'placeholder' => 'e.g. Purok 3', 'col' => 'col-12 col-md-4'],
+];
+const ADDRESS_BARANGAY = 'Brgy. Langkiwa';
+
+function isAddressField(array $field)
+{
+    return ($field['field_key'] ?? '') === 'complete_address' && ($field['input_type'] ?? '') !== 'file';
+}
+
+function addressPartsFromString($value)
+{
+    $out = array_fill_keys(array_keys(ADDRESS_PARTS), '');
+    $left = [];
+    foreach (array_map('trim', explode(',', (string)$value)) as $piece) {
+        if ($piece === '' || strcasecmp($piece, ADDRESS_BARANGAY) === 0) {
+            continue;
+        }
+        $matched = false;
+        foreach (ADDRESS_PARTS as $k => $def) {
+            if ($def['prefix'] !== '' && stripos($piece, $def['prefix']) === 0 && $out[$k] === '') {
+                $out[$k] = trim(substr($piece, strlen($def['prefix'])));
+                $matched = true;
+                break;
+            }
+        }
+        if (!$matched) {
+            $left[] = $piece;
+        }
+    }
+    // Anything else is the street, then the purok / subdivision (old single-line addresses land in Street).
+    if (count($left) === 1) {
+        $out['street'] = $left[0];
+    } elseif (count($left) >= 2) {
+        $out['street'] = array_shift($left);
+        $out['area'] = implode(' ', $left);
+    }
+    return $out;
+}
+
+function addressPostParts(array $post, $key = 'complete_address')
+{
+    $parts = [];
+    $any = false;
+    foreach (ADDRESS_PARTS as $k => $def) {
+        $raw = $post[$key . '__' . $k] ?? null;
+        if ($raw !== null) {
+            $any = true;
+        }
+        $parts[$k] = trim(str_replace(',', ' ', (string)$raw));
+    }
+    return $any ? $parts : null;
+}
+
+// Replaces $post['complete_address'] with the one-line address built from the separate boxes (if they were sent).
+function normalizeAddressPost(array $post)
+{
+    $parts = addressPostParts($post);
+    if ($parts === null) {
+        return $post;
+    }
+    $pieces = [];
+    foreach (ADDRESS_PARTS as $k => $def) {
+        if ($parts[$k] !== '') {
+            $pieces[] = $def['prefix'] . $parts[$k];
+        }
+    }
+    $post['complete_address'] = $pieces ? implode(', ', $pieces) . ', ' . ADDRESS_BARANGAY : '';
+    return $post;
+}
+
+function renderAddressInputs($key, $value, $required)
+{
+    $parts = addressPartsFromString($value);
+    echo '<div class="row g-2 address-parts">';
+    foreach (ADDRESS_PARTS as $k => $def) {
+        echo '<div class="' . $def['col'] . '">';
+        echo '<label class="form-label small text-muted mb-1">' . e($def['label']) . '</label>';
+        echo '<input type="text" class="form-control form-control-sm js-sentence-case" maxlength="60" name="' . e($key) . '__' . $k . '" value="' . e($parts[$k]) . '" placeholder="' . e($def['placeholder']) . '">';
+        echo '</div>';
+    }
+    echo '<div class="col-12 col-md-3"><label class="form-label small text-muted mb-1">Barangay</label><input type="text" class="form-control form-control-sm" value="Langkiwa" readonly tabindex="-1"></div>';
+    echo '</div>';
+    echo '<div class="form-text" style="font-size:11.5px;">Fill in what applies to your home' . ($required ? ' (at least a Blk / Lot, House No. or Unit No., and your Street)' : '') . '. Leave the rest blank.</div>';
+}
+
+function validateAddressPost(array $post, $label, $required)
+{
+    $parts = addressPostParts($post);
+    if ($parts === null) {
+        return null;
+    }
+    $hasHome = ($parts['blk'] !== '' || $parts['lot'] !== '' || $parts['house'] !== '' || $parts['unit'] !== '');
+    if ($required && (!$hasHome || $parts['street'] === '')) {
+        return $label . ' is required: enter a Blk / Lot, House No. or Unit No., and your Street.';
+    }
+    return null;
+}
+
 function widthToColClass($width)
 {
     switch ($width) {
@@ -1009,6 +1118,12 @@ function renderDynamicFormFields($committeeId, $existingAnswers = [], $existingF
 
         echo '<div class="' . $colClass . ' mb-3">';
         echo '<label class="form-label"><i class="bi ' . $icon . ' me-1 text-success"></i>' . $label . ($field['is_required'] ? ' <span class="text-danger">*</span>' : '') . ($isLocked ? ' <i class="bi bi-lock-fill text-muted ms-1" title="Locked to your account"></i>' : '') . '</label>';
+
+        if (isAddressField($field) && !$isLocked) {
+            renderAddressInputs($field['field_key'], $existingAnswers[$field['field_id']] ?? '', $field['is_required']);
+            echo '</div>';
+            continue;
+        }
 
         switch ($field['input_type']) {
             case 'textarea':
@@ -1103,8 +1218,14 @@ HTML;
 function validateDynamicSubmission($committeeId, array $post, array $files, array $existingFiles = [], $programTrack = 'assistance', $programId = null)
 {
     $errors = [];
+    $post = normalizeAddressPost($post);
     foreach (getFormFields($committeeId, $programTrack, $programId) as $field) {
         $key = $field['field_key'];
+
+        if (isAddressField($field) && ($addrError = validateAddressPost($post, $field['label'], $field['is_required']))) {
+            $errors[] = $addrError;
+            continue;
+        }
 
         if ($field['input_type'] === 'file') {
             $hasNewFile = isset($files[$key]) && $files[$key]['error'] !== UPLOAD_ERR_NO_FILE;
@@ -1298,6 +1419,7 @@ function assistanceTypeAnswerMatches($answer, $pageType)
 function saveDynamicSubmission($applicationId, $committeeId, array $post, array $files, $programTrack = 'assistance', $programId = null)
 {
     global $conn;
+    $post = normalizeAddressPost($post);
 
     $del = $conn->prepare("DELETE FROM application_answers WHERE application_id = ?");
     $del->bind_param('i', $applicationId);

@@ -2487,6 +2487,17 @@ $activeLink = 'AdminProgramManagement';
         }
     </script>
 
+    <script>
+        // Past days can't be picked for the application period or the release date.
+        // A date that was already saved in the past stays valid so unrelated edits can still be saved.
+        (function() {
+            var d = new Date();
+            var today = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+            document.querySelectorAll('input[type="date"][name="app_start_date"], input[type="date"][name="app_end_date"], input[type="date"][name="release_date"]').forEach(function(el) {
+                el.min = (el.value && el.value < today) ? el.value : today;
+            });
+        })();
+    </script>
 </body>
 
 </html>
