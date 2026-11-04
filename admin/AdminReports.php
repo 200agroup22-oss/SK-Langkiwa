@@ -644,6 +644,129 @@ $activeLink = 'AdminReports';
             box-shadow: 0 0 0 2px rgba(69, 184, 77, 0.15);
         }
 
+        /* Committees & Programs picker in the Generate Report window */
+        .scope-box {
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            padding: 8px 12px;
+            max-height: 250px;
+            overflow-y: auto;
+            background: #fff;
+        }
+
+        .scope-all {
+            padding-bottom: 6px;
+            margin-bottom: 6px;
+            border-bottom: 1px dashed #ddd;
+        }
+
+        .scope-committee {
+            padding: 4px 0;
+        }
+
+        .scope-count {
+            font-size: 11px;
+        }
+
+        .scope-toggle {
+            border: 0;
+            background: none;
+            color: #555;
+            padding: 0 6px;
+        }
+
+        .scope-toggle i {
+            display: inline-block;
+            transition: transform 0.15s;
+        }
+
+        .scope-committee.open .scope-toggle i {
+            transform: rotate(180deg);
+        }
+
+        .scope-programs {
+            display: none;
+            padding: 4px 0 2px 26px;
+        }
+
+        .scope-committee.open .scope-programs {
+            display: block;
+        }
+
+        .scope-box .form-check-input:checked,
+        .scope-box .form-check-input:indeterminate {
+            background-color: #45b84d;
+            border-color: #45b84d;
+        }
+
+        /* Printing the overview or a single graph (printSheet() in the script builds #printArea) */
+        .chart-print-btn {
+            border: 1px solid #c8e6c9;
+            background: #fff;
+            color: #2e7d32;
+            border-radius: 6px;
+            padding: 1px 7px;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .chart-print-btn:hover {
+            background: #e8f5e9;
+        }
+
+        #printArea {
+            display: none;
+        }
+
+        @media print {
+            @page {
+                size: A4 landscape;
+                margin: 10mm;
+            }
+
+            body.printing {
+                background: #fff !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            body.printing>*:not(#printArea) {
+                display: none !important;
+            }
+
+            body.printing #printArea {
+                display: block !important;
+            }
+
+            #printArea .print-head {
+                border-bottom: 3px solid #45b84d;
+                padding-bottom: 8px;
+                margin-bottom: 14px;
+            }
+
+            #printArea .print-title {
+                font-size: 18px;
+                font-weight: 700;
+                color: #2e7d32;
+            }
+
+            #printArea .print-sub {
+                font-size: 11px;
+                color: #555;
+            }
+
+            #printArea .chart-card,
+            #printArea .stat-card,
+            #printArea .table-card {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+
+            #printArea table.report-table {
+                min-width: 0;
+            }
+        }
+
         @media (max-width: 576px) {
             .page-title {
                 font-size: 19px;
@@ -704,6 +827,9 @@ $activeLink = 'AdminReports';
                         </select>
                     </div>
                     <div class="d-flex gap-2">
+                        <button type="button" class="btn-outline-brand" id="printOverviewBtn" title="Print the stats, graphs and table below">
+                            <i class="bi bi-printer me-1"></i> Print Overview
+                        </button>
                         <button type="button" class="btn-brand" data-bs-toggle="modal" data-bs-target="#generateReportModal">
                             <i class="bi bi-download me-1"></i> Generate Report
                         </button>
@@ -991,21 +1117,42 @@ $activeLink = 'AdminReports';
                                 <?php endif; ?>
                             </select>
                         </div>
-                        <div class="mb-3">
-                            <label for="reportCommittee" class="form-label">Committee</label>
-                            <select class="form-select" id="reportCommittee" required>
-                                <?php if ($isSuperAdmin): ?><option value="all" selected>All Committees</option><?php endif; ?>
-                                <?php foreach ($committees as $c): ?>
-                                    <option value="<?php echo e($c['code']); ?>"><?php echo e($c['name']); ?></option>
+                        <div class="mb-3" id="reportScopeWrap">
+                            <label class="form-label">Committees &amp; Programs</label>
+                            <div class="scope-box" id="reportScopeBox">
+                                <?php if ($isSuperAdmin): ?>
+                                    <div class="form-check scope-all">
+                                        <input class="form-check-input" type="checkbox" id="scopeAll">
+                                        <label class="form-check-label fw-semibold" for="scopeAll">All committees and programs</label>
+                                    </div>
+                                <?php endif; ?>
+                                <?php foreach ($committees as $c): $ccode = $c['code'];
+                                    $cprograms = $programsByCommitteeCode[$ccode] ?? []; ?>
+                                    <div class="scope-committee" data-code="<?php echo e($ccode); ?>">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <div class="form-check mb-0">
+                                                <input class="form-check-input scope-committee-check" type="checkbox" id="scope_<?php echo e($ccode); ?>">
+                                                <label class="form-check-label fw-semibold" for="scope_<?php echo e($ccode); ?>"><?php echo e($c['name']); ?></label>
+                                            </div>
+                                            <?php if ($cprograms): ?>
+                                                <span class="scope-count text-muted"><?php echo count($cprograms); ?> program<?php echo count($cprograms) === 1 ? '' : 's'; ?></span>
+                                                <button type="button" class="scope-toggle ms-auto" title="Show programs"><i class="bi bi-chevron-down"></i></button>
+                                            <?php endif; ?>
+                                        </div>
+                                        <?php if ($cprograms): ?>
+                                            <div class="scope-programs">
+                                                <?php foreach ($cprograms as $pi => $p): ?>
+                                                    <div class="form-check">
+                                                        <input class="form-check-input scope-program-check" type="checkbox" value="<?php echo e($p['id']); ?>" id="scope_<?php echo e($ccode); ?>_<?php echo $pi; ?>">
+                                                        <label class="form-check-label" for="scope_<?php echo e($ccode); ?>_<?php echo $pi; ?>"><?php echo e($p['name']); ?></label>
+                                                    </div>
+                                                <?php endforeach; ?>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
                                 <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label for="reportProgram" class="form-label">Program</label>
-                            <select class="form-select" id="reportProgram" disabled>
-                                <option value="all" selected>All Programs</option>
-                            </select>
-                            <div class="form-text" style="font-size:11.5px;" id="reportProgramHint">Pick a committee to filter by a specific program, or leave it on "All Programs".</div>
+                            </div>
+                            <div class="form-text" style="font-size:11.5px;" id="reportScopeHint">Tick the committees you want, or open one (arrow) to pick only some of its programs. Leave everything unticked to include all.</div>
                         </div>
                         <div class="mb-3" id="reportTermWrap" style="display:none;">
                             <label for="reportTerm" class="form-label">Term</label>
@@ -1041,6 +1188,7 @@ $activeLink = 'AdminReports';
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn-outline-brand" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn-outline-brand" id="reportPrintBtn"><i class="bi bi-printer me-1"></i> Print</button>
                         <button type="submit" class="btn-brand"><i class="bi bi-file-earmark-arrow-down me-1"></i> Generate</button>
                     </div>
                 </form>
@@ -1272,91 +1420,252 @@ $activeLink = 'AdminReports';
             }
         });
 
-        // Built-in tracks + catalog programs per committee code, for the Program filter below.
-        const programsByCommittee = <?php echo json_encode($programsByCommitteeCode); ?>;
-
+        // ---------------------------------------------------------------------------------------------
+        // Generate Report: pick any committees and programs, then download or print the PDF.
+        // ---------------------------------------------------------------------------------------------
         const reportTypeSelect = document.getElementById('reportType');
-        const reportCommitteeSelect = document.getElementById('reportCommittee');
-        const reportProgramSelect = document.getElementById('reportProgram');
-        const reportProgramHint = document.getElementById('reportProgramHint');
         const reportTermSelect = document.getElementById('reportTerm');
+        const reportScopeWrap = document.getElementById('reportScopeWrap');
+        const reportScopeHint = document.getElementById('reportScopeHint');
+        const scopeAll = document.getElementById('scopeAll');
+        const committeeBoxes = Array.from(document.querySelectorAll('.scope-committee'));
         const logReportTypes = ['activity-log', 'audit-log'];
 
-        // Term only ever applies to Education (scholarship allowance is tracked per academic
-        // term; nothing else in the app is) — every other committee shows it locked on "N/A".
+        const committeeCheck = box => box.querySelector('.scope-committee-check');
+        const programChecks = box => Array.from(box.querySelectorAll('.scope-program-check'));
+
+        // Keeps a committee's box in step with its programs (ticked = all of them, dash = some of them).
+        function syncCommittee(box) {
+            const progs = programChecks(box);
+            if (!progs.length) return;
+            const picked = progs.filter(p => p.checked).length;
+            const cc = committeeCheck(box);
+            cc.checked = picked === progs.length;
+            cc.indeterminate = picked > 0 && picked < progs.length;
+        }
+
+        function syncAll() {
+            if (!scopeAll) return;
+            const full = committeeBoxes.every(b => committeeCheck(b).checked);
+            const some = committeeBoxes.some(b => committeeCheck(b).checked || committeeCheck(b).indeterminate);
+            scopeAll.checked = full;
+            scopeAll.indeterminate = !full && some;
+        }
+
+        // Tokens the server understands: "all", "<committee>" (whole committee) or "<committee>|<program>".
+        // An empty list means "everything the user may see".
+        function collectScopes() {
+            if (scopeAll && scopeAll.checked) return ['all'];
+            const tokens = [];
+            committeeBoxes.forEach(box => {
+                const code = box.dataset.code;
+                const progs = programChecks(box);
+                const picked = progs.filter(p => p.checked);
+                if (!progs.length) {
+                    if (committeeCheck(box).checked) tokens.push(code);
+                } else if (picked.length === progs.length) {
+                    tokens.push(code);
+                } else {
+                    picked.forEach(p => tokens.push(code + '|' + p.value));
+                }
+            });
+            return tokens;
+        }
+
+        // Term only matters for iSKolar ng Langkiwa, so it is offered only when that is part of the selection.
         function updateTermAvailability() {
-            // The Term only exists for iSKolar ng Langkiwa (scholarship terms), so it is shown (and sent)
-            // only while Education + iSKolar ng Langkiwa is the chosen scope.
-            const isIskolar = reportCommitteeSelect.value === 'education' &&
-                reportProgramSelect.value === 'track:scholarship' &&
-                !logReportTypes.includes(reportTypeSelect.value);
+            const tokens = collectScopes();
+            const hasIskolar = tokens.length === 0 || tokens.includes('all') || tokens.includes('education') ||
+                tokens.includes('education|track:scholarship');
+            const show = hasIskolar && !logReportTypes.includes(reportTypeSelect.value);
             const wrap = document.getElementById('reportTermWrap');
-            if (wrap) wrap.style.display = isIskolar ? '' : 'none';
+            if (wrap) wrap.style.display = show ? '' : 'none';
             const wasDisabled = reportTermSelect.disabled;
-            reportTermSelect.disabled = !isIskolar;
-            if (!isIskolar) {
+            reportTermSelect.disabled = !show;
+            if (!show) {
                 reportTermSelect.value = '';
             } else if (wasDisabled || reportTermSelect.value === '') {
                 reportTermSelect.value = reportTermSelect.options[1].value;
             }
         }
-        reportProgramSelect.addEventListener('change', updateTermAvailability);
 
-        reportCommitteeSelect.addEventListener('change', function() {
-            const code = this.value;
-            const programs = code !== 'all' ? (programsByCommittee[code] || []) : [];
-
-            reportProgramSelect.innerHTML = '<option value="all" selected>All Programs</option>';
-            programs.forEach(p => {
-                const opt = document.createElement('option');
-                opt.value = p.id;
-                opt.textContent = p.name;
-                reportProgramSelect.appendChild(opt);
+        if (scopeAll) {
+            scopeAll.addEventListener('change', function() {
+                committeeBoxes.forEach(box => {
+                    committeeCheck(box).checked = this.checked;
+                    committeeCheck(box).indeterminate = false;
+                    programChecks(box).forEach(p => p.checked = this.checked);
+                });
+                updateTermAvailability();
             });
-            reportProgramSelect.disabled = code === 'all';
-            updateTermAvailability();
+        }
+        committeeBoxes.forEach(box => {
+            committeeCheck(box).addEventListener('change', function() {
+                this.indeterminate = false;
+                programChecks(box).forEach(p => p.checked = this.checked);
+                syncAll();
+                updateTermAvailability();
+            });
+            programChecks(box).forEach(p => p.addEventListener('change', () => {
+                syncCommittee(box);
+                syncAll();
+                updateTermAvailability();
+            }));
+            const toggle = box.querySelector('.scope-toggle');
+            if (toggle) toggle.addEventListener('click', () => box.classList.toggle('open'));
         });
 
-        // Activity/Audit logs aren't scoped to a committee or program, so lock those filters out when picked.
-        // The Activity Participation Report covers iSKolar scholars and every program that has Activities, so it
-        // uses the normal Committee / Program filters (leave them on "All" to include everything).
+        // Activity / Audit logs are system-wide, so the committee and program picker is hidden for them.
         reportTypeSelect.addEventListener('change', function() {
             const isLogReport = logReportTypes.includes(this.value);
-            const isParticipation = this.value === 'scholars';
-
-            reportCommitteeSelect.value = reportCommitteeSelect.options[0].value;
-            reportCommitteeSelect.disabled = isLogReport;
-            reportCommitteeSelect.dispatchEvent(new Event('change')); // refills the Program list
-            if (isLogReport) {
-                reportProgramSelect.disabled = true;
-            }
-            reportProgramHint.textContent = isLogReport ?
-                'Not applicable to this report — activity and audit logs are system-wide.' :
-                (isParticipation ?
-                    'Covers iSKolar scholars and every program that has Activities. Choose a committee to narrow it to one program or iSKolar.' :
-                    'Pick a committee to filter by a specific program, or leave it on "All Programs".');
+            reportScopeWrap.style.display = isLogReport ? 'none' : '';
+            reportScopeHint.textContent = this.value === 'scholars' ?
+                'Covers iSKolar scholars and every program that has Activities. Tick the committees or programs you want, or leave everything unticked for all.' :
+                'Tick the committees you want, or open one (arrow) to pick only some of its programs. Leave everything unticked to include all.';
             updateTermAvailability();
         });
-
         updateTermAvailability();
 
-        // Generate Report -> streams a PDF from GenerateReport.php
+        // The address of the PDF for the current form values ($mode = 'print' opens it inline instead of downloading).
+        function reportUrl(mode) {
+            const params = new URLSearchParams();
+            params.set('type', reportTypeSelect.value);
+            if (!logReportTypes.includes(reportTypeSelect.value)) {
+                collectScopes().forEach(s => params.append('scope[]', s));
+            }
+            params.set('term', reportTermSelect.disabled ? '' : reportTermSelect.value);
+            params.set('from', document.getElementById('reportDateFrom').value);
+            params.set('to', document.getElementById('reportDateTo').value);
+            params.set('sort', document.getElementById('reportSort').value);
+            if (mode) params.set('mode', mode);
+            return 'GenerateReport.php?' + params.toString();
+        }
+
+        // Generate -> downloads the PDF
         document.getElementById('generateReportForm').addEventListener('submit', function(e) {
             e.preventDefault();
-            const reportType = document.getElementById('reportType').value;
-            const isLogReport = logReportTypes.includes(reportType);
-            // A disabled committee/program means "not applicable", i.e. all.
-            const committee = isLogReport ? 'all' : reportCommitteeSelect.value;
-            const program = reportProgramSelect.disabled ? 'all' : reportProgramSelect.value;
-            const term = reportTermSelect.disabled ? '' : reportTermSelect.value;
-            const dateFrom = document.getElementById('reportDateFrom').value;
-            const dateTo = document.getElementById('reportDateTo').value;
-            const sortBy = document.getElementById('reportSort').value;
+            window.location.href = reportUrl('');
+            bootstrap.Modal.getInstance(document.getElementById('generateReportModal')).hide();
+        });
 
-            window.location.href = `GenerateReport.php?type=${encodeURIComponent(reportType)}&committee=${encodeURIComponent(committee)}&program=${encodeURIComponent(program)}&term=${encodeURIComponent(term)}&from=${encodeURIComponent(dateFrom)}&to=${encodeURIComponent(dateTo)}&sort=${encodeURIComponent(sortBy)}`;
+        // Print -> builds the same PDF and opens the browser's print window straight away
+        document.getElementById('reportPrintBtn').addEventListener('click', function() {
+            const form = document.getElementById('generateReportForm');
+            if (!form.reportValidity()) return;
+            const btn = this;
+            const original = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Preparing...';
+            fetch(reportUrl('print'), {
+                    credentials: 'same-origin'
+                })
+                .then(r => {
+                    if (!r.ok) throw new Error('Could not build the report.');
+                    return r.blob();
+                })
+                .then(blob => {
+                    const blobUrl = URL.createObjectURL(new Blob([blob], {
+                        type: 'application/pdf'
+                    }));
+                    const old = document.getElementById('reportPrintFrame');
+                    if (old) old.remove();
+                    const frame = document.createElement('iframe');
+                    frame.id = 'reportPrintFrame';
+                    frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+                    frame.onload = function() {
+                        try {
+                            frame.contentWindow.focus();
+                            frame.contentWindow.print();
+                        } catch (err) {
+                            window.open(blobUrl, '_blank'); // the browser would not print it silently: open it instead
+                        }
+                    };
+                    frame.src = blobUrl;
+                    document.body.appendChild(frame);
+                    bootstrap.Modal.getInstance(document.getElementById('generateReportModal')).hide();
+                })
+                .catch(err => alert(err.message || 'Could not build the report.'))
+                .finally(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = original;
+                });
+        });
 
-            const modalEl = document.getElementById('generateReportModal');
-            bootstrap.Modal.getInstance(modalEl).hide();
+        // ---------------------------------------------------------------------------------------------
+        // Print the overview or a single graph. The charts are canvases, so they are copied into a print
+        // sheet as pictures first (a canvas that resizes while printing often comes out blank or stretched).
+        // ---------------------------------------------------------------------------------------------
+        <?php
+        $printCommitteeLabel = 'All Committees';
+        foreach ($committees as $pc) {
+            if ($pc['code'] === $committeeCode) {
+                $printCommitteeLabel = $pc['name'];
+            }
+        }
+        $printPeriodOptions = $periodMode === 'monthly' ? $monthlyOptions : $yearlyOptions;
+        $printPeriodLabel = $printPeriodOptions[$periodValue] ?? $periodValue;
+        ?>
+        const printMeta = <?php echo json_encode(['site' => siteName(), 'committee' => $printCommitteeLabel, 'period' => $printPeriodLabel]); ?>;
+
+        function printSheet(title, nodes) {
+            const old = document.getElementById('printArea');
+            if (old) old.remove();
+            const area = document.createElement('div');
+            area.id = 'printArea';
+            const head = document.createElement('div');
+            head.className = 'print-head';
+            const meta = document.createElement('div');
+            const h = document.createElement('div');
+            h.className = 'print-title';
+            h.textContent = printMeta.site + ' - ' + title;
+            const sub = document.createElement('div');
+            sub.className = 'print-sub';
+            sub.textContent = 'Committee: ' + printMeta.committee + '   |   Period: ' + printMeta.period + '   |   Printed ' + new Date().toLocaleString();
+            meta.appendChild(h);
+            meta.appendChild(sub);
+            head.appendChild(meta);
+            area.appendChild(head);
+
+            nodes.forEach(node => {
+                const clone = node.cloneNode(true);
+                clone.querySelectorAll('.chart-print-btn, #filterForm').forEach(el => el.remove());
+                const live = node.querySelectorAll('canvas');
+                clone.querySelectorAll('canvas').forEach((cv, i) => {
+                    const img = new Image();
+                    img.src = live[i].toDataURL('image/png');
+                    img.style.cssText = 'width:100%;height:100%;object-fit:contain;';
+                    cv.replaceWith(img);
+                });
+                area.appendChild(clone);
+            });
+
+            document.body.appendChild(area);
+            document.body.classList.add('printing');
+            const done = () => {
+                document.body.classList.remove('printing');
+                area.remove();
+                window.removeEventListener('afterprint', done);
+            };
+            window.addEventListener('afterprint', done);
+            setTimeout(() => window.print(), 150);
+        }
+
+        document.getElementById('printOverviewBtn').addEventListener('click', function() {
+            printSheet('Reports Overview', [document.getElementById('overviewTab')]);
+        });
+
+        // A small printer button on every graph prints just that graph.
+        document.querySelectorAll('.chart-card').forEach(function(card) {
+            const title = card.querySelector('.chart-title');
+            if (!title) return;
+            title.classList.add('d-flex', 'align-items-center', 'justify-content-between', 'gap-2');
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'chart-print-btn';
+            btn.title = 'Print this graph';
+            btn.innerHTML = '<i class="bi bi-printer"></i>';
+            btn.addEventListener('click', () => printSheet(title.textContent.trim(), [card]));
+            title.appendChild(btn);
         });
     </script>
 
