@@ -252,19 +252,12 @@ class ReportPDF extends FPDF
             $textX = 30;
         }
 
+        // The banner only carries the logo and the site name; the report's title, scope and period are
+        // printed once, in the title block under it (first page).
         $this->SetTextColor(255, 255, 255);
-        $this->SetFont('Helvetica', 'B', 15);
-        $this->SetXY($textX, 5);
-        $this->Cell(0, 8, pdfEnc(siteName() . ' - ' . $this->reportTitle), 0, 1);
-        $this->SetFont('Helvetica', '', 9);
-        $this->SetXY($textX, 13);
-        $scopeLine = 'Committee: ' . $this->committeeLabel . '   |   Program: ' . $this->programLabel;
-        if ($this->termLabel !== '') {
-            $scopeLine .= '   |   Term: ' . $this->termLabel;
-        }
-        $this->Cell(0, 5, pdfEnc($scopeLine), 0, 1);
-        $this->SetXY($textX, 18.5);
-        $this->Cell(0, 5, pdfEnc('Period: ' . $this->dateRange), 0, 1);
+        $this->SetFont('Helvetica', 'B', 18);
+        $this->SetXY($textX, 9);
+        $this->Cell(0, 8, pdfEnc(siteName()), 0, 1);
         $this->SetTextColor(0, 0, 0);
         $this->SetY(32);
     }
