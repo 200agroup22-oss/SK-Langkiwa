@@ -775,8 +775,9 @@ $activeLink = 'AdminReports';
             }
 
             #printArea .ps-banner-title {
-                font-size: 20px;
+                font-size: 17px;
                 font-weight: 700;
+                margin-bottom: 2px;
             }
 
             #printArea .ps-banner-line {
@@ -1808,6 +1809,8 @@ $activeLink = 'AdminReports';
             logo.className = 'ps-logo';
             const bannerText = printEl('div', 'ps-banner-text');
             bannerText.appendChild(printEl('div', 'ps-banner-title', printMeta.site));
+            bannerText.appendChild(printEl('div', 'ps-banner-line', 'Committee: ' + printMeta.committee));
+            bannerText.appendChild(printEl('div', 'ps-banner-line', 'Period: ' + printMeta.period));
             banner.appendChild(logo);
             banner.appendChild(bannerText);
             area.appendChild(banner);
@@ -1816,8 +1819,6 @@ $activeLink = 'AdminReports';
             // title block under the banner
             const titleBlock = printEl('div', 'ps-titleblock');
             titleBlock.appendChild(printEl('div', 'ps-title', title.toUpperCase()));
-            titleBlock.appendChild(printEl('div', 'ps-subtitle', 'Committee: ' + printMeta.committee + '   |   Period: ' + printMeta.period));
-            titleBlock.appendChild(printEl('div', 'ps-subtitle', 'Printed on ' + longDate));
             body.appendChild(titleBlock);
 
             fill(body);

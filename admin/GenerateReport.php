@@ -270,12 +270,21 @@ class ReportPDF extends FPDF
             $textX = 30;
         }
 
-        // The banner only carries the logo and the site name; the report's title, scope and period are
-        // printed once, in the title block under it (first page).
+        // The banner (every page) holds the site name and what the report covers: committee, program, term
+        // and period. The report's own title is printed once, alone, in the title block under it (first page).
         $this->SetTextColor(255, 255, 255);
-        $this->SetFont('Helvetica', 'B', 18);
-        $this->SetXY($textX, 9);
+        $this->SetFont('Helvetica', 'B', 16);
+        $this->SetXY($textX, 5);
         $this->Cell(0, 8, pdfEnc(siteName()), 0, 1);
+        $this->SetFont('Helvetica', '', 9);
+        $this->SetXY($textX, 13);
+        $scopeLine = 'Committee: ' . $this->committeeLabel . '   |   Program: ' . $this->programLabel;
+        if ($this->termLabel !== '') {
+            $scopeLine .= '   |   Term: ' . $this->termLabel;
+        }
+        $this->Cell(0, 5, pdfEnc($scopeLine), 0, 1);
+        $this->SetXY($textX, 18.5);
+        $this->Cell(0, 5, pdfEnc('Period: ' . $this->dateRange), 0, 1);
         $this->SetTextColor(0, 0, 0);
         $this->SetY(32);
     }
@@ -559,13 +568,6 @@ $fullTitles = [
 $pdf->SetFont('Helvetica', 'B', 15);
 $pdf->SetTextColor(...reportColor('heading'));
 $pdf->Cell(0, 8, pdfEnc(strtoupper($fullTitles[$type] ?? $reportLabel)), 0, 1, 'C');
-$pdf->SetFont('Helvetica', '', 9.5);
-$pdf->SetTextColor(90, 90, 90);
-$titleScope = in_array($type, ['activity-log', 'audit-log'], true)
-    ? 'System-wide'
-    : 'Committee: ' . $committeeLabel . '   |   Program: ' . ($programLabel !== null ? $programLabel : 'All Programs') . ($termLabel !== '' ? '   |   Term: ' . $termLabel : '');
-$pdf->Cell(0, 5, pdfEnc($titleScope), 0, 1, 'C');
-$pdf->Cell(0, 5, pdfEnc('For the period ' . date('F j, Y', strtotime($from)) . ' to ' . date('F j, Y', strtotime($to))), 0, 1, 'C');
 $pdf->SetDrawColor(...reportColor('header'));
 $pdf->SetLineWidth(0.6);
 $pdf->Line(10, $pdf->GetY() + 1.5, $pdf->GetPageWidth() - 10, $pdf->GetY() + 1.5);
