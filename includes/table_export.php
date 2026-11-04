@@ -183,30 +183,24 @@ if (!defined('SK_TABLE_EXPORT_LOADED')) {
                     if (table.querySelectorAll('thead th').length < 3) return;
                     var bar = document.createElement('div');
                     bar.className = 'tbl-export-bar';
-                    bar.innerHTML = '<button type="button" class="btn btn-outline-secondary" data-k="print"><i class="bi bi-printer me-1"></i>Print</button>' +
-                        '<button type="button" class="btn btn-outline-success" data-k="excel"><i class="bi bi-file-earmark-excel me-1"></i>Excel</button>';
+                    bar.innerHTML = '<button type="button" class="btn btn-sm btn-success" data-k="print"><i class="bi bi-printer me-1"></i>Print</button>' +
+                        '<button type="button" class="btn btn-sm btn-outline-success" data-k="excel"><i class="bi bi-file-earmark-excel me-1"></i>Excel</button>';
                     bar.addEventListener('click', function(e) {
                         var b = e.target.closest('button[data-k]');
                         if (b) run(b.getAttribute('data-k'), index, card, b);
                     });
-                    card.parentNode.insertBefore(bar, card);
 
-                    // Also put the same two buttons next to Add Applicant / Archives (left side of the toolbar).
-                    var sb = document.querySelector('.search-box');
-                    var left = sb && sb.previousElementSibling;
-                    if (index === 0 && left && left.tagName === 'DIV' && !left.querySelector('[data-k]')) {
-                        var copy = bar.cloneNode(true);
-                        copy.className = 'd-flex gap-2 tbl-export-inline';
-                        copy.querySelectorAll('.btn').forEach(function(b) {
-                            b.classList.add('btn-sm');
-                            b.style.fontSize = '';
-                            b.style.padding = '';
-                        });
-                        copy.addEventListener('click', function(e) {
-                            var b = e.target.closest('button[data-k]');
-                            if (b) run(b.getAttribute('data-k'), index, card, b);
-                        });
-                        left.appendChild(copy);
+                    // Beside the Search box when the page has one (top right), otherwise right above the table.
+                    var sb = index === 0 ? document.querySelector('.search-box') : null;
+                    if (sb && sb.parentNode && !sb.closest('.modal')) {
+                        var wrap = document.createElement('div');
+                        wrap.className = 'd-flex align-items-center gap-2 flex-wrap';
+                        sb.parentNode.insertBefore(wrap, sb);
+                        wrap.appendChild(bar);
+                        wrap.appendChild(sb);
+                        bar.style.marginBottom = '0';
+                    } else {
+                        card.parentNode.insertBefore(bar, card);
                     }
                 });
             });
