@@ -193,7 +193,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $relTime = ($_POST['release_time'] ?? '') !== '' ? $_POST['release_time'] : null;
             $relVenueRaw = trim($_POST['release_venue'] ?? '');
             $relVenue = $relVenueRaw !== '' ? $relVenueRaw : null;
-            $relReq = trim($_POST['release_requirements'] ?? '') ?: null;
+            $relReq = releaseItemsFromPost();
             $stmt = $conn->prepare("UPDATE programs SET release_date = ?, release_time = ?, release_venue = ?, release_requirements = ? WHERE program_id = ?");
             $stmt->bind_param('ssssi', $relDate, $relTime, $relVenue, $relReq, $programId);
             $stmt->execute();
@@ -236,7 +236,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $relTime = ($_POST['release_time'] ?? '') !== '' ? $_POST['release_time'] : null;
             $relVenueRaw = trim($_POST['release_venue'] ?? '');
             $relVenue = $relVenueRaw !== '' ? $relVenueRaw : null;
-            $relReq = trim($_POST['release_requirements'] ?? '') ?: null;
+            $relReq = releaseItemsFromPost();
             $stmt = $conn->prepare("UPDATE programs SET release_date = ?, release_time = ?, release_venue = ?, release_requirements = ? WHERE program_id = ?");
             $stmt->bind_param('ssssi', $relDate, $relTime, $relVenue, $relReq, $newId);
             $stmt->execute();
@@ -428,7 +428,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $relVenue = trim($_POST['release_venue'] ?? '') ?: null;
                 $ikItems = trim($_POST['inkind_items'] ?? '') ?: null;
                 $ikQty = ($ikItems !== null && (int)($_POST['inkind_quantity'] ?? 0) > 0) ? (int)$_POST['inkind_quantity'] : null;
-                $relReq = trim($_POST['release_requirements'] ?? '') ?: null;
+                $relReq = releaseItemsFromPost();
                 $stmt = $conn->prepare("UPDATE program_tabs SET description = ?, amount = ?, release_schedule = ?, app_start_date = ?, app_end_date = ?, release_date = ?, release_time = ?, release_venue = ?, release_requirements = ?, inkind_items = ?, inkind_quantity = ?, min_amount = ?, max_amount = ? WHERE tab_id = ?");
                 $stmt->bind_param('sdssssssssiddi', $desc, $amount, $sched, $appStart, $appEnd, $relDate, $relTime, $relVenue, $relReq, $ikItems, $ikQty, $bMin, $bMax, $tabId);
                 $stmt->execute();
@@ -1417,11 +1417,7 @@ $activeLink = 'AdminProgramManagement';
                                                     <label class="form-label">Release Venue</label>
                                                     <input type="text" class="form-control" name="release_venue" maxlength="150" placeholder="e.g. Barangay Langkiwa Covered Court" value="<?php echo e($t['release_venue'] ?? ''); ?>" <?php echo $dis; ?>>
                                                 </div>
-                                                <div class="col-12">
-                                                    <label class="form-label">What to bring on release day <span class="text-muted fw-normal">(one per line)</span></label>
-                                                    <textarea class="form-control" name="release_requirements" rows="2" placeholder="e.g.&#10;Valid ID&#10;Barangay Certificate" <?php echo $dis; ?>><?php echo e($t['release_requirements'] ?? ''); ?></textarea>
-                                                    <div class="form-text" style="font-size:11.5px;">Shown in the release email and on the release slip. Leave blank for "a valid ID".</div>
-                                                </div>
+                                                <?php echo renderReleaseItemsField($t['release_requirements'] ?? null, 'tab' . $etid); ?>
                                                 <div class="col-12">
                                                     <label class="form-label">Icon</label>
                                                     <?php $tabChoices = in_array($t['icon'], $tabIconChoices, true) ? $tabIconChoices : array_merge([$t['icon']], $tabIconChoices); ?>
@@ -1764,11 +1760,7 @@ $activeLink = 'AdminProgramManagement';
                                 <label class="form-label">Release Venue</label>
                                 <input type="text" class="form-control" name="release_venue" maxlength="150" placeholder="e.g. Barangay Langkiwa Covered Court" value="">
                             </div>
-                            <div class="col-12">
-                                <label class="form-label">What to bring on release day <span class="text-muted fw-normal">(one per line)</span></label>
-                                <textarea class="form-control" name="release_requirements" rows="2" placeholder="e.g.&#10;Valid ID&#10;Barangay Certificate"></textarea>
-                                <div class="form-text" style="font-size:11.5px;">Shown in the release email and on the release slip. Leave blank for "a valid ID".</div>
-                            </div>
+                            <?php echo renderReleaseItemsField(null, 'new'); ?>
                             <div class="col-12">
                                 <label class="form-label">Eligibility Requirements <span class="text-muted fw-normal">(one per line)</span></label>
                                 <div class="form-text mb-1" style="font-size:11.5px;">Each line becomes a required document upload on this program's application form. You can change the form later in Configuration &gt; Forms.</div>
@@ -1962,11 +1954,7 @@ $activeLink = 'AdminProgramManagement';
                                     <label class="form-label">Release Venue</label>
                                     <input type="text" class="form-control" name="release_venue" maxlength="150" placeholder="e.g. Barangay Langkiwa Covered Court" value="<?php echo e($p['release_venue'] ?? ''); ?>">
                                 </div>
-                                <div class="col-12">
-                                    <label class="form-label">What to bring on release day <span class="text-muted fw-normal">(one per line)</span></label>
-                                    <textarea class="form-control" name="release_requirements" rows="2" placeholder="e.g.&#10;Valid ID&#10;Barangay Certificate"><?php echo e($p['release_requirements'] ?? ''); ?></textarea>
-                                    <div class="form-text" style="font-size:11.5px;">Shown in the release email and on the release slip. Leave blank for "a valid ID".</div>
-                                </div>
+                                <?php echo renderReleaseItemsField($p['release_requirements'] ?? null, 'edit' . $pid); ?>
                                 <div class="col-12">
                                     <label class="form-label d-block">Status</label>
                                     <div class="form-check form-switch">
@@ -2399,6 +2387,59 @@ $activeLink = 'AdminProgramManagement';
             }
             box.addEventListener('change', toggleCash);
             toggleCash();
+        });
+
+        // "What to bring on release day": the + Add button (or Enter) adds the typed item as a new ticked checkbox;
+        // the small x removes an item that was added.
+        function addReleaseItem(box) {
+            const input = box.querySelector('.release-add-input');
+            const text = input.value.trim().replace(/\s+/g, ' ');
+            if (!text) return;
+            const same = Array.from(box.querySelectorAll('input[name="release_items[]"]')).find(i => i.value.toLowerCase() === text.toLowerCase());
+            if (same) {
+                same.checked = true; // already in the list: just tick it
+            } else {
+                const id = 'rel_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+                const row = document.createElement('div');
+                row.className = 'form-check d-flex align-items-center gap-2';
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.className = 'form-check-input';
+                cb.name = 'release_items[]';
+                cb.value = text;
+                cb.id = id;
+                cb.checked = true;
+                const lab = document.createElement('label');
+                lab.className = 'form-check-label';
+                lab.htmlFor = id;
+                lab.textContent = text;
+                const rm = document.createElement('button');
+                rm.type = 'button';
+                rm.className = 'release-remove btn btn-link btn-sm p-0 text-danger';
+                rm.title = 'Remove';
+                rm.innerHTML = '<i class="bi bi-x-lg"></i>';
+                row.appendChild(cb);
+                row.appendChild(lab);
+                row.appendChild(rm);
+                box.querySelector('.release-items-list').appendChild(row);
+            }
+            input.value = '';
+            input.focus();
+        }
+        document.addEventListener('click', function(e) {
+            const add = e.target.closest('.release-add-btn');
+            if (add) {
+                addReleaseItem(add.closest('.release-items'));
+                return;
+            }
+            const rm = e.target.closest('.release-remove');
+            if (rm) rm.closest('.form-check').remove();
+        });
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && e.target.classList && e.target.classList.contains('release-add-input')) {
+                e.preventDefault(); // Enter adds the item, it does not save the whole program
+                addReleaseItem(e.target.closest('.release-items'));
+            }
         });
 
         // Add/Edit Announcement modal — one shared modal, reset to a blank "Add" state or

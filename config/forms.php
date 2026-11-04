@@ -535,15 +535,76 @@ function builtinProgramRow($committeeId)
 // typed it falls back to "a valid ID". $program may be null.
 function releaseRequirementsText($program)
 {
-    $raw = (string)($program['release_requirements'] ?? '');
+    $items = releaseItemsList($program['release_requirements'] ?? '');
+    return $items ? implode(', ', $items) : implode(', ', RELEASE_DEFAULT_ITEMS);
+}
+
+// The two things people are asked to bring unless the program says otherwise.
+const RELEASE_DEFAULT_ITEMS = ['Valid ID', 'Barangay Certificate'];
+
+// "Valid ID\nBarangay Certificate" -> ['Valid ID', 'Barangay Certificate'] (one per line; commas also split).
+function releaseItemsList($raw)
+{
     $items = [];
-    foreach (preg_split('/[\r\n,]+/', $raw) as $item) {
-        $item = trim($item);
-        if ($item !== '') {
+    foreach (preg_split('/[\r\n,]+/', (string)$raw) as $item) {
+        $item = trim(preg_replace('/\s+/', ' ', $item));
+        if ($item !== '' && !in_array(strtolower($item), array_map('strtolower', $items), true)) {
             $items[] = $item;
         }
     }
-    return $items ? implode(', ', $items) : 'a valid ID';
+    return $items;
+}
+
+// Reads the ticked "What to bring" checkboxes (release_items[]) of a program form and returns the text to store
+// (one item per line), or null when none is ticked (then the two default items apply).
+function releaseItemsFromPost()
+{
+    $items = [];
+    foreach ((array)($_POST['release_items'] ?? []) as $item) {
+        if (is_string($item)) {
+            $item = trim(preg_replace('/\s+/', ' ', $item));
+            if ($item !== '' && mb_strlen($item) <= 80 && !in_array(strtolower($item), array_map('strtolower', $items), true)) {
+                $items[] = $item;
+            }
+        }
+    }
+    $items = array_slice($items, 0, 15);
+    return $items ? implode("\n", $items) : null;
+}
+
+// The "What to bring on release day" checklist: the two default items (ticked unless the program was saved without
+// them), any extra items already saved, and a box with a plus button to add more. $stored is the saved text or null.
+function renderReleaseItemsField($stored, $idPrefix)
+{
+    $saved = releaseItemsList($stored);
+    $savedLower = array_map('strtolower', $saved);
+    $out = '<div class="col-12 release-items">'
+        . '<label class="form-label">What to bring on release day</label>'
+        . '<div class="release-items-list">';
+    $n = 0;
+    foreach (RELEASE_DEFAULT_ITEMS as $item) {
+        $checked = !$saved || in_array(strtolower($item), $savedLower, true);
+        $id = $idPrefix . '_rel' . (++$n);
+        $out .= '<div class="form-check"><input class="form-check-input" type="checkbox" name="release_items[]" value="' . htmlspecialchars($item) . '" id="' . $id . '"' . ($checked ? ' checked' : '') . '>'
+            . '<label class="form-check-label" for="' . $id . '">' . htmlspecialchars($item) . '</label></div>';
+    }
+    foreach ($saved as $item) {
+        if (in_array(strtolower($item), array_map('strtolower', RELEASE_DEFAULT_ITEMS), true)) {
+            continue;
+        }
+        $id = $idPrefix . '_rel' . (++$n);
+        $out .= '<div class="form-check d-flex align-items-center gap-2"><input class="form-check-input" type="checkbox" name="release_items[]" value="' . htmlspecialchars($item) . '" id="' . $id . '" checked>'
+            . '<label class="form-check-label" for="' . $id . '">' . htmlspecialchars($item) . '</label>'
+            . '<button type="button" class="release-remove btn btn-link btn-sm p-0 text-danger" title="Remove"><i class="bi bi-x-lg"></i></button></div>';
+    }
+    $out .= '</div>'
+        . '<div class="input-group input-group-sm mt-2" style="max-width:380px;">'
+        . '<input type="text" class="form-control release-add-input" maxlength="80" placeholder="Something else to bring, e.g. School ID">'
+        . '<button type="button" class="btn btn-outline-success release-add-btn" title="Add to the list"><i class="bi bi-plus-lg"></i> Add</button>'
+        . '</div>'
+        . '<div class="form-text" style="font-size:11.5px;">Ticked items are shown in the release email and on the release slip.</div>'
+        . '</div>';
+    return $out;
 }
 
 // Given a `programs` row (or null, meaning no specific program was selected — the generic/base
