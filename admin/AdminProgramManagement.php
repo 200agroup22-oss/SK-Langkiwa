@@ -141,8 +141,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $assistanceType = ($hasCash && $hasInKind) ? 'both' : ($hasInKind ? 'in_kind' : 'cash');
         $amount = ($_POST['amount'] ?? '') !== '' ? (float)$_POST['amount'] : null;
         $releaseSchedule = trim($_POST['release_schedule'] ?? '');
-        $appStart = $_POST['app_start_date'] !== '' ? $_POST['app_start_date'] : null;
-        $appEnd = $_POST['app_end_date'] !== '' ? $_POST['app_end_date'] : null;
+        $appStart = ($_POST['app_start_date'] ?? '') !== '' ? $_POST['app_start_date'] : null;
+        $appEnd = ($_POST['app_end_date'] ?? '') !== '' ? $_POST['app_end_date'] : null;
         $eligibility = trim($_POST['eligibility_requirements'] ?? '');
         $status = isset($_POST['status_active']) ? 'active' : 'inactive';
 
@@ -158,8 +158,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             setFlash('error', 'You can only manage programs for your assigned committee(s).');
         } elseif ($isEdit) {
             $programId = (int)$_POST['program_id'];
-            $stmt = $conn->prepare("UPDATE programs SET committee_id = ?, name = ?, description = ?, assistance_type = ?, amount = ?, release_schedule = ?, app_start_date = ?, app_end_date = ?, eligibility_requirements = ?, status = ? WHERE program_id = ?");
-            $stmt->bind_param('isssdsssssi', $committeeId, $name, $description, $assistanceType, $amount, $releaseSchedule, $appStart, $appEnd, $eligibility, $status, $programId);
+            $stmt = $conn->prepare("UPDATE programs SET committee_id = ?, name = ?, description = ?, assistance_type = ?, amount = ?, release_schedule = ?, app_start_date = ?, app_end_date = ?, status = ? WHERE program_id = ?");
+            $stmt->bind_param('isssdssssi', $committeeId, $name, $description, $assistanceType, $amount, $releaseSchedule, $appStart, $appEnd, $status, $programId);
             $stmt->execute();
             $stmt->close();
             syncProgramTab($programId, $committeeId, $name, $status === 'active');
@@ -402,12 +402,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $relDate = $nz('release_date');
                 $relTime = $nz('release_time');
                 $relVenue = trim($_POST['release_venue'] ?? '') ?: null;
-                $elig = trim($_POST['eligibility_requirements'] ?? '') ?: null;
                 $ikItems = trim($_POST['inkind_items'] ?? '') ?: null;
                 $ikQty = ($ikItems !== null && (int)($_POST['inkind_quantity'] ?? 0) > 0) ? (int)$_POST['inkind_quantity'] : null;
                 $relReq = trim($_POST['release_requirements'] ?? '') ?: null;
-                $stmt = $conn->prepare("UPDATE program_tabs SET description = ?, amount = ?, release_schedule = ?, app_start_date = ?, app_end_date = ?, release_date = ?, release_time = ?, release_venue = ?, release_requirements = ?, eligibility_requirements = ?, inkind_items = ?, inkind_quantity = ? WHERE tab_id = ?");
-                $stmt->bind_param('sdsssssssssii', $desc, $amount, $sched, $appStart, $appEnd, $relDate, $relTime, $relVenue, $relReq, $elig, $ikItems, $ikQty, $tabId);
+                $stmt = $conn->prepare("UPDATE program_tabs SET description = ?, amount = ?, release_schedule = ?, app_start_date = ?, app_end_date = ?, release_date = ?, release_time = ?, release_venue = ?, release_requirements = ?, inkind_items = ?, inkind_quantity = ? WHERE tab_id = ?");
+                $stmt->bind_param('sdssssssssii', $desc, $amount, $sched, $appStart, $appEnd, $relDate, $relTime, $relVenue, $relReq, $ikItems, $ikQty, $tabId);
                 $stmt->execute();
                 $stmt->close();
                 // A changed release schedule is emailed again to everyone still waiting for their release.
@@ -1381,11 +1380,6 @@ $activeLink = 'AdminProgramManagement';
                                                     <div class="form-text" style="font-size:11.5px;">Shown in the release email and on the release slip. Leave blank for "a valid ID".</div>
                                                 </div>
                                                 <div class="col-12">
-                                                    <label class="form-label">Eligibility Requirements <span class="text-muted fw-normal">(one per line)</span></label>
-                                                    <div class="form-text mb-1" style="font-size:11.5px;">Informational only here - the application form is edited in Configuration &gt; Forms.</div>
-                                                    <textarea class="form-control" name="eligibility_requirements" rows="3" <?php echo $dis; ?>><?php echo e($t['eligibility_requirements'] ?? ''); ?></textarea>
-                                                </div>
-                                                <div class="col-12">
                                                     <label class="form-label">Icon</label>
                                                     <?php $tabChoices = in_array($t['icon'], $tabIconChoices, true) ? $tabIconChoices : array_merge([$t['icon']], $tabIconChoices); ?>
                                                     <input type="hidden" name="icon" value="<?php echo e($t['icon']); ?>" class="icon-hidden-input">
@@ -1787,16 +1781,6 @@ $activeLink = 'AdminProgramManagement';
                                 <div class="info-value"><?php echo nl2br(e($p['description'] ?: '—')); ?></div>
                             </div>
                             <div class="col-12">
-                                <div class="info-label">Eligibility Requirements</div>
-                                <div class="info-value">
-                                    <?php if (empty($reqLines)): ?>—<?php else: ?>
-                                    <ul class="mb-0 ps-3">
-                                        <?php foreach ($reqLines as $rl): if (trim($rl) === '') continue; ?><li><?php echo e($rl); ?></li><?php endforeach; ?>
-                                    </ul>
-                                <?php endif; ?>
-                                </div>
-                            </div>
-                            <div class="col-12">
                                 <div class="info-label">Beneficiaries (approved applicants)</div>
                                 <div class="info-value"><?php echo $benCount; ?></div>
                             </div>
@@ -1901,11 +1885,6 @@ $activeLink = 'AdminProgramManagement';
                                     <label class="form-label">What to bring on release day <span class="text-muted fw-normal">(one per line)</span></label>
                                     <textarea class="form-control" name="release_requirements" rows="2" placeholder="e.g.&#10;Valid ID&#10;Barangay Certificate"><?php echo e($p['release_requirements'] ?? ''); ?></textarea>
                                     <div class="form-text" style="font-size:11.5px;">Shown in the release email and on the release slip. Leave blank for "a valid ID".</div>
-                                </div>
-                                <div class="col-12">
-                                    <label class="form-label">Eligibility Requirements <span class="text-muted fw-normal">(one per line)</span></label>
-                                    <div class="form-text mb-1" style="font-size:11.5px;">Informational only here - the application form is edited in Configuration &gt; Forms.</div>
-                                    <textarea class="form-control" name="eligibility_requirements" rows="3"><?php echo e($p['eligibility_requirements']); ?></textarea>
                                 </div>
                                 <div class="col-12">
                                     <label class="form-label d-block">Status</label>
