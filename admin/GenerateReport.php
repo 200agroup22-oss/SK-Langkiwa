@@ -139,19 +139,7 @@ foreach ($scopeTokens as $token) {
 }
 $scopeCount = count($scopes);
 
-// Optional Course filter (course[] in the address): applies to iSKolar scholars and their released allowances only.
-// Courses are compared ignoring case and repeated spaces, because they are typed by hand in the forms.
-function normCourse($text)
-{
-    return strtolower(preg_replace('/\s+/', ' ', trim((string)$text)));
-}
-$courseFilter = array_values(array_filter(array_map('normCourse', array_filter((array)($_GET['course'] ?? []), 'is_string'))));
-function courseAllowed($course)
-{
-    global $courseFilter;
-    return !$courseFilter || in_array(normCourse($course), $courseFilter, true);
-}
-// A Course column is added to Financial / Disbursement when iSKolar allowances can appear in them.
+// A Course column (right after the name) is added to Financial / Disbursement when iSKolar allowances can appear in them.
 function reportIncludesAllowances($committeeId, $committeeCode, $programId, $trackCode)
 {
     return ($committeeId === 0 || $committeeCode === 'education') && ($trackCode === 'scholarship' || ($programId === 0 && $trackCode === ''));
@@ -350,7 +338,7 @@ function fetchReleasedAllowances($conn, $termAcademicYear, $termSemester, $fromI
         $stmt->bind_param('ss', $fromInclusive, $toInclusive);
     }
     $stmt->execute();
-    $out = array_values(array_filter($stmt->get_result()->fetch_all(MYSQLI_ASSOC), fn($r) => courseAllowed($r['course'])));
+    $out = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
     return $out;
 }
@@ -765,8 +753,8 @@ foreach ($scopes as $scopeIndex => $sc) {
                 $headers = ['Beneficiary ID', 'Full Name', 'Committee', 'Amount', 'Status', 'Date Released', 'Date Distributed'];
                 $widths = [28, 55, 45, 35, 30, 42, 42];
                 if ($withCourse) {
-                    $headers[] = 'Course';
-                    $widths = [22, 46, 40, 28, 24, 32, 32, 53];
+                    array_splice($headers, 2, 0, 'Course'); // right after the name
+                    $widths = [22, 46, 53, 40, 28, 24, 32, 32];
                 }
 
                 $stmt = $conn->prepare("SELECT b.beneficiary_id, u.first_name, u.last_name, c.name AS committee_name, b.amount, b.status, b.date_released, b.date_distributed
@@ -790,7 +778,7 @@ foreach ($scopes as $scopeIndex => $sc) {
                         $row['date_distributed'] ?: '—',
                     ];
                     if ($withCourse) {
-                        $line[] = '—';
+                        array_splice($line, 2, 0, '—');
                     }
                     $rows[] = $line;
                 }
@@ -804,12 +792,12 @@ foreach ($scopes as $scopeIndex => $sc) {
                         $rows[] = [
                             'AL-' . $row['distribution_id'],
                             trim($row['first_name'] . ' ' . $row['last_name']),
+                            trim((string)$row['course']) !== '' ? $row['course'] : '—',
                             'Education (iSKolar allowance)',
                             number_format((float)$row['amount'], 2),
                             'Released',
                             $row['decided_at'] ? date('Y-m-d', strtotime($row['decided_at'])) : '—',
                             '—',
-                            trim((string)$row['course']) !== '' ? $row['course'] : '—',
                         ];
                     }
                 }
@@ -867,8 +855,8 @@ foreach ($scopes as $scopeIndex => $sc) {
                 $headers = ['Applicant ID', 'Full Name', 'Committee', 'Type', 'Cash Amount', 'Cash Released', 'In-Kind Items (Qty)', 'In-Kind Distributed'];
                 $widths = [22, 48, 40, 30, 32, 32, 45, 28];
                 if ($withCourse) {
-                    $headers[] = 'Course';
-                    $widths = [20, 42, 34, 22, 26, 26, 38, 26, 43];
+                    array_splice($headers, 2, 0, 'Course'); // right after the name
+                    $widths = [20, 42, 43, 34, 22, 26, 26, 38, 26];
                 }
 
                 $stmt = $conn->prepare("SELECT a.application_id, u.first_name, u.last_name, c.name AS committee_name, p.assistance_type AS program_assistance_type,
@@ -920,7 +908,7 @@ foreach ($scopes as $scopeIndex => $sc) {
                         $inKindPresent ? ($row['inkind_date'] ?: '—') : '—',
                     ];
                     if ($withCourse) {
-                        $line[] = '—';
+                        array_splice($line, 2, 0, '—');
                     }
                     $rows[] = $line;
                 }
@@ -933,13 +921,13 @@ foreach ($scopes as $scopeIndex => $sc) {
                         $rows[] = [
                             'AL-' . $row['distribution_id'],
                             trim($row['first_name'] . ' ' . $row['last_name']),
+                            trim((string)$row['course']) !== '' ? $row['course'] : '—',
                             'Education (iSKolar allowance)',
                             'Allowance',
                             number_format((float)$row['amount'], 2),
                             $row['decided_at'] ? date('Y-m-d', strtotime($row['decided_at'])) : '—',
                             '—',
                             '—',
-                            trim((string)$row['course']) !== '' ? $row['course'] : '—',
                         ];
                     }
                 }
@@ -1019,9 +1007,6 @@ foreach ($scopes as $scopeIndex => $sc) {
                     $totalPresent = 0;
                     $totalHeld = 0;
                     foreach ($scholarRows as $row) {
-                        if (!courseAllowed($row['course'])) {
-                            continue; // not one of the courses picked in the Course filter
-                        }
                         $scholarId = (int)$row['scholar_id'];
                         if ($termAcademicYear !== null) {
                             // The saved record of the chosen term (never ensureAllowanceRecord(), which works on the CURRENT
