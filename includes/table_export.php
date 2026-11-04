@@ -190,6 +190,24 @@ if (!defined('SK_TABLE_EXPORT_LOADED')) {
                         if (b) run(b.getAttribute('data-k'), index, card, b);
                     });
                     card.parentNode.insertBefore(bar, card);
+
+                    // Also put the same two buttons next to Add Applicant / Archives (left side of the toolbar).
+                    var sb = document.querySelector('.search-box');
+                    var left = sb && sb.previousElementSibling;
+                    if (index === 0 && left && left.tagName === 'DIV' && !left.querySelector('[data-k]')) {
+                        var copy = bar.cloneNode(true);
+                        copy.className = 'd-flex gap-2 tbl-export-inline';
+                        copy.querySelectorAll('.btn').forEach(function(b) {
+                            b.classList.add('btn-sm');
+                            b.style.fontSize = '';
+                            b.style.padding = '';
+                        });
+                        copy.addEventListener('click', function(e) {
+                            var b = e.target.closest('button[data-k]');
+                            if (b) run(b.getAttribute('data-k'), index, card, b);
+                        });
+                        left.appendChild(copy);
+                    }
                 });
             });
         })();
