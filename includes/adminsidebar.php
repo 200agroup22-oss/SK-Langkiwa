@@ -623,3 +623,5 @@ function collapseAttrs($expanded)
 </script>
 
 <?php include __DIR__ . "/toast.php"; ?>
+
+<?php include __DIR__ . "/global_style.php"; ?>

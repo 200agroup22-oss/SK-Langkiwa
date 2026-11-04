@@ -153,3 +153,5 @@ $navLinkClass = 'nav-link d-flex align-items-center gap-1 fw-semibold px-3 py-1 
 </div>
 
 <?php include __DIR__ . "/toast.php"; ?>
+
+<?php include __DIR__ . "/global_style.php"; ?>
