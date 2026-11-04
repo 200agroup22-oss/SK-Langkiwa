@@ -183,8 +183,7 @@ if (!defined('SK_TABLE_EXPORT_LOADED')) {
                     if (table.querySelectorAll('thead th').length < 3) return;
                     var bar = document.createElement('div');
                     bar.className = 'tbl-export-bar';
-                    bar.innerHTML = '<button type="button" class="btn btn-sm btn-success" data-k="print"><i class="bi bi-printer me-1"></i>Print</button>' +
-                        '<button type="button" class="btn btn-sm btn-outline-success" data-k="excel"><i class="bi bi-file-earmark-excel me-1"></i>Excel</button>';
+                    bar.innerHTML = '<button type="button" class="btn btn-success" style="font-size:14px;padding:8px 20px;font-weight:600;" data-k="print"><i class="bi bi-printer me-2"></i>Print</button>';
                     bar.addEventListener('click', function(e) {
                         var b = e.target.closest('button[data-k]');
                         if (b) run(b.getAttribute('data-k'), index, card, b);
