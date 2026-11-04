@@ -30,6 +30,16 @@ $builtInTracksResult = $conn->query("SELECT pt.track_code, pt.label, c.code AS c
 foreach ($builtInTracksResult as $t) {
     $programsByCommitteeCode[$t['committee_code']][] = ['id' => 'track:' . $t['track_code'], 'name' => $t['label']];
 }
+// Courses of the iSKolar scholars, for the Course filter (spelling/spacing variations count as one course).
+$courseOptions = [];
+foreach ($conn->query("SELECT DISTINCT course FROM scholars WHERE course IS NOT NULL AND TRIM(course) <> ''") as $cr) {
+    $display = trim(preg_replace('/\s+/', ' ', $cr['course']));
+    $key = strtolower($display);
+    if (!isset($courseOptions[$key])) {
+        $courseOptions[$key] = $display;
+    }
+}
+asort($courseOptions, SORT_NATURAL | SORT_FLAG_CASE);
 $allProgramsResult = $conn->query("SELECT p.program_id, p.name, c.code AS committee_code FROM programs p JOIN committees c ON c.committee_id = p.committee_id WHERE p.archived_at IS NULL AND p.status = 'active' ORDER BY p.name ASC");
 foreach ($allProgramsResult as $p) {
     $programsByCommitteeCode[$p['committee_code']][] = ['id' => (string)(int)$p['program_id'], 'name' => $p['name']];
@@ -1266,6 +1276,19 @@ $activeLink = 'AdminReports';
                             </div>
                             <div class="form-text" style="font-size:11.5px;" id="reportScopeHint">Tick the committees you want, or open one (arrow) to pick only some of its programs. Leave everything unticked to include all.</div>
                         </div>
+                        <div class="mb-3" id="reportCourseWrap" style="display:none;">
+                            <label class="form-label">Course <span class="text-muted fw-normal">(iSKolar scholars)</span></label>
+                            <div class="scope-box" id="reportCourseBox" style="max-height:170px;">
+                                <?php $ci = 0;
+                                foreach ($courseOptions as $courseName): $ci++; ?>
+                                    <div class="form-check">
+                                        <input class="form-check-input report-course-check" type="checkbox" value="<?php echo e($courseName); ?>" id="reportCourse<?php echo $ci; ?>">
+                                        <label class="form-check-label" for="reportCourse<?php echo $ci; ?>"><?php echo e($courseName); ?></label>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                            <div class="form-text" style="font-size:11.5px;">Tick the courses you want. Leave everything unticked to include every course. It applies to the scholars part of the report only.</div>
+                        </div>
                         <div class="mb-3" id="reportTermWrap" style="display:none;">
                             <label for="reportTerm" class="form-label">Term</label>
                             <select class="form-select" id="reportTerm" disabled>
@@ -1592,6 +1615,8 @@ $activeLink = 'AdminReports';
             const show = hasIskolar && !logReportTypes.includes(reportTypeSelect.value);
             const wrap = document.getElementById('reportTermWrap');
             if (wrap) wrap.style.display = show ? '' : 'none';
+            const courseWrap = document.getElementById('reportCourseWrap');
+            if (courseWrap) courseWrap.style.display = show && document.querySelectorAll('.report-course-check').length ? '' : 'none';
             const wasDisabled = reportTermSelect.disabled;
             reportTermSelect.disabled = !show;
             if (!show) {
@@ -1646,6 +1671,9 @@ $activeLink = 'AdminReports';
                 collectScopes().forEach(s => params.append('scope[]', s));
             }
             params.set('term', reportTermSelect.disabled ? '' : reportTermSelect.value);
+            if (document.getElementById('reportCourseWrap').style.display !== 'none') {
+                document.querySelectorAll('.report-course-check:checked').forEach(c => params.append('course[]', c.value));
+            }
             params.set('from', document.getElementById('reportDateFrom').value);
             params.set('to', document.getElementById('reportDateTo').value);
             params.set('sort', document.getElementById('reportSort').value);
