@@ -935,19 +935,9 @@ function ownIdentityFields($userId)
     ];
 }
 
-// ---- Structured address (Barangay Langkiwa) ----
-// The "complete_address" field is asked as separate boxes (Blk / Lot, house number, unit / apartment, floor,
-// street, purok / subdivision) and saved as one readable line, so every list, report and slip that already shows
-// the address keeps working. Barangay Langkiwa is added automatically.
-const ADDRESS_PARTS = [
-    'blk'    => ['label' => 'Block (Blk)',                 'prefix' => 'Blk ',       'placeholder' => 'e.g. 5',       'col' => 'col-6 col-md-3'],
-    'lot'    => ['label' => 'Lot',                         'prefix' => 'Lot ',       'placeholder' => 'e.g. 12',      'col' => 'col-6 col-md-3'],
-    'house'  => ['label' => 'House No.',                   'prefix' => 'House No. ', 'placeholder' => 'e.g. 123',     'col' => 'col-6 col-md-3'],
-    'unit'   => ['label' => 'Apartment / Unit No.',        'prefix' => 'Unit ',      'placeholder' => 'e.g. 2B',      'col' => 'col-6 col-md-3'],
-    'floor'  => ['label' => 'Floor',                       'prefix' => 'Floor ',     'placeholder' => 'e.g. 3rd',     'col' => 'col-6 col-md-3'],
-    'street' => ['label' => 'Street',                      'prefix' => '',           'placeholder' => 'Street name',  'col' => 'col-12 col-md-5'],
-    'area'   => ['label' => 'Purok / Subdivision / Sitio', 'prefix' => '',           'placeholder' => 'e.g. Purok 3', 'col' => 'col-12 col-md-4'],
-];
+// ---- Address (Barangay Langkiwa) ----
+// The "complete_address" field is one text box where the applicant types only their own Blk / Lot / house number /
+// unit / street; "Brgy. Langkiwa, Biñan City, Laguna" is fixed and added automatically when it is saved.
 const ADDRESS_BARANGAY = 'Brgy. Langkiwa, Biñan City, Laguna';
 
 function isAddressField(array $field)
@@ -955,91 +945,39 @@ function isAddressField(array $field)
     return ($field['field_key'] ?? '') === 'complete_address' && ($field['input_type'] ?? '') !== 'file';
 }
 
-function addressPartsFromString($value)
+// Removes the fixed barangay / city / province ending so only the applicant's own part is shown for editing.
+function addressOwnPart($value)
 {
-    $out = array_fill_keys(array_keys(ADDRESS_PARTS), '');
-    $left = [];
-    foreach (array_map('trim', explode(',', (string)$value)) as $piece) {
-        if ($piece === '' || in_array(mb_strtolower($piece), ['brgy. langkiwa', 'langkiwa', 'biñan city', 'binan city', 'biñan', 'laguna'], true)) {
-            continue;
-        }
-        $matched = false;
-        foreach (ADDRESS_PARTS as $k => $def) {
-            if ($def['prefix'] !== '' && stripos($piece, $def['prefix']) === 0 && $out[$k] === '') {
-                $out[$k] = trim(substr($piece, strlen($def['prefix'])));
-                $matched = true;
-                break;
-            }
-        }
-        if (!$matched) {
-            $left[] = $piece;
-        }
-    }
-    // Anything else is the street, then the purok / subdivision (old single-line addresses land in Street).
-    if (count($left) === 1) {
-        $out['street'] = $left[0];
-    } elseif (count($left) >= 2) {
-        $out['street'] = array_shift($left);
-        $out['area'] = implode(' ', $left);
-    }
-    return $out;
+    $value = trim((string)$value);
+    $value = preg_replace('/[,\s]*(Brgy\.?\s*)?Langkiwa(,?\s*Bi[ñn]an(\s+City)?)?(,?\s*Laguna)?\s*$/iu', '', $value);
+    return trim($value, " ,");
 }
 
-function addressPostParts(array $post, $key = 'complete_address')
-{
-    $parts = [];
-    $any = false;
-    foreach (ADDRESS_PARTS as $k => $def) {
-        $raw = $post[$key . '__' . $k] ?? null;
-        if ($raw !== null) {
-            $any = true;
-        }
-        $parts[$k] = trim(str_replace(',', ' ', (string)$raw));
-    }
-    return $any ? $parts : null;
-}
-
-// Replaces $post['complete_address'] with the one-line address built from the separate boxes (if they were sent).
+// Replaces $post['complete_address'] with "<what they typed>, Brgy. Langkiwa, Biñan City, Laguna".
 function normalizeAddressPost(array $post)
 {
-    $parts = addressPostParts($post);
-    if ($parts === null) {
+    if (!isset($post['complete_address__text'])) {
         return $post;
     }
-    $pieces = [];
-    foreach (ADDRESS_PARTS as $k => $def) {
-        if ($parts[$k] !== '') {
-            $pieces[] = $def['prefix'] . $parts[$k];
-        }
-    }
-    $post['complete_address'] = $pieces ? implode(', ', $pieces) . ', ' . ADDRESS_BARANGAY : '';
+    $own = trim(preg_replace('/\s+/', ' ', (string)$post['complete_address__text']), " ,");
+    $post['complete_address'] = $own === '' ? '' : $own . ', ' . ADDRESS_BARANGAY;
     return $post;
 }
 
 function renderAddressInputs($key, $value, $required)
 {
-    $parts = addressPartsFromString($value);
-    echo '<div class="row g-2 address-parts">';
-    foreach (ADDRESS_PARTS as $k => $def) {
-        echo '<div class="' . $def['col'] . '">';
-        echo '<label class="form-label small text-muted mb-1">' . e($def['label']) . '</label>';
-        echo '<input type="text" class="form-control form-control-sm js-sentence-case" maxlength="60" name="' . e($key) . '__' . $k . '" value="' . e($parts[$k]) . '" placeholder="' . e($def['placeholder']) . '">';
-        echo '</div>';
-    }
-    echo '<div class="col-12"><label class="form-label small text-muted mb-1">Barangay, City, Province (fixed)</label><input type="text" class="form-control form-control-sm bg-light" value="' . e(ADDRESS_BARANGAY) . '" readonly tabindex="-1"></div>';
-    echo '</div>';
-    echo '<div class="form-text" style="font-size:11.5px;">Fill in what applies to your home' . ($required ? ' (at least a Blk / Lot, House No. or Unit No., and your Street)' : '') . '. Leave the rest blank.</div>';
+    echo '<input type="text" class="form-control js-sentence-case" name="' . e($key) . '__text" maxlength="150" value="' . e(addressOwnPart($value)) . '" placeholder="Blk, Lot, House No., Apartment / Unit No., Floor, Street" ' . ($required ? 'required' : '') . '>';
+    echo '<div class="input-group mt-2"><span class="input-group-text">Fixed</span><input type="text" class="form-control bg-light" value="' . e(ADDRESS_BARANGAY) . '" readonly tabindex="-1"></div>';
+    echo '<div class="form-text" style="font-size:11.5px;">Type only your own Blk / Lot, house number, apartment or unit, floor and street.</div>';
 }
 
 function validateAddressPost(array $post, $label, $required)
 {
-    $parts = addressPostParts($post);
-    if ($parts === null) {
+    if (!isset($post['complete_address__text'])) {
         return null;
     }
-    $hasHome = ($parts['blk'] !== '' || $parts['lot'] !== '' || $parts['house'] !== '' || $parts['unit'] !== '');
-    if ($required && (!$hasHome || $parts['street'] === '')) {
-        return $label . ' is required: enter a Blk / Lot, House No. or Unit No., and your Street.';
+    if ($required && trim((string)$post['complete_address__text'], " ,") === '') {
+        return $label . ' is required.';
     }
     return null;
 }
