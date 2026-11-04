@@ -967,7 +967,7 @@ function normalizeAddressPost(array $post)
 function renderAddressInputs($key, $value, $required)
 {
     echo '<input type="text" class="form-control js-sentence-case" name="' . e($key) . '__text" maxlength="150" value="' . e(addressOwnPart($value)) . '" placeholder="Blk, Lot, House No., Apartment / Unit No., Floor, Street" ' . ($required ? 'required' : '') . '>';
-    echo '<div class="input-group mt-2"><span class="input-group-text">Fixed</span><input type="text" class="form-control bg-light" value="' . e(ADDRESS_BARANGAY) . '" readonly tabindex="-1"></div>';
+    echo '<input type="text" class="form-control bg-light mt-2" value="' . e(ADDRESS_BARANGAY) . '" readonly tabindex="-1">';
     echo '<div class="form-text" style="font-size:11.5px;">Type only your own Blk / Lot, house number, apartment or unit, floor and street.</div>';
 }
 
