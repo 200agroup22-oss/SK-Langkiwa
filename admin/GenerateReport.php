@@ -366,14 +366,46 @@ function renderTable($pdf, $headers, $widths, $rows)
         }
     }
 
-    $printHeader = function () use ($pdf, $headers, $widths) {
+    $leftMargin = $pdf->GetX();
+
+    // Draws one table row whose cells grow taller to hold wrapped text (nothing is cut off with "...").
+    $drawRow = function ($cells, $fillColor) use ($pdf, $widths, $leftMargin) {
+        $lineH = 4.2;
+        $pad = 1.4;
+        $wrapped = [];
+        $maxLines = 1;
+        foreach ($cells as $i => $val) {
+            $wrapped[$i] = wrapCellText($pdf, $val, $widths[$i]);
+            $maxLines = max($maxLines, count($wrapped[$i]));
+        }
+        $h = max(7, $maxLines * $lineH + 2 * $pad);
+        return [$wrapped, $h, $lineH, $fillColor];
+    };
+
+    $printHeader = function () use ($pdf, $headers, $widths, $leftMargin) {
         $pdf->SetFont('Helvetica', 'B', 8.5);
         $pdf->SetFillColor(...reportColor('tableHead'));
         $pdf->SetTextColor(...reportColor('tableHeadText'));
-        foreach ($headers as $i => $h) {
-            $pdf->Cell($widths[$i], 8, fitText($pdf, $h, $widths[$i]), 1, 0, 'L', true);
+        $lineH = 4.2;
+        $wrapped = [];
+        $maxLines = 1;
+        foreach ($headers as $i => $hd) {
+            $wrapped[$i] = wrapCellText($pdf, $hd, $widths[$i]);
+            $maxLines = max($maxLines, count($wrapped[$i]));
         }
-        $pdf->Ln();
+        $h = max(8, $maxLines * $lineH + 3);
+        $x = $leftMargin;
+        $y = $pdf->GetY();
+        foreach ($headers as $i => $hd) {
+            $pdf->Rect($x, $y, $widths[$i], $h, 'DF');
+            $offset = ($h - count($wrapped[$i]) * $lineH) / 2;
+            foreach ($wrapped[$i] as $k => $line) {
+                $pdf->SetXY($x + 1, $y + $offset + $k * $lineH);
+                $pdf->Cell($widths[$i] - 1, $lineH, $line, 0, 0, 'L');
+            }
+            $x += $widths[$i];
+        }
+        $pdf->SetXY($leftMargin, $y + $h);
         $pdf->SetFont('Helvetica', '', 8.5);
         $pdf->SetTextColor(30, 30, 30);
     };
@@ -388,7 +420,8 @@ function renderTable($pdf, $headers, $widths, $rows)
 
     $fill = false;
     foreach ($rows as $row) {
-        if ($pdf->GetY() > $pdf->GetPageHeight() - 25) {
+        [$wrapped, $h, $lineH] = $drawRow($row, null);
+        if ($pdf->GetY() + $h > $pdf->GetPageHeight() - 25) {
             $pdf->AddPage();
             $printHeader();
             $fill = false;
@@ -398,12 +431,57 @@ function renderTable($pdf, $headers, $widths, $rows)
         } else {
             $pdf->SetFillColor(255, 255, 255);
         }
-        foreach ($row as $i => $val) {
-            $pdf->Cell($widths[$i], 7, fitText($pdf, $val, $widths[$i]), 1, 0, 'L', true);
+        $x = $leftMargin;
+        $y = $pdf->GetY();
+        foreach ($wrapped as $i => $lines) {
+            $pdf->Rect($x, $y, $widths[$i], $h, 'DF');
+            $offset = ($h - count($lines) * $lineH) / 2;
+            foreach ($lines as $k => $line) {
+                $pdf->SetXY($x + 1, $y + $offset + $k * $lineH);
+                $pdf->Cell($widths[$i] - 1, $lineH, $line, 0, 0, 'L');
+            }
+            $x += $widths[$i];
         }
-        $pdf->Ln();
+        $pdf->SetXY($leftMargin, $y + $h);
         $fill = !$fill;
     }
+}
+
+// Splits a cell's text into lines that fit the column width, breaking at spaces (and inside a single word that is
+// too long for the whole column). The font must already be set, because the width depends on it.
+function wrapCellText($pdf, $text, $width)
+{
+    $text = pdfEnc($text);
+    $max = $width - 2;
+    if ($pdf->GetStringWidth($text) <= $max) {
+        return [$text];
+    }
+    $lines = [];
+    $line = '';
+    foreach (preg_split('/\s+/', trim($text)) as $word) {
+        $try = $line === '' ? $word : $line . ' ' . $word;
+        if ($pdf->GetStringWidth($try) <= $max) {
+            $line = $try;
+            continue;
+        }
+        if ($line !== '') {
+            $lines[] = $line;
+            $line = '';
+        }
+        while ($pdf->GetStringWidth($word) > $max && strlen($word) > 1) {
+            $cut = strlen($word);
+            while ($cut > 1 && $pdf->GetStringWidth(substr($word, 0, $cut)) > $max) {
+                $cut--;
+            }
+            $lines[] = substr($word, 0, $cut);
+            $word = substr($word, $cut);
+        }
+        $line = $word;
+    }
+    if ($line !== '') {
+        $lines[] = $line;
+    }
+    return $lines ?: [''];
 }
 
 // Prints a bold, right-aligned total line beneath a table (e.g. "Total Beneficiaries: 42").
