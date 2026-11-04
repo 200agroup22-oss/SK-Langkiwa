@@ -201,6 +201,12 @@ if (!isValidDate($from) || !isValidDate($to)) {
 }
 $reportSort = in_array($_GET['sort'] ?? '', ['name_asc', 'name_desc', 'date_asc', 'date_desc'], true) ? $_GET['sort'] : '';
 
+// format=excel: the same report, but the sections and tables are collected into $excelBlocks (instead of being drawn
+// on the PDF) and sent as an .xlsx file at the end.
+$excelMode = ($_GET['format'] ?? '') === 'excel';
+$excelBlocks = [];
+require_once __DIR__ . '/../config/xlsx.php';
+
 if ($from > $to) {
     [$from, $to] = [$to, $from];
 }
@@ -310,6 +316,11 @@ function fitText($pdf, $text, $width)
 // Prints a section heading, adding a fresh page first if there isn't room left for it plus a row or two.
 function sectionTitle($pdf, $text)
 {
+    global $excelMode, $excelBlocks;
+    if ($excelMode) {
+        $excelBlocks[] = ['section', $text];
+        return;
+    }
     if ($pdf->GetY() > $pdf->GetPageHeight() - 40) {
         $pdf->AddPage();
     } else {
@@ -348,7 +359,7 @@ function renderTable($pdf, $headers, $widths, $rows)
 {
     // Optional "Sort By" chosen in the Generate Report dialog: finds the first Name-like or date-like
     // column by its header and orders the rows by it (rows with no value, shown as a dash, go last).
-    global $reportSort;
+    global $reportSort, $excelMode, $excelBlocks;
     if (!empty($reportSort) && count($rows) > 1) {
         $wantName = strpos($reportSort, 'name') === 0;
         $col = null;
@@ -372,6 +383,11 @@ function renderTable($pdf, $headers, $widths, $rows)
                 return $desc ? -$cmp : $cmp;
             });
         }
+    }
+
+    if ($excelMode) {
+        $excelBlocks[] = ['table', $headers, $widths, $rows]; // already sorted above
+        return;
     }
 
     $leftMargin = $pdf->GetX();
@@ -495,6 +511,11 @@ function wrapCellText($pdf, $text, $width)
 // Prints a bold, right-aligned total line beneath a table (e.g. "Total Beneficiaries: 42").
 function renderTotalLine($pdf, $text)
 {
+    global $excelMode, $excelBlocks;
+    if ($excelMode) {
+        $excelBlocks[] = ['total', $text];
+        return;
+    }
     if ($pdf->GetY() > $pdf->GetPageHeight() - 25) {
         $pdf->AddPage();
     }
@@ -1156,6 +1177,31 @@ foreach ($scopes as $scopeIndex => $sc) {
             }
     }
 } // end of the per-committee / per-program loop
+
+// ---- Excel export: the collected sections and tables become one worksheet ----
+if ($excelMode) {
+    $who = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
+    $meta = [
+        siteName(),
+        $fullTitles[$type] ?? $reportLabel,
+        in_array($type, ['activity-log', 'audit-log'], true)
+            ? 'System-wide'
+            : 'Committee: ' . $committeeLabel . '   |   Program: ' . ($programLabel !== null ? $programLabel : 'All Programs') . ($termLabel !== '' ? '   |   Term: ' . $termLabel : ''),
+        'Period: ' . $from . ' to ' . $to,
+        'Generated ' . date('F j, Y g:i A') . ($who !== '' ? ' by ' . $who : ''),
+    ];
+    $xlsx = xlsxBuild(substr($fullTitles[$type] ?? $reportLabel, 0, 31), $meta, $excelBlocks);
+    while (ob_get_level()) {
+        ob_end_clean();
+    }
+    $xlsxName = 'sk-langkiwa-report-' . $type . '-' . date('Ymd-His') . '.xlsx';
+    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    header('Content-Disposition: attachment; filename="' . $xlsxName . '"');
+    header('Content-Length: ' . strlen($xlsx));
+    header('Cache-Control: private, max-age=0, must-revalidate');
+    echo $xlsx;
+    exit();
+}
 
 // ---- Formal "printed by" signature block, using the generating admin's name/position ----
 $printedByName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));

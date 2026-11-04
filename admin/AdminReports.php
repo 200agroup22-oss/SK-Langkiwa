@@ -1307,6 +1307,7 @@ $activeLink = 'AdminReports';
                     <div class="modal-footer">
                         <button type="button" class="btn-outline-brand" data-bs-dismiss="modal">Cancel</button>
                         <button type="button" class="btn-outline-brand" id="reportPrintBtn"><i class="bi bi-printer me-1"></i> Print</button>
+                        <button type="button" class="btn-outline-brand" id="reportExcelBtn"><i class="bi bi-file-earmark-excel me-1"></i> Excel</button>
                         <button type="submit" class="btn-brand"><i class="bi bi-file-earmark-arrow-down me-1"></i> Generate</button>
                     </div>
                 </form>
@@ -1656,9 +1657,17 @@ $activeLink = 'AdminReports';
             params.set('from', document.getElementById('reportDateFrom').value);
             params.set('to', document.getElementById('reportDateTo').value);
             params.set('sort', document.getElementById('reportSort').value);
-            if (mode) params.set('mode', mode);
+            if (mode === 'excel') params.set('format', 'excel');
+            else if (mode) params.set('mode', mode);
             return 'GenerateReport.php?' + params.toString();
         }
+
+        // Excel -> downloads the same report as an .xlsx spreadsheet
+        document.getElementById('reportExcelBtn').addEventListener('click', function() {
+            if (!document.getElementById('generateReportForm').reportValidity()) return;
+            window.location.href = reportUrl('excel');
+            bootstrap.Modal.getInstance(document.getElementById('generateReportModal')).hide();
+        });
 
         // Generate -> downloads the PDF
         document.getElementById('generateReportForm').addEventListener('submit', function(e) {
