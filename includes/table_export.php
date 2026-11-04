@@ -5,6 +5,23 @@
 if (!defined('SK_TABLE_EXPORT_LOADED')) {
     define('SK_TABLE_EXPORT_LOADED', true);
 ?>
+    <?php
+    $__tePrinter = trim(($adminMe['first_name'] ?? '') . ' ' . ($adminMe['last_name'] ?? ''));
+    $__tePosition = '';
+    if (!empty($adminMe['user_id'])) {
+        $__st = $conn->prepare("SELECT position_title FROM users WHERE user_id = ?");
+        $__st->bind_param('i', $adminMe['user_id']);
+        $__st->execute();
+        $__tePosition = (string)($__st->get_result()->fetch_assoc()['position_title'] ?? '');
+        $__st->close();
+    }
+    $__teInfo = [
+        'site' => siteName(),
+        'logo' => siteLogoUrl(),
+        'name' => $__tePrinter !== '' ? $__tePrinter : 'Administrator',
+        'position' => $__tePosition !== '' ? $__tePosition : 'System Administrator',
+    ];
+    ?>
     <style>
         .tbl-export-bar {
             display: flex;
@@ -15,6 +32,7 @@ if (!defined('SK_TABLE_EXPORT_LOADED')) {
     </style>
     <script>
         (function() {
+            var INFO = <?php echo json_encode($__teInfo, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP); ?>;
             // Pages whose tables are settings / charts rather than lists.
             if (/AdminConfiguration|AdminReports|AdminProgramManagement/i.test(location.pathname)) return;
 
@@ -99,10 +117,78 @@ if (!defined('SK_TABLE_EXPORT_LOADED')) {
                 };
             }
 
-            function titleText() {
+            // Heading of the page (first heading outside modals / menus), plus the active tab when there is one.
+            function pageHeading() {
+                var hs = document.querySelectorAll('h1, h2, h3, h4');
+                for (var i = 0; i < hs.length; i++) {
+                    if (!hs[i].closest('.modal, nav, .sidebar, #sidebar, header, .topbar, .table-card')) {
+                        var t = clean(hs[i].textContent);
+                        if (t) return t;
+                    }
+                }
+                return clean(document.title);
+            }
+
+            function titleText(card) {
+                // A heading right above this table (e.g. a dashboard section) wins over the page heading.
+                var own = card.parentNode.querySelector(':scope > h5, :scope > h6, :scope > .section-title');
+                var base = own && own.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING ? clean(own.textContent) : pageHeading();
                 var tab = document.querySelector('.nav-tabs .nav-link.active');
-                var t = clean(document.title);
-                return tab ? t + ' - ' + clean(tab.textContent.replace(/\d+\s*$/, '')) : t;
+                return tab ? base + ' - ' + clean(tab.textContent.replace(/\d+\s*$/, '')) : base;
+            }
+
+            // "A.Y. 2026-2027 | 1st Semester" style details taken from the term badges shown on the page.
+            function detailsText() {
+                var parts = [];
+                document.querySelectorAll('.term-badge').forEach(function(b) {
+                    var t = clean(b.textContent);
+                    if (t) parts.push(t);
+                });
+                var sel = document.querySelector('select[name="term"]');
+                if (!parts.length && sel && sel.selectedOptions[0]) parts.push('Term: ' + clean(sel.selectedOptions[0].textContent));
+                return parts.join('  |  ');
+            }
+
+            // Same look as the PDF reports: green banner, centered green title, green table header, signature block.
+            function printHtml(title, data) {
+                var logo = new URL(INFO.logo, location.href).href;
+                var head = data.head.map(function(h) {
+                    return '<th>' + esc(h) + '</th>';
+                }).join('');
+                var body = data.rows.map(function(r) {
+                    return '<tr>' + r.map(function(c) {
+                        return '<td>' + esc(c) + '</td>';
+                    }).join('') + '</tr>';
+                }).join('');
+                if (!data.rows.length) body = '<tr><td colspan="' + data.head.length + '" style="text-align:center;color:#777;">No records.</td></tr>';
+                var details = detailsText();
+                var today = new Date().toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                });
+                return '<!doctype html><html><head><meta charset="utf-8"><title>' + esc(title) + '</title><style>' +
+                    '@page{size:landscape;margin:0}' +
+                    '*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;color:#222;-webkit-print-color-adjust:exact;print-color-adjust:exact}' +
+                    '.banner{background:#44b94f;color:#fff;padding:14px 30px;display:flex;align-items:center;gap:18px}' +
+                    '.banner img{width:70px;height:70px;object-fit:cover;background:#fff}' +
+                    '.banner h1{margin:0;font-size:24px}.banner p{margin:4px 0 0;font-size:13px}' +
+                    '.page{padding:0 30px 26px}' +
+                    'h2{text-align:center;color:#2e7d32;font-size:22px;letter-spacing:.3px;margin:22px 0 14px;padding-bottom:12px;border-bottom:2px solid #44b94f;text-transform:uppercase}' +
+                    'table{width:100%;border-collapse:collapse;font-size:12px}' +
+                    'th{background:#a8dcaa;color:#111;text-align:left;border:1px solid #222;padding:9px 8px}' +
+                    'td{border:1px solid #222;padding:8px;vertical-align:middle}tbody tr:nth-child(even) td{background:#eff8f0}tr{page-break-inside:avoid}thead{display:table-header-group}' +
+                    '.total{text-align:right;font-weight:bold;font-size:13px;margin:12px 0 0}' +
+                    '.sign{width:260px;margin:46px 0 0 auto;text-align:center;border-top:1px solid #222;padding-top:4px;page-break-inside:avoid}' +
+                    '.sign b{display:block;font-size:13px;text-transform:uppercase}.sign span{display:block;color:#666;font-size:12px}.sign i{display:block;color:#666;font-size:11px;margin-top:3px}' +
+                    '.foot{text-align:center;color:#888;font-size:11px;margin-top:28px;font-style:italic}' +
+                    '</style></head><body>' +
+                    '<div class="banner"><img src="' + esc(logo) + '" alt=""><div><h1>' + esc(INFO.site) + '</h1>' + (details ? '<p>' + esc(details) + '</p>' : '') + '</div></div>' +
+                    '<div class="page"><h2>' + esc(title) + '</h2>' +
+                    '<table><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table>' +
+                    '<p class="total">Total Records: ' + data.rows.length + '</p>' +
+                    '<div class="sign"><b>' + esc(INFO.name) + '</b><span>' + esc(INFO.position) + '</span><i>Printed by / Generated on ' + esc(today) + '</i></div>' +
+                    '<div class="foot">Generated ' + esc(stamp()) + '</div></div></body></html>';
             }
 
             function tableHtml(data, forExcel) {
@@ -133,7 +219,7 @@ if (!defined('SK_TABLE_EXPORT_LOADED')) {
                 btn.innerHTML = 'Preparing...';
                 try {
                     var data = await collect(index, card);
-                    var title = titleText();
+                    var title = titleText(card);
                     if (kind === 'excel') {
                         var html = '<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"></head><body>' +
                             '<h3>' + esc(title) + '</h3><p>Generated ' + esc(stamp()) + ' - ' + data.rows.length + ' record(s)</p>' +
@@ -153,15 +239,21 @@ if (!defined('SK_TABLE_EXPORT_LOADED')) {
                             alert('Please allow pop-ups to print.');
                             return;
                         }
-                        w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>' + esc(title) + '</title>' +
-                            '<style>@page{size:landscape;margin:12mm}body{font-family:Arial,sans-serif;color:#111}h2{margin:0 0 2px}p{margin:0 0 10px;font-size:12px;color:#555}th,td{vertical-align:top}</style></head><body>' +
-                            '<h2>' + esc(title) + '</h2><p>Printed ' + esc(stamp()) + ' - ' + data.rows.length + ' record(s)</p>' +
-                            tableHtml(data, false) + '</body></html>');
+                        w.document.write(printHtml(title, data));
                         w.document.close();
                         w.focus();
-                        setTimeout(function() {
+                        // wait for the logo before opening the print dialog
+                        var fire = function() {
                             w.print();
-                        }, 300);
+                        };
+                        var img = w.document.querySelector('.banner img');
+                        if (img && !img.complete) {
+                            img.onload = img.onerror = function() {
+                                setTimeout(fire, 100);
+                            };
+                        } else {
+                            setTimeout(fire, 300);
+                        }
                     }
                 } catch (e) {
                     alert('Sorry, the table could not be prepared. Please try again.');
