@@ -12,11 +12,6 @@ if (!defined('SK_TABLE_EXPORT_LOADED')) {
             gap: 6px;
             margin-bottom: 6px;
         }
-
-        .tbl-export-bar .btn {
-            font-size: 12px;
-            padding: 3px 10px;
-        }
     </style>
     <script>
         (function() {
@@ -183,7 +178,7 @@ if (!defined('SK_TABLE_EXPORT_LOADED')) {
                     if (table.querySelectorAll('thead th').length < 3) return;
                     var bar = document.createElement('div');
                     bar.className = 'tbl-export-bar';
-                    bar.innerHTML = '<button type="button" class="btn btn-success" style="font-size:14px;padding:8px 20px;font-weight:600;" data-k="print"><i class="bi bi-printer me-2"></i>Print</button>';
+                    bar.innerHTML = '<button type="button" class="btn btn-sm btn-success" data-k="print"><i class="bi bi-printer me-1"></i> Print</button>';
                     bar.addEventListener('click', function(e) {
                         var b = e.target.closest('button[data-k]');
                         if (b) run(b.getAttribute('data-k'), index, card, b);
