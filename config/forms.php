@@ -471,6 +471,8 @@ function ensureBuiltinTabSettingsColumns()
         'inkind_items' => 'VARCHAR(255) NULL',
         'inkind_quantity' => 'INT NULL',
         'release_requirements' => 'TEXT NULL',
+        'min_amount' => 'DECIMAL(10,2) NULL',
+        'max_amount' => 'DECIMAL(10,2) NULL',
     ];
     foreach ($cols as $col => $def) {
         $exists = $conn->query("SHOW COLUMNS FROM program_tabs LIKE '$col'");
@@ -521,6 +523,8 @@ function builtinProgramRow($committeeId)
         'inkind_items' => $tab['inkind_items'],
         'inkind_quantity' => $tab['inkind_quantity'],
         'release_requirements' => $tab['release_requirements'] ?? null,
+        'min_amount' => $tab['min_amount'] ?? null,
+        'max_amount' => $tab['max_amount'] ?? null,
         'status' => 'active',
         'archived_at' => null,
     ];
@@ -609,7 +613,7 @@ function ensureProgramInKindColumns()
         return;
     }
     $done = true;
-    foreach (['inkind_items' => 'VARCHAR(255) NULL', 'inkind_quantity' => 'INT NULL', 'min_activities' => 'INT NULL'] as $col => $def) {
+    foreach (['inkind_items' => 'VARCHAR(255) NULL', 'inkind_quantity' => 'INT NULL', 'min_activities' => 'INT NULL', 'min_amount' => 'DECIMAL(10,2) NULL', 'max_amount' => 'DECIMAL(10,2) NULL'] as $col => $def) {
         $exists = $conn->query("SHOW COLUMNS FROM programs LIKE '$col'");
         if ($exists && $exists->num_rows === 0) {
             $conn->query("ALTER TABLE programs ADD COLUMN $col $def");
@@ -629,6 +633,69 @@ function getProgramInKind($programId, $committeeId = null)
     }
     $qty = (int)($program['inkind_quantity'] ?? 0);
     return ['items' => $items, 'quantity' => $qty > 0 ? $qty : 1];
+}
+
+// ---- Minimum / maximum cash amount ----
+// A program can set the lowest and highest cash amount an officer may give one beneficiary, for when someone is
+// given a different amount from the standard one. Blank = no limit on that side.
+function cashAmountRange($programId, $committeeId)
+{
+    $program = getProgramById((int)$programId, $committeeId);
+    $min = isset($program['min_amount']) && $program['min_amount'] !== null && $program['min_amount'] !== '' ? (float)$program['min_amount'] : null;
+    $max = isset($program['max_amount']) && $program['max_amount'] !== null && $program['max_amount'] !== '' ? (float)$program['max_amount'] : null;
+    return ['min' => $min, 'max' => $max];
+}
+
+function cashAmountRangeForApplication($applicationId)
+{
+    global $conn;
+    $stmt = $conn->prepare("SELECT program_id, committee_id FROM applications WHERE application_id = ?");
+    $stmt->bind_param('i', $applicationId);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row ? cashAmountRange($row['program_id'], (int)$row['committee_id']) : ['min' => null, 'max' => null];
+}
+
+// null when the amount is allowed, otherwise a sentence for the officer.
+function cashAmountError($amount, $applicationId)
+{
+    $range = cashAmountRangeForApplication($applicationId);
+    $min = $range['min'];
+    $max = $range['max'];
+    if ($min !== null && $amount < $min - 0.001 || $max !== null && $amount > $max + 0.001) {
+        if ($min !== null && $max !== null) {
+            return 'The amount must be between PHP ' . number_format($min, 2) . ' and PHP ' . number_format($max, 2) . ' for this program.';
+        }
+        return $min !== null
+            ? 'The amount must be at least PHP ' . number_format($min, 2) . ' for this program.'
+            : 'The amount must be at most PHP ' . number_format($max, 2) . ' for this program.';
+    }
+    return null;
+}
+
+function cashAmountErrorForBeneficiary($amount, $beneficiaryId)
+{
+    global $conn;
+    $stmt = $conn->prepare("SELECT application_id FROM assistance_beneficiaries WHERE beneficiary_id = ?");
+    $stmt->bind_param('i', $beneficiaryId);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row ? cashAmountError($amount, (int)$row['application_id']) : null;
+}
+
+// Small hint shown under an amount box: "Allowed: PHP 500.00 - PHP 2,000.00", or nothing when there is no limit.
+function cashAmountHint($applicationId)
+{
+    $range = cashAmountRangeForApplication($applicationId);
+    if ($range['min'] === null && $range['max'] === null) {
+        return '';
+    }
+    $text = $range['min'] !== null && $range['max'] !== null
+        ? 'PHP ' . number_format($range['min'], 2) . ' - PHP ' . number_format($range['max'], 2)
+        : ($range['min'] !== null ? 'at least PHP ' . number_format($range['min'], 2) : 'at most PHP ' . number_format($range['max'], 2));
+    return '<div class="form-text" style="font-size:11.5px;">Allowed for this program: ' . htmlspecialchars($text) . '</div>';
 }
 
 function getProgramInKindForApplication($applicationId)

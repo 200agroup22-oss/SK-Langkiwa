@@ -42,7 +42,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $valid = $stmt->get_result()->fetch_assoc();
         $stmt->close();
 
-        if ($valid && $amount > 0 && applicationAssistanceTypeMatches($applicationId, $type)) {
+        $amountError = $valid ? cashAmountError($amount, $applicationId) : null;
+        if ($amountError) {
+            setFlash('error', $amountError);
+        } elseif ($valid && $amount > 0 && applicationAssistanceTypeMatches($applicationId, $type)) {
             $stmt = $conn->prepare("INSERT INTO assistance_beneficiaries (application_id, type, amount, status) VALUES (?, ?, ?, 'pending')");
             $stmt->bind_param('isd', $applicationId, $type, $amount);
             $stmt->execute();
@@ -75,12 +78,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $status = in_array($_POST['status'] ?? '', ['pending', 'released'], true) ? $_POST['status'] : 'pending';
         $dateReleased = $status === 'released' ? ($_POST['date_released'] ?: date('Y-m-d')) : null;
 
-        $stmt = $conn->prepare("UPDATE assistance_beneficiaries SET amount = ?, status = ?, date_released = ? WHERE beneficiary_id = ? AND type = 'cash'");
-        $stmt->bind_param('dssi', $amount, $status, $dateReleased, $beneficiaryId);
-        $stmt->execute();
-        $stmt->close();
-        logAudit('Updated Cash Beneficiary', 'Beneficiary #' . $beneficiaryId);
-        setFlash('success', 'Beneficiary updated.');
+        $amountError = cashAmountErrorForBeneficiary($amount, $beneficiaryId);
+        if ($amountError) {
+            setFlash('error', $amountError);
+        } else {
+            $stmt = $conn->prepare("UPDATE assistance_beneficiaries SET amount = ?, status = ?, date_released = ? WHERE beneficiary_id = ? AND type = 'cash'");
+            $stmt->bind_param('dssi', $amount, $status, $dateReleased, $beneficiaryId);
+            $stmt->execute();
+            $stmt->close();
+            logAudit('Updated Cash Beneficiary', 'Beneficiary #' . $beneficiaryId);
+            setFlash('success', 'Beneficiary updated.');
+        }
     }
 
     if (isset($_POST['release_payment'])) {
@@ -569,6 +577,7 @@ $activeLink = 'SportsCashAssistance';
                                         <span class="input-group-text">&#8369;</span>
                                         <input type="number" step="0.01" min="0.01" class="form-control" name="amount" value="<?php echo e($row['amount']); ?>" required>
                                     </div>
+                                    <?php echo cashAmountHint($row['application_id']); ?>
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label" style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;">Status</label>

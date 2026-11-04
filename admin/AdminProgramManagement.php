@@ -145,6 +145,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $appEnd = ($_POST['app_end_date'] ?? '') !== '' ? $_POST['app_end_date'] : null;
         $eligibility = trim($_POST['eligibility_requirements'] ?? '');
         $status = isset($_POST['status_active']) ? 'active' : 'inactive';
+        // Minimum / maximum cash amount an officer may give one beneficiary (blank = no limit on that side).
+        $minAmount = ($_POST['min_amount'] ?? '') !== '' ? max(0, (float)$_POST['min_amount']) : null;
+        $maxAmount = ($_POST['max_amount'] ?? '') !== '' ? max(0, (float)$_POST['max_amount']) : null;
+        $rangeError = null;
+        if ($minAmount !== null && $maxAmount !== null && $minAmount > $maxAmount) {
+            $rangeError = 'The minimum amount cannot be higher than the maximum amount.';
+        } elseif ($amount !== null && (($minAmount !== null && $amount < $minAmount) || ($maxAmount !== null && $amount > $maxAmount))) {
+            $rangeError = 'The standard amount must be within the minimum and maximum amount.';
+        }
 
         $origProgramCommitteeId = null;
         if ($isEdit) {
@@ -156,6 +165,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             setFlash('error', 'Program name and committee are required.');
         } elseif (!pmCanAccessCommittee($committeeId) || ($origProgramCommitteeId !== null && !pmCanAccessCommittee($origProgramCommitteeId))) {
             setFlash('error', 'You can only manage programs for your assigned committee(s).');
+        } elseif ($rangeError) {
+            setFlash('error', $rangeError);
         } elseif ($isEdit) {
             $programId = (int)$_POST['program_id'];
             $stmt = $conn->prepare("UPDATE programs SET committee_id = ?, name = ?, description = ?, assistance_type = ?, amount = ?, release_schedule = ?, app_start_date = ?, app_end_date = ?, status = ? WHERE program_id = ?");
@@ -172,8 +183,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute();
             $stmt->close();
             $minAct = (int)($_POST['min_activities'] ?? 0) > 0 ? (int)$_POST['min_activities'] : null;
-            $stmt = $conn->prepare("UPDATE programs SET min_activities = ? WHERE program_id = ?");
-            $stmt->bind_param('ii', $minAct, $programId);
+            $stmt = $conn->prepare("UPDATE programs SET min_activities = ?, min_amount = ?, max_amount = ? WHERE program_id = ?");
+            $stmt->bind_param('iddi', $minAct, $minAmount, $maxAmount, $programId);
             $stmt->execute();
             $stmt->close();
             ensureProgramReleaseColumns();
@@ -216,8 +227,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute();
             $stmt->close();
             $minAct = (int)($_POST['min_activities'] ?? 0) > 0 ? (int)$_POST['min_activities'] : null;
-            $stmt = $conn->prepare("UPDATE programs SET min_activities = ? WHERE program_id = ?");
-            $stmt->bind_param('ii', $minAct, $newId);
+            $stmt = $conn->prepare("UPDATE programs SET min_activities = ?, min_amount = ?, max_amount = ? WHERE program_id = ?");
+            $stmt->bind_param('iddi', $minAct, $minAmount, $maxAmount, $newId);
             $stmt->execute();
             $stmt->close();
             ensureProgramReleaseColumns();
@@ -375,10 +386,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ensureBuiltinTabSettingsColumns();
         $tabRow = $conn->query("SELECT * FROM program_tabs WHERE tab_id = " . $tabId)->fetch_assoc();
         $label = trim($_POST['label'] ?? '');
+        $bMin = ($_POST['min_amount'] ?? '') !== '' ? max(0, (float)$_POST['min_amount']) : null;
+        $bMax = ($_POST['max_amount'] ?? '') !== '' ? max(0, (float)$_POST['max_amount']) : null;
+        $bAmount = ($_POST['amount'] ?? '') !== '' ? (float)$_POST['amount'] : null;
+        $bRangeError = null;
+        if (isset($_POST['has_settings'])) {
+            if ($bMin !== null && $bMax !== null && $bMin > $bMax) {
+                $bRangeError = 'The minimum amount cannot be higher than the maximum amount.';
+            } elseif ($bAmount !== null && (($bMin !== null && $bAmount < $bMin) || ($bMax !== null && $bAmount > $bMax))) {
+                $bRangeError = 'The standard amount must be within the minimum and maximum amount.';
+            }
+        }
         if (!$tabRow || !pmCanAccessCommittee($tabRow['committee_id'])) {
             setFlash('error', 'You can only manage programs for your assigned committee(s).');
         } elseif ($label === '') {
             setFlash('error', 'Program name is required.');
+        } elseif ($bRangeError) {
+            setFlash('error', $bRangeError);
         } else {
             ensureProgramActivitySchema();
             $icon = trim($_POST['icon'] ?? 'bi-heart-fill');
@@ -405,8 +429,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $ikItems = trim($_POST['inkind_items'] ?? '') ?: null;
                 $ikQty = ($ikItems !== null && (int)($_POST['inkind_quantity'] ?? 0) > 0) ? (int)$_POST['inkind_quantity'] : null;
                 $relReq = trim($_POST['release_requirements'] ?? '') ?: null;
-                $stmt = $conn->prepare("UPDATE program_tabs SET description = ?, amount = ?, release_schedule = ?, app_start_date = ?, app_end_date = ?, release_date = ?, release_time = ?, release_venue = ?, release_requirements = ?, inkind_items = ?, inkind_quantity = ? WHERE tab_id = ?");
-                $stmt->bind_param('sdssssssssii', $desc, $amount, $sched, $appStart, $appEnd, $relDate, $relTime, $relVenue, $relReq, $ikItems, $ikQty, $tabId);
+                $stmt = $conn->prepare("UPDATE program_tabs SET description = ?, amount = ?, release_schedule = ?, app_start_date = ?, app_end_date = ?, release_date = ?, release_time = ?, release_venue = ?, release_requirements = ?, inkind_items = ?, inkind_quantity = ?, min_amount = ?, max_amount = ? WHERE tab_id = ?");
+                $stmt->bind_param('sdssssssssiddi', $desc, $amount, $sched, $appStart, $appEnd, $relDate, $relTime, $relVenue, $relReq, $ikItems, $ikQty, $bMin, $bMax, $tabId);
                 $stmt->execute();
                 $stmt->close();
                 // A changed release schedule is emailed again to everyone still waiting for their release.
@@ -1343,6 +1367,25 @@ $activeLink = 'AdminProgramManagement';
                                                 </div>
                                                 <div class="col-12">
                                                     <div class="row g-3">
+                                                        <div class="col-md-6">
+                                                            <label class="form-label">Minimum amount <span class="text-muted fw-normal">(optional)</span></label>
+                                                            <div class="input-group">
+                                                                <span class="input-group-text">&#8369;</span>
+                                                                <input type="number" step="0.01" min="0" class="form-control" name="min_amount" placeholder="No minimum" value="<?php echo e($t['min_amount'] ?? ''); ?>" <?php echo $dis; ?>>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <label class="form-label">Maximum amount <span class="text-muted fw-normal">(optional)</span></label>
+                                                            <div class="input-group">
+                                                                <span class="input-group-text">&#8369;</span>
+                                                                <input type="number" step="0.01" min="0" class="form-control" name="max_amount" placeholder="No maximum" value="<?php echo e($t['max_amount'] ?? ''); ?>" <?php echo $dis; ?>>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="form-text" style="font-size:11.5px;">When an officer gives a beneficiary a different amount from the standard one, it must be within this range. Leave blank for no limit.</div>
+                                                </div>
+                                                <div class="col-12">
+                                                    <div class="row g-3">
                                                         <div class="col-md-8">
                                                             <label class="form-label">In-Kind Items</label>
                                                             <input type="text" class="form-control" name="inkind_items" maxlength="255" placeholder="e.g. Rice, canned goods, school supplies kit" value="<?php echo e($t['inkind_items'] ?? ''); ?>" <?php echo $dis; ?>>
@@ -1669,6 +1712,25 @@ $activeLink = 'AdminProgramManagement';
                                     <option>Quarterly</option>
                                 </select>
                             </div>
+                            <div class="col-12 cash-fields">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Minimum amount <span class="text-muted fw-normal">(optional)</span></label>
+                                        <div class="input-group">
+                                            <span class="input-group-text">&#8369;</span>
+                                            <input type="number" step="0.01" min="0" class="form-control" name="min_amount" placeholder="No minimum">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Maximum amount <span class="text-muted fw-normal">(optional)</span></label>
+                                        <div class="input-group">
+                                            <span class="input-group-text">&#8369;</span>
+                                            <input type="number" step="0.01" min="0" class="form-control" name="max_amount" placeholder="No maximum">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-text" style="font-size:11.5px;">When an officer gives a beneficiary a different amount from the standard one, it must be within this range. Leave blank for no limit.</div>
+                            </div>
                             <div class="col-12 inkind-fields" style="display:none;">
                                 <div class="row g-3">
                                     <div class="col-md-8">
@@ -1847,6 +1909,25 @@ $activeLink = 'AdminProgramManagement';
                                             <option <?php echo $p['release_schedule'] === $sch ? 'selected' : ''; ?>><?php echo $sch; ?></option>
                                         <?php endforeach; ?>
                                     </select>
+                                </div>
+                                <div class="col-12 cash-fields" <?php echo in_array($p['assistance_type'], ['cash', 'both'], true) ? '' : ' style="display:none;"'; ?>>
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label">Minimum amount <span class="text-muted fw-normal">(optional)</span></label>
+                                            <div class="input-group">
+                                                <span class="input-group-text">&#8369;</span>
+                                                <input type="number" step="0.01" min="0" class="form-control" name="min_amount" placeholder="No minimum" value="<?php echo e($p['min_amount'] ?? ''); ?>" <?php echo in_array($p['assistance_type'], ['cash', 'both'], true) ? '' : ' disabled'; ?>>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Maximum amount <span class="text-muted fw-normal">(optional)</span></label>
+                                            <div class="input-group">
+                                                <span class="input-group-text">&#8369;</span>
+                                                <input type="number" step="0.01" min="0" class="form-control" name="max_amount" placeholder="No maximum" value="<?php echo e($p['max_amount'] ?? ''); ?>" <?php echo in_array($p['assistance_type'], ['cash', 'both'], true) ? '' : ' disabled'; ?>>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="form-text" style="font-size:11.5px;">When an officer gives a beneficiary a different amount from the standard one, it must be within this range. Leave blank for no limit.</div>
                                 </div>
                                 <div class="col-12 inkind-fields" <?php echo in_array($p['assistance_type'], ['in_kind', 'both'], true) ? '' : ' style="display:none;"'; ?>>
                                     <div class="row g-3">
@@ -2307,12 +2388,14 @@ $activeLink = 'AdminProgramManagement';
         // The Amount input only shows while Cash Assistance is ticked (and is not submitted otherwise).
         document.querySelectorAll('.assistance-type-check[value="cash"]').forEach(function(box) {
             const form = box.closest('form');
-            const wrap = form.querySelector('.cash-fields');
-            if (!wrap) return;
+            const wraps = form.querySelectorAll('.cash-fields');
+            if (!wraps.length) return;
 
             function toggleCash() {
-                wrap.style.display = box.checked ? '' : 'none';
-                wrap.querySelectorAll('input').forEach(i => i.disabled = !box.checked);
+                wraps.forEach(wrap => {
+                    wrap.style.display = box.checked ? '' : 'none';
+                    wrap.querySelectorAll('input').forEach(i => i.disabled = !box.checked);
+                });
             }
             box.addEventListener('change', toggleCash);
             toggleCash();
