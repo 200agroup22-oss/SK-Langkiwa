@@ -948,7 +948,7 @@ const ADDRESS_PARTS = [
     'street' => ['label' => 'Street',                      'prefix' => '',           'placeholder' => 'Street name',  'col' => 'col-12 col-md-5'],
     'area'   => ['label' => 'Purok / Subdivision / Sitio', 'prefix' => '',           'placeholder' => 'e.g. Purok 3', 'col' => 'col-12 col-md-4'],
 ];
-const ADDRESS_BARANGAY = 'Brgy. Langkiwa';
+const ADDRESS_BARANGAY = 'Brgy. Langkiwa, Biñan City, Laguna';
 
 function isAddressField(array $field)
 {
@@ -960,7 +960,7 @@ function addressPartsFromString($value)
     $out = array_fill_keys(array_keys(ADDRESS_PARTS), '');
     $left = [];
     foreach (array_map('trim', explode(',', (string)$value)) as $piece) {
-        if ($piece === '' || strcasecmp($piece, ADDRESS_BARANGAY) === 0) {
+        if ($piece === '' || in_array(mb_strtolower($piece), ['brgy. langkiwa', 'langkiwa', 'biñan city', 'binan city', 'biñan', 'laguna'], true)) {
             continue;
         }
         $matched = false;
@@ -1026,7 +1026,7 @@ function renderAddressInputs($key, $value, $required)
         echo '<input type="text" class="form-control form-control-sm js-sentence-case" maxlength="60" name="' . e($key) . '__' . $k . '" value="' . e($parts[$k]) . '" placeholder="' . e($def['placeholder']) . '">';
         echo '</div>';
     }
-    echo '<div class="col-12 col-md-3"><label class="form-label small text-muted mb-1">Barangay</label><input type="text" class="form-control form-control-sm" value="Langkiwa" readonly tabindex="-1"></div>';
+    echo '<div class="col-12"><label class="form-label small text-muted mb-1">Barangay, City, Province (fixed)</label><input type="text" class="form-control form-control-sm bg-light" value="' . e(ADDRESS_BARANGAY) . '" readonly tabindex="-1"></div>';
     echo '</div>';
     echo '<div class="form-text" style="font-size:11.5px;">Fill in what applies to your home' . ($required ? ' (at least a Blk / Lot, House No. or Unit No., and your Street)' : '') . '. Leave the rest blank.</div>';
 }
