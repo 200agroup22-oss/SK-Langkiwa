@@ -1712,7 +1712,7 @@ $activeLink = 'AdminReports';
                     document.body.appendChild(frame);
                     bootstrap.Modal.getInstance(document.getElementById('generateReportModal')).hide();
                 })
-                .catch(err => alert(err.message || 'Could not build the report.'))
+                .catch(err => showToast(err.message || 'Could not build the report.', 'error'))
                 .finally(() => {
                     btn.disabled = false;
                     btn.innerHTML = original;
