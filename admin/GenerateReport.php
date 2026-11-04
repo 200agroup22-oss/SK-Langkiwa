@@ -533,6 +533,36 @@ $pdf->SetMargins(10, 10, 10);
 $pdf->SetAutoPageBreak(true, 20);
 $pdf->AddPage();
 
+// ---- Title block above the table (the green banner only repeats on every page; this names the report) ----
+$fullTitles = [
+    'consolidated' => 'Consolidated Summary Report',
+    'applicants' => 'Applicant Summaries Report',
+    'beneficiaries' => 'Beneficiaries Report',
+    'financial' => 'Financial / Funds Released Report',
+    'in-kind' => 'In-Kind Assistance Report',
+    'disbursement' => 'Disbursement Report',
+    'scholars' => 'Activity Participation Report',
+    'activity-log' => 'Activity Log Report',
+    'audit-log' => 'Audit Trail Report',
+];
+$pdf->SetFont('Helvetica', 'B', 15);
+$pdf->SetTextColor(...reportColor('heading'));
+$pdf->Cell(0, 8, pdfEnc(strtoupper($fullTitles[$type] ?? $reportLabel)), 0, 1, 'C');
+$pdf->SetFont('Helvetica', '', 9.5);
+$pdf->SetTextColor(90, 90, 90);
+$titleScope = in_array($type, ['activity-log', 'audit-log'], true)
+    ? 'System-wide'
+    : 'Committee: ' . $committeeLabel . '   |   Program: ' . ($programLabel !== null ? $programLabel : 'All Programs') . ($termLabel !== '' ? '   |   Term: ' . $termLabel : '');
+$pdf->Cell(0, 5, pdfEnc($titleScope), 0, 1, 'C');
+$pdf->Cell(0, 5, pdfEnc('For the period ' . date('F j, Y', strtotime($from)) . ' to ' . date('F j, Y', strtotime($to))), 0, 1, 'C');
+$pdf->SetDrawColor(...reportColor('header'));
+$pdf->SetLineWidth(0.6);
+$pdf->Line(10, $pdf->GetY() + 1.5, $pdf->GetPageWidth() - 10, $pdf->GetY() + 1.5);
+$pdf->SetDrawColor(0, 0, 0);
+$pdf->SetLineWidth(0.2);
+$pdf->SetTextColor(30, 30, 30);
+$pdf->Ln(6);
+
 // One pass per chosen committee / program: each pass sets the same variables a single-scope report used, and
 // when more than one was chosen each gets its own titled section.
 foreach ($scopes as $scopeIndex => $sc) {
