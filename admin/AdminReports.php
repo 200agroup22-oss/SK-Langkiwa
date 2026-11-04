@@ -719,40 +719,125 @@ $activeLink = 'AdminReports';
         }
 
         @media print {
+
+            /* margin 0 also removes the browser's own date / page title / address lines; the sheet keeps its own margins */
             @page {
                 size: A4 landscape;
-                margin: 10mm;
+                margin: 0;
             }
 
             body.printing {
                 background: #fff !important;
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
+                margin: 0 !important;
+                padding: 0 !important;
             }
 
             body.printing>*:not(#printArea) {
                 display: none !important;
             }
 
+            body.printing #printArea,
+            body.printing #printArea * {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
             body.printing #printArea {
                 display: block !important;
+                font-family: Helvetica, Arial, sans-serif;
+                color: #1e1e1e;
             }
 
-            #printArea .print-head {
-                border-bottom: 3px solid #45b84d;
+            /* Same look as the PDF reports: green banner, title, content, "Printed by" block */
+            #printArea .ps-banner {
+                background: #45b84d;
+                color: #fff;
+                display: flex;
+                align-items: center;
+                gap: 14px;
+                padding: 7mm 10mm;
+            }
+
+            #printArea .ps-logo {
+                width: 17mm;
+                height: 17mm;
+                object-fit: cover;
+            }
+
+            #printArea .ps-banner-title {
+                font-size: 17px;
+                font-weight: 700;
+                margin-bottom: 2px;
+            }
+
+            #printArea .ps-banner-line {
+                font-size: 11px;
+            }
+
+            #printArea .ps-body {
+                padding: 6mm 10mm 10mm;
+            }
+
+            #printArea .ps-titleblock {
+                text-align: center;
+                border-bottom: 2px solid #45b84d;
                 padding-bottom: 8px;
-                margin-bottom: 14px;
+                margin-bottom: 12px;
             }
 
-            #printArea .print-title {
+            #printArea .ps-title {
                 font-size: 18px;
                 font-weight: 700;
                 color: #2e7d32;
             }
 
-            #printArea .print-sub {
+            #printArea .ps-subtitle {
                 font-size: 11px;
-                color: #555;
+                color: #5a5a5a;
+                margin-top: 2px;
+            }
+
+            #printArea .ps-section {
+                font-size: 12px;
+                font-weight: 700;
+                color: #2e7d32;
+                text-transform: uppercase;
+                letter-spacing: 0.6px;
+                margin: 14px 0 8px;
+                break-after: avoid;
+            }
+
+            #printArea .ps-stats {
+                display: flex;
+                gap: 10px;
+            }
+
+            #printArea .ps-stats>* {
+                flex: 1 1 0;
+            }
+
+            #printArea .ps-charts {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 10px;
+            }
+
+            #printArea .ps-single {
+                max-width: 190mm;
+                margin: 0 auto;
+            }
+
+            #printArea .chart-card {
+                height: auto !important;
+                padding: 12px;
+            }
+
+            #printArea .chart-card>div[style*="height"] {
+                height: 200px !important;
+            }
+
+            #printArea .ps-single .chart-card>div[style*="height"] {
+                height: 300px !important;
             }
 
             #printArea .chart-card,
@@ -764,6 +849,34 @@ $activeLink = 'AdminReports';
 
             #printArea table.report-table {
                 min-width: 0;
+            }
+
+            #printArea .ps-sign {
+                width: 80mm;
+                margin: 16mm 0 0 auto;
+                text-align: center;
+                break-inside: avoid;
+            }
+
+            #printArea .ps-sign-line {
+                border-top: 1px solid #000;
+                margin-bottom: 4px;
+            }
+
+            #printArea .ps-sign-name {
+                font-size: 13px;
+                font-weight: 700;
+            }
+
+            #printArea .ps-sign-pos {
+                font-size: 11px;
+                color: #5a5a5a;
+            }
+
+            #printArea .ps-sign-date {
+                font-size: 10px;
+                font-style: italic;
+                color: #5a5a5a;
             }
         }
 
@@ -1604,40 +1717,94 @@ $activeLink = 'AdminReports';
         }
         $printPeriodOptions = $periodMode === 'monthly' ? $monthlyOptions : $yearlyOptions;
         $printPeriodLabel = $printPeriodOptions[$periodValue] ?? $periodValue;
+        // Who is printing, for the "Printed by" block at the end of the sheet (same as the PDF reports).
+        $printPosStmt = $conn->prepare("SELECT position_title FROM users WHERE user_id = ?");
+        $printPosStmt->bind_param('i', $me['user_id']);
+        $printPosStmt->execute();
+        $printPosition = (string)($printPosStmt->get_result()->fetch_assoc()['position_title'] ?? '');
+        $printPosStmt->close();
+        $printName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
         ?>
-        const printMeta = <?php echo json_encode(['site' => siteName(), 'committee' => $printCommitteeLabel, 'period' => $printPeriodLabel]); ?>;
+        const printMeta = <?php echo json_encode([
+                                'site' => siteName(),
+                                'logo' => siteLogoUrl(),
+                                'committee' => $printCommitteeLabel,
+                                'period' => $printPeriodLabel,
+                                'name' => $printName !== '' ? $printName : 'Administrator',
+                                'position' => $printPosition !== '' ? $printPosition : 'System Administrator',
+                            ]); ?>;
 
-        function printSheet(title, nodes) {
+        // Copies a card for the print sheet: the chart canvas becomes a picture, and the print buttons are dropped.
+        function cloneForPrint(node) {
+            const clone = node.cloneNode(true);
+            clone.querySelectorAll('.chart-print-btn, #filterForm').forEach(el => el.remove());
+            const live = node.querySelectorAll('canvas');
+            clone.querySelectorAll('canvas').forEach((cv, i) => {
+                // A chart still animating in would be copied half-drawn (or blank): finish it first.
+                const chart = typeof Chart !== 'undefined' ? Chart.getChart(live[i]) : null;
+                if (chart) {
+                    chart.stop();
+                    chart.update('none');
+                }
+                const img = new Image();
+                img.src = live[i].toDataURL('image/png');
+                img.style.cssText = 'width:100%;height:100%;object-fit:contain;';
+                cv.replaceWith(img);
+            });
+            return clone;
+        }
+
+        function printEl(tag, className, text) {
+            const el = document.createElement(tag);
+            if (className) el.className = className;
+            if (text !== undefined) el.textContent = text;
+            return el;
+        }
+
+        // Builds the same layout as the PDF reports: green banner, title block, content, "Printed by" block.
+        function printSheet(title, fill) {
             const old = document.getElementById('printArea');
             if (old) old.remove();
-            const area = document.createElement('div');
+            const area = printEl('div');
             area.id = 'printArea';
-            const head = document.createElement('div');
-            head.className = 'print-head';
-            const meta = document.createElement('div');
-            const h = document.createElement('div');
-            h.className = 'print-title';
-            h.textContent = printMeta.site + ' - ' + title;
-            const sub = document.createElement('div');
-            sub.className = 'print-sub';
-            sub.textContent = 'Committee: ' + printMeta.committee + '   |   Period: ' + printMeta.period + '   |   Printed ' + new Date().toLocaleString();
-            meta.appendChild(h);
-            meta.appendChild(sub);
-            head.appendChild(meta);
-            area.appendChild(head);
-
-            nodes.forEach(node => {
-                const clone = node.cloneNode(true);
-                clone.querySelectorAll('.chart-print-btn, #filterForm').forEach(el => el.remove());
-                const live = node.querySelectorAll('canvas');
-                clone.querySelectorAll('canvas').forEach((cv, i) => {
-                    const img = new Image();
-                    img.src = live[i].toDataURL('image/png');
-                    img.style.cssText = 'width:100%;height:100%;object-fit:contain;';
-                    cv.replaceWith(img);
-                });
-                area.appendChild(clone);
+            const now = new Date();
+            const longDate = now.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
             });
+
+            // banner (logo, site name - title, committee, period)
+            const banner = printEl('div', 'ps-banner');
+            const logo = new Image();
+            logo.src = printMeta.logo;
+            logo.className = 'ps-logo';
+            const bannerText = printEl('div', 'ps-banner-text');
+            bannerText.appendChild(printEl('div', 'ps-banner-title', printMeta.site + ' - ' + title));
+            bannerText.appendChild(printEl('div', 'ps-banner-line', 'Committee: ' + printMeta.committee));
+            bannerText.appendChild(printEl('div', 'ps-banner-line', 'Period: ' + printMeta.period));
+            banner.appendChild(logo);
+            banner.appendChild(bannerText);
+            area.appendChild(banner);
+
+            const body = printEl('div', 'ps-body');
+            // title block under the banner
+            const titleBlock = printEl('div', 'ps-titleblock');
+            titleBlock.appendChild(printEl('div', 'ps-title', title.toUpperCase()));
+            titleBlock.appendChild(printEl('div', 'ps-subtitle', 'Committee: ' + printMeta.committee + '   |   Period: ' + printMeta.period));
+            titleBlock.appendChild(printEl('div', 'ps-subtitle', 'Printed on ' + longDate));
+            body.appendChild(titleBlock);
+
+            fill(body);
+
+            // "Printed by" signature block
+            const sign = printEl('div', 'ps-sign');
+            sign.appendChild(printEl('div', 'ps-sign-line'));
+            sign.appendChild(printEl('div', 'ps-sign-name', printMeta.name.toUpperCase()));
+            sign.appendChild(printEl('div', 'ps-sign-pos', printMeta.position));
+            sign.appendChild(printEl('div', 'ps-sign-date', 'Printed by / Generated on ' + longDate));
+            body.appendChild(sign);
+            area.appendChild(body);
 
             document.body.appendChild(area);
             document.body.classList.add('printing');
@@ -1647,11 +1814,35 @@ $activeLink = 'AdminReports';
                 window.removeEventListener('afterprint', done);
             };
             window.addEventListener('afterprint', done);
-            setTimeout(() => window.print(), 150);
+            const start = () => setTimeout(() => window.print(), 150);
+            if (logo.complete) start();
+            else {
+                logo.onload = start;
+                logo.onerror = start;
+            }
         }
 
         document.getElementById('printOverviewBtn').addEventListener('click', function() {
-            printSheet('Reports Overview', [document.getElementById('overviewTab')]);
+            printSheet('Reports Overview', body => {
+                const section = text => printEl('div', 'ps-section', text);
+                const row = (cls, nodes) => {
+                    const r = printEl('div', cls);
+                    nodes.forEach(n => r.appendChild(n));
+                    return r;
+                };
+                const tab = document.getElementById('overviewTab');
+                body.appendChild(row('ps-stats', Array.from(tab.querySelectorAll('.stat-card')).map(cloneForPrint)));
+                const charts = Array.from(tab.querySelectorAll('.chart-card')).map(cloneForPrint);
+                body.appendChild(section('Committee Overview'));
+                body.appendChild(row('ps-charts', charts.slice(0, 2)));
+                body.appendChild(section('Trends'));
+                body.appendChild(row('ps-charts', charts.slice(2, 4)));
+                const table = tab.querySelector('.table-card');
+                if (table) {
+                    body.appendChild(section('Consolidated Committee Report'));
+                    body.appendChild(table.cloneNode(true));
+                }
+            });
         });
 
         // A small printer button on every graph prints just that graph.
@@ -1664,7 +1855,12 @@ $activeLink = 'AdminReports';
             btn.className = 'chart-print-btn';
             btn.title = 'Print this graph';
             btn.innerHTML = '<i class="bi bi-printer"></i>';
-            btn.addEventListener('click', () => printSheet(title.textContent.trim(), [card]));
+            const chartName = title.textContent.trim();
+            btn.addEventListener('click', () => printSheet(chartName, body => {
+                const wrap = printEl('div', 'ps-single');
+                wrap.appendChild(cloneForPrint(card));
+                body.appendChild(wrap);
+            }));
             title.appendChild(btn);
         });
     </script>
