@@ -183,8 +183,8 @@ if (!defined('SK_TABLE_EXPORT_LOADED')) {
                     '.sign b{display:block;font-size:13px;text-transform:uppercase}.sign span{display:block;color:#666;font-size:12px}.sign i{display:block;color:#666;font-size:11px;margin-top:3px}' +
                     '.foot{text-align:center;color:#888;font-size:11px;margin-top:28px;font-style:italic}' +
                     '</style></head><body>' +
-                    '<table class="outer"><thead><tr><td><div class="banner"><img src="' + esc(logo) + '" alt=""><div><h1>' + esc(INFO.site) + '</h1>' + (details ? '<p>' + esc(details) + '</p>' : '') + '</div></div></td></tr></thead><tbody><tr><td>' +
-                    '<div class="page"><h2>' + esc(title) + '</h2>' +
+                    '<table class="outer"><thead><tr><td><div class="banner"><img src="' + esc(logo) + '" alt=""><div><h1>' + esc(INFO.site) + '</h1>' + (details ? '<p>' + esc(details) + '</p>' : '') + '</div></div><div class="page" style="padding-bottom:0"><h2>' + esc(title) + '</h2></div></td></tr></thead><tbody><tr><td>' +
+                    '<div class="page" style="padding-top:0">' +
                     '<table class="data"><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table>' +
                     '<p class="total">Total Records: ' + data.rows.length + '</p>' +
                     '<div class="sign"><b>' + esc(INFO.name) + '</b><span>' + esc(INFO.position) + '</span><i>Printed by / Generated on ' + esc(today) + '</i></div>' +
