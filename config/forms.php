@@ -966,11 +966,13 @@ function normalizeAddressPost(array $post)
 
 function renderAddressInputs($key, $value, $required)
 {
-    echo '<input type="text" class="form-control js-sentence-case" name="' . e($key) . '__text" maxlength="150" value="' . e(addressOwnPart($value)) . '" placeholder="Blk, Lot, House No., Apartment / Unit No., Floor, Street" ' . ($required ? 'required' : '') . '>';
-    echo '<input type="text" class="form-control bg-light mt-2" value="' . e(ADDRESS_BARANGAY) . '" readonly tabindex="-1">';
+    // One line: the applicant's own part, then the fixed barangay / city / province as a read-only ending.
+    echo '<div class="input-group flex-nowrap">';
+    echo '<input type="text" class="form-control js-sentence-case" style="min-width:0;flex:1 1 55%;" name="' . e($key) . '__text" maxlength="150" value="' . e(addressOwnPart($value)) . '" placeholder="Blk, Lot, House No., Unit, Street" ' . ($required ? 'required' : '') . '>';
+    echo '<span class="input-group-text bg-light text-muted" style="font-size:12px;white-space:normal;flex:0 1 45%;text-align:left;">' . e(ADDRESS_BARANGAY) . '</span>';
+    echo '</div>';
     echo '<div class="form-text" style="font-size:11.5px;">Type only your own Blk / Lot, house number, apartment or unit, floor and street.</div>';
 }
-
 function validateAddressPost(array $post, $label, $required)
 {
     if (!isset($post['complete_address__text'])) {
