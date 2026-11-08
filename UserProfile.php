@@ -92,6 +92,15 @@ $profileSuccess = getFlash('success');
 $profileError = getFlash('error');
 $photoUrl = $user['profile_photo'] ? APP_BASE . '/' . $user['profile_photo'] : APP_BASE . '/photos/default.jpg';
 $roleLabel = ['admin' => 'Super Admin', 'committee_admin' => 'Committee Admin'][$user['role']] ?? ucfirst($user['role']);
+if ($user['role'] === 'applicant') {
+    $benStmt = $conn->prepare("SELECT 1 FROM assistance_beneficiaries b JOIN applications a ON a.application_id = b.application_id WHERE a.user_id = ? LIMIT 1");
+    $benStmt->bind_param('i', $user['user_id']);
+    $benStmt->execute();
+    if ($benStmt->get_result()->fetch_row()) {
+        $roleLabel = 'Beneficiary';
+    }
+    $benStmt->close();
+}
 if (!empty($user['is_secretary'])) {
     $roleLabel .= ' (Secretary)';
 }

@@ -8,6 +8,16 @@ $isScholarNav = ($me['role'] ?? '') === 'scholar';
 
 $homeUrl = dashboardUrlForRole($me['role'] ?? 'applicant');
 $roleLabel = ucfirst($me['role'] ?? 'applicant');
+// An applicant who is already on a program's beneficiary list is shown as a Beneficiary (scholars stay Scholars).
+if (($me['role'] ?? '') === 'applicant' && !empty($me['user_id'])) {
+    $benStmt = $conn->prepare("SELECT 1 FROM assistance_beneficiaries b JOIN applications a ON a.application_id = b.application_id WHERE a.user_id = ? LIMIT 1");
+    $benStmt->bind_param('i', $me['user_id']);
+    $benStmt->execute();
+    if ($benStmt->get_result()->fetch_row()) {
+        $roleLabel = 'Beneficiary';
+    }
+    $benStmt->close();
+}
 $applyUrl = APP_BASE . ($isScholarNav ? '/applicant/EducationAssistanceForm.php' : '/applicant/ApplicationForm.php');
 
 $navLinkAttrs = 'style="font-size: 14px; color: #fff;" onmouseover="this.style.background=\'rgba(255,255,255,0.25)\';" onmouseout="this.style.background=\'\';"';
