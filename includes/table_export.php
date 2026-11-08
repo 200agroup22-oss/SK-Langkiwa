@@ -175,20 +175,20 @@ if (!defined('SK_TABLE_EXPORT_LOADED')) {
                     '.banner h1{margin:0;font-size:24px}.banner p{margin:4px 0 0;font-size:13px}' +
                     '.page{padding:0 30px 26px}' +
                     'h2{text-align:center;color:#2e7d32;font-size:22px;letter-spacing:.3px;margin:22px 0 14px;padding-bottom:12px;border-bottom:2px solid #44b94f;text-transform:uppercase}' +
-                    'table{width:100%;border-collapse:collapse;font-size:12px}' +
-                    'th{background:#a8dcaa;color:#111;text-align:left;border:1px solid #222;padding:9px 8px}' +
-                    'td{border:1px solid #222;padding:8px;vertical-align:middle}tbody tr:nth-child(even) td{background:#eff8f0}tr{page-break-inside:avoid}thead{display:table-header-group}' +
+                    'table.data{width:100%;border-collapse:collapse;font-size:12px}table.outer{width:100%;border-collapse:collapse}table.outer>thead>tr>td,table.outer>tbody>tr>td,table.outer>tfoot>tr>td{padding:0;border:0}table.outer>thead{display:table-header-group}table.outer>tfoot{display:table-footer-group}.spacer{height:12mm}' +
+                    'table.data th{background:#a8dcaa;color:#111;text-align:left;border:1px solid #222;padding:9px 8px}' +
+                    'table.data td{border:1px solid #222;padding:8px;vertical-align:middle}table.data tbody tr:nth-child(even) td{background:#eff8f0}table.data tr{page-break-inside:avoid}table.data thead{display:table-header-group}' +
                     '.total{text-align:right;font-weight:bold;font-size:13px;margin:12px 0 0}' +
                     '.sign{width:260px;margin:46px 0 0 auto;text-align:center;border-top:1px solid #222;padding-top:4px;page-break-inside:avoid}' +
                     '.sign b{display:block;font-size:13px;text-transform:uppercase}.sign span{display:block;color:#666;font-size:12px}.sign i{display:block;color:#666;font-size:11px;margin-top:3px}' +
                     '.foot{text-align:center;color:#888;font-size:11px;margin-top:28px;font-style:italic}' +
                     '</style></head><body>' +
-                    '<div class="banner"><img src="' + esc(logo) + '" alt=""><div><h1>' + esc(INFO.site) + '</h1>' + (details ? '<p>' + esc(details) + '</p>' : '') + '</div></div>' +
+                    '<table class="outer"><thead><tr><td><div class="banner"><img src="' + esc(logo) + '" alt=""><div><h1>' + esc(INFO.site) + '</h1>' + (details ? '<p>' + esc(details) + '</p>' : '') + '</div></div></td></tr></thead><tbody><tr><td>' +
                     '<div class="page"><h2>' + esc(title) + '</h2>' +
-                    '<table><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table>' +
+                    '<table class="data"><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table>' +
                     '<p class="total">Total Records: ' + data.rows.length + '</p>' +
                     '<div class="sign"><b>' + esc(INFO.name) + '</b><span>' + esc(INFO.position) + '</span><i>Printed by / Generated on ' + esc(today) + '</i></div>' +
-                    '<div class="foot">Generated ' + esc(stamp()) + '</div></div></body></html>';
+                    '<div class="foot">Generated ' + esc(stamp()) + '</div></div></td></tr></tbody><tfoot><tr><td><div class="spacer"></div></td></tr></tfoot></table></body></html>';
             }
 
             function tableHtml(data, forExcel) {
