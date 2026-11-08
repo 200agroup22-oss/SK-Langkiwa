@@ -1762,11 +1762,6 @@ $activeLink = 'AdminProgramManagement';
                             </div>
                             <?php echo renderReleaseItemsField(null, 'new'); ?>
                             <div class="col-12">
-                                <label class="form-label">Eligibility Requirements <span class="text-muted fw-normal">(one per line)</span></label>
-                                <div class="form-text mb-1" style="font-size:11.5px;">Each line becomes a required document upload on this program's application form. You can change the form later in Configuration &gt; Forms.</div>
-                                <textarea class="form-control" name="eligibility_requirements" rows="3" placeholder="e.g.&#10;Barangay Indigency&#10;Valid ID"></textarea>
-                            </div>
-                            <div class="col-12">
                                 <label class="form-label d-block">Status</label>
                                 <div class="form-check form-switch">
                                     <input class="form-check-input" type="checkbox" role="switch" name="status_active" id="programStatusSwitch" checked>
