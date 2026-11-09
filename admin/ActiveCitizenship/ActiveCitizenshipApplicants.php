@@ -88,9 +88,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    if (isset($_POST['decline_application'])) {
+    if (isset($_POST['decline_application']) && ($reason = declineReasonFromPost()) === '') {
+        setFlash('error', 'Please choose a reason for declining the applicant.');
+    } elseif (isset($_POST['decline_application'])) {
         $applicationId = (int)$_POST['application_id'];
-        $reason = trim($_POST['reason'] ?? '');
         $stmt = $conn->prepare("UPDATE applications SET status = 'declined', decline_reason = ?, decided_at = NOW(), decided_by = ? WHERE application_id = ?");
         $stmt->bind_param('sii', $reason, $me['user_id'], $applicationId);
         $stmt->execute();
@@ -181,7 +182,7 @@ $activeLink = 'ActiveCitizenshipApplicants';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo e($activeProgram ? $activeProgram['name'] : 'Active Citizenship'); ?> Applicants</title>
+    <title><?php echo e($activeProgram ? $activeProgram['name'] : 'Active Citizenship'); ?> - Applicants</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="<?php echo APP_BASE; ?>/assets/css/admin.css" rel="stylesheet">
@@ -491,10 +492,7 @@ $activeLink = 'ActiveCitizenshipApplicants';
                             </div>
                             <p class="fw-bold mb-1" style="font-size:14px;">Decline this applicant?</p>
                             <p class="text-muted" style="font-size:12px; margin-bottom:0;">This applicant will be declined and notified. This action can be reviewed later from the archive.</p>
-                            <div class="mt-3 text-start">
-                                <label style="font-size:12px;font-weight:600;color:#555;">Reason for Declining <span class="text-muted fw-normal">(optional)</span></label>
-                                <textarea class="form-control form-control-sm mt-1" name="reason" rows="3" placeholder="e.g. Incomplete documents, not a resident of Barangay Langkiwa..."></textarea>
-                            </div>
+                            <?php renderDeclineReasonField(); ?>
                         </div>
                         <div class="modal-footer border-0 justify-content-center gap-2">
                             <button type="button" class="btn btn-sm btn-secondary px-4" data-bs-dismiss="modal">Cancel</button>
