@@ -138,7 +138,51 @@ function ensureAllowanceRecord($scholarId)
     $stmt->execute();
     $record = $stmt->get_result()->fetch_assoc();
     $stmt->close();
+
+    // Tell the scholar as soon as they qualify (once per term) — same idea as an assistance beneficiary
+    // being emailed the release schedule when their payout becomes Pending Release.
+    if ($record && $record['eligibility'] === 'eligible' && $record['status'] === 'pending') {
+        notifyScholarEligible($scholarId, $record, $ay, $sem);
+    }
     return $record;
+}
+
+// Emails (and posts an in-app notice to) a scholar who has just met this term's activity requirement:
+// the payout is now pending release, with the release schedule typed in Content Management. Sent at
+// most once per scholar per term, tracked by allowance_distributions.eligible_notified_at — a column
+// added on first use so no separate migration is needed. Never throws.
+function notifyScholarEligible($scholarId, array $record, $ay, $sem)
+{
+    global $conn;
+    try {
+        if (!array_key_exists('eligible_notified_at', $record)) {
+            $conn->query("ALTER TABLE allowance_distributions ADD COLUMN eligible_notified_at DATETIME NULL");
+        } elseif ($record['eligible_notified_at'] !== null) {
+            return; // already told this term
+        }
+
+        // Claim it first so two simultaneous page loads can't both send.
+        $stmt = $conn->prepare("UPDATE allowance_distributions SET eligible_notified_at = NOW() WHERE scholar_id = ? AND academic_year = ? AND semester = ? AND eligible_notified_at IS NULL");
+        $stmt->bind_param('iss', $scholarId, $ay, $sem);
+        $stmt->execute();
+        $claimed = $stmt->affected_rows > 0;
+        $stmt->close();
+        if (!$claimed) {
+            return;
+        }
+
+        $termLabel = $ay . ', ' . $sem;
+        $release = scholarReleaseDetails();
+        notifyScholar(
+            $scholarId,
+            'Your iSKolar Allowance Is Pending Release',
+            'You have met the activity requirement for <strong>' . htmlspecialchars($termLabel) . '</strong>. Your allowance is now pending release.',
+            ['Program' => 'iSKolar ng Langkiwa', 'Term' => $termLabel, 'Activities' => (int)$record['activities_completed'] . ' / ' . (int)$record['activities_required'], 'Allowance' => 'PHP ' . number_format((float)$record['amount'], 2), 'Release date' => $release['when'], 'Venue' => $release['venue']],
+            'Please bring ' . htmlspecialchars($release['bring']) . ' when you claim your allowance.'
+        );
+    } catch (Throwable $ex) {
+        error_log('Eligibility notice failed: ' . $ex->getMessage());
+    }
 }
 
 function getScholarByUserId($userId)
