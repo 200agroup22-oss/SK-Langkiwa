@@ -434,8 +434,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute();
                 $stmt->close();
                 // A changed release schedule is emailed again to everyone still waiting for their release.
-                if ($tabRow['track_code'] === 'assistance' && $relDate !== null && (($tabRow['release_date'] ?? null) !== $relDate || substr((string)($tabRow['release_time'] ?? ''), 0, 5) !== substr((string)$relTime, 0, 5) || ($tabRow['release_venue'] ?? null) !== $relVenue)) {
+                if ($tabRow['track_code'] === 'assistance' && $relDate !== null && (($tabRow['release_date'] ?? null) !== $relDate || substr((string)($tabRow['release_time'] ?? ''), 0, 5) !== substr((string)$relTime, 0, 5) || ($tabRow['release_venue'] ?? null) !== $relVenue || (($tabRow['release_requirements'] ?? null) ?: null) !== $relReq)) {
                     notifyProgramReleaseScheduleChanged(null, (int)$tabRow['committee_id']);
+                }
+                // Same for the iSKolar track: scholars who are eligible and waiting for their allowance.
+                if ($tabRow['track_code'] === 'scholarship' && $relDate !== null && (($tabRow['release_date'] ?? null) !== $relDate || substr((string)($tabRow['release_time'] ?? ''), 0, 5) !== substr((string)$relTime, 0, 5) || ($tabRow['release_venue'] ?? null) !== $relVenue || (($tabRow['release_requirements'] ?? null) ?: null) !== $relReq)) {
+                    notifyScholarsReleaseScheduleChanged();
                 }
             }
             logAudit('Updated Program', $label . ' (built-in tab #' . $tabId . ')');

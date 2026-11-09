@@ -1500,6 +1500,38 @@ function scholarReleaseDetails()
     return ['when' => $when, 'venue' => !empty($row['release_venue']) ? $row['release_venue'] : 'To be announced by the SK office', 'bring' => releaseRequirementsText($row)];
 }
 
+// The iSKolar release schedule changed: tell every scholar who is still waiting for their allowance
+// (eligible this term, payout still pending), the scholar counterpart of notifyProgramReleaseScheduleChanged().
+function notifyScholarsReleaseScheduleChanged()
+{
+    global $conn;
+    try {
+        $term = $conn->query("SELECT current_academic_year, current_semester FROM site_settings WHERE id = 1")->fetch_assoc();
+        $stmt = $conn->prepare("SELECT ad.scholar_id, ad.amount FROM allowance_distributions ad JOIN scholars s ON s.scholar_id = ad.scholar_id
+            WHERE ad.academic_year = ? AND ad.semester = ? AND ad.eligibility = 'eligible' AND ad.status = 'pending' AND s.status = 'active'");
+        $stmt->bind_param('ss', $term['current_academic_year'], $term['current_semester']);
+        $stmt->execute();
+        $waiting = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        if (!$waiting) {
+            return;
+        }
+        $termLabel = $term['current_academic_year'] . ', ' . $term['current_semester'];
+        $release = scholarReleaseDetails();
+        foreach ($waiting as $w) {
+            notifyScholar(
+                (int)$w['scholar_id'],
+                'iSKolar Release Schedule Updated',
+                'The release schedule for your <strong>' . htmlspecialchars($termLabel) . '</strong> allowance has changed.',
+                ['Program' => 'iSKolar ng Langkiwa', 'Term' => $termLabel, 'Allowance' => 'PHP ' . number_format((float)$w['amount'], 2), 'Release date' => $release['when'], 'Venue' => $release['venue']],
+                'Please bring ' . htmlspecialchars($release['bring']) . ' when you claim your allowance.'
+            );
+        }
+    } catch (Throwable $ex) {
+        error_log('Scholar schedule notice failed: ' . $ex->getMessage());
+    }
+}
+
 // Convenience for the page handlers right after a beneficiary was added.
 // A beneficiary added after a recurring program has already started its rounds joins the CURRENT round (not
 // round 1), so the next "Start next release round" does not pay them twice. Called for every new beneficiary
