@@ -1886,3 +1886,44 @@ function startNextReleaseRound($committeeId, $programId, $type)
     }
     return ['ok' => true, 'message' => 'Round ' . $next . ' started: ' . $created . ' beneficiar' . ($created === 1 ? 'y' : 'ies') . ' added with a pending payout and emailed' . ($skipped ? ' (' . $skipped . ' skipped - archived or no longer eligible)' : '') . '.'];
 }
+
+// ---- Reason for declining an applicant (required) ----
+// A dropdown of the usual reasons plus "Others", which asks for the officer's own words.
+function declineReasonOptions()
+{
+    return [
+        'Incomplete or missing documents',
+        'Invalid or unreadable documents',
+        'Not a resident of Barangay Langkiwa',
+        'Does not meet the age requirement',
+        'Does not meet the eligibility requirements',
+        'Duplicate application',
+        'Program slots are already full',
+    ];
+}
+
+function renderDeclineReasonField()
+{
+    $id = 'dr' . bin2hex(random_bytes(3));
+    echo '<div class="mt-3 text-start">';
+    echo '<label style="font-size:12px;font-weight:600;color:#555;">Reason for Declining <span class="text-danger">*</span></label>';
+    echo '<select class="form-select form-select-sm mt-1" name="reason_choice" required onchange="var o=document.getElementById(\'' . $id . '\');var show=this.value===\'__other\';o.classList.toggle(\'d-none\',!show);o.required=show;if(show)o.focus();">';
+    echo '<option value="" disabled selected>Select a reason</option>';
+    foreach (declineReasonOptions() as $r) {
+        echo '<option value="' . e($r) . '">' . e($r) . '</option>';
+    }
+    echo '<option value="__other">Others (please specify)</option>';
+    echo '</select>';
+    echo '<textarea class="form-control form-control-sm mt-2 d-none" id="' . $id . '" name="reason_other" rows="2" maxlength="300" placeholder="Type the reason here..."></textarea>';
+    echo '</div>';
+}
+
+// Returns the chosen / typed reason, or '' when none was given (the caller then refuses the decline).
+function declineReasonFromPost()
+{
+    $choice = trim($_POST['reason_choice'] ?? '');
+    if ($choice === '__other') {
+        return trim(preg_replace('/\s+/', ' ', $_POST['reason_other'] ?? ''));
+    }
+    return in_array($choice, declineReasonOptions(), true) ? $choice : '';
+}
