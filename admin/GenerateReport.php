@@ -250,6 +250,7 @@ class ReportPDF extends FPDF
     public $dateRange = '';
     public $termLabel = '';
     public $logoPath = '';
+    public $pageTitle = '';
 
     function Header()
     {
@@ -281,6 +282,19 @@ class ReportPDF extends FPDF
         $this->Cell(0, 5, pdfEnc('Period: ' . $this->dateRange), 0, 1);
         $this->SetTextColor(0, 0, 0);
         $this->SetY(32);
+        // The report's title (centered, with a green rule) repeats under the banner on every page.
+        if ($this->pageTitle !== '') {
+            $this->SetFont('Helvetica', 'B', 15);
+            $this->SetTextColor(...reportColor('heading'));
+            $this->Cell(0, 8, pdfEnc($this->pageTitle), 0, 1, 'C');
+            $this->SetDrawColor(...reportColor('header'));
+            $this->SetLineWidth(0.6);
+            $this->Line(10, $this->GetY() + 1.5, $this->GetPageWidth() - 10, $this->GetY() + 1.5);
+            $this->SetDrawColor(0, 0, 0);
+            $this->SetLineWidth(0.2);
+            $this->SetTextColor(30, 30, 30);
+            $this->SetY(46);
+        }
     }
 
     function Footer()
@@ -560,9 +574,6 @@ $pdf->dateRange = $from . ' to ' . $to;
 $pdf->logoPath = siteLogoPath();
 $pdf->SetMargins(10, 10, 10);
 $pdf->SetAutoPageBreak(true, 20);
-$pdf->AddPage();
-
-// ---- Title block above the table (the green banner only repeats on every page; this names the report) ----
 $fullTitles = [
     'consolidated' => 'Consolidated Summary Report',
     'applicants' => 'Applicant Summaries Report',
@@ -574,16 +585,9 @@ $fullTitles = [
     'activity-log' => 'Activity Log Report',
     'audit-log' => 'Audit Trail Report',
 ];
-$pdf->SetFont('Helvetica', 'B', 15);
-$pdf->SetTextColor(...reportColor('heading'));
-$pdf->Cell(0, 8, pdfEnc(strtoupper($fullTitles[$type] ?? $reportLabel)), 0, 1, 'C');
-$pdf->SetDrawColor(...reportColor('header'));
-$pdf->SetLineWidth(0.6);
-$pdf->Line(10, $pdf->GetY() + 1.5, $pdf->GetPageWidth() - 10, $pdf->GetY() + 1.5);
-$pdf->SetDrawColor(0, 0, 0);
-$pdf->SetLineWidth(0.2);
-$pdf->SetTextColor(30, 30, 30);
-$pdf->Ln(6);
+$pdf->pageTitle = strtoupper($fullTitles[$type] ?? $reportLabel);
+$pdf->AddPage();
+
 
 // One pass per chosen committee / program: each pass sets the same variables a single-scope report used, and
 // when more than one was chosen each gets its own titled section.
