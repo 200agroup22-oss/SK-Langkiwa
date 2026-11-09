@@ -139,12 +139,14 @@ $activeLink = 'EducationAllowanceDistribution';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Allowance Distribution</title>
+    <title>iSKolar ng Langkiwa - Allowance Distribution</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="<?php echo APP_BASE; ?>/assets/css/admin.css" rel="stylesheet">
     <style>
         .badge-eligible {
+            display: inline-block;
+            white-space: nowrap;
             background-color: #d1e7dd;
             color: #0a3622;
             font-size: 12px;
@@ -155,6 +157,8 @@ $activeLink = 'EducationAllowanceDistribution';
         }
 
         .badge-not-eligible {
+            display: inline-block;
+            white-space: nowrap;
             background-color: #f8d7da;
             color: #842029;
             font-size: 12px;
@@ -165,6 +169,8 @@ $activeLink = 'EducationAllowanceDistribution';
         }
 
         .badge-pending-elig {
+            display: inline-block;
+            white-space: nowrap;
             background-color: #fff3cd;
             color: #856404;
             font-size: 12px;

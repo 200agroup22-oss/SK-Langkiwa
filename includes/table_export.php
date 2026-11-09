@@ -67,9 +67,12 @@ if (!defined('SK_TABLE_EXPORT_LOADED')) {
                 table.querySelectorAll('tbody tr').forEach(function(tr) {
                     var tds = tr.querySelectorAll('td');
                     if (tds.length === 1 && tds[0].colSpan > 1) return;
+                    if (tr.style.display === 'none' || tr.hidden) return;
                     var row = [];
                     tds.forEach(function(td, i) {
-                        if (skip.indexOf(i) === -1) row.push(clean(td.textContent));
+                        if (skip.indexOf(i) !== -1) return;
+                        var sel = td.querySelector('select');
+                        row.push(sel && sel.selectedOptions[0] ? clean(sel.selectedOptions[0].textContent) : clean(td.textContent));
                     });
                     if (row.length) rows.push(row);
                 });
@@ -150,7 +153,7 @@ if (!defined('SK_TABLE_EXPORT_LOADED')) {
             }
 
             // Same look as the PDF reports: green banner, centered green title, green table header, signature block.
-            function printHtml(title, data) {
+            function printHtml(title, data, extraDetails) {
                 var logo = new URL(INFO.logo, location.href).href;
                 var head = data.head.map(function(h) {
                     return '<th>' + esc(h) + '</th>';
@@ -161,7 +164,7 @@ if (!defined('SK_TABLE_EXPORT_LOADED')) {
                     }).join('') + '</tr>';
                 }).join('');
                 if (!data.rows.length) body = '<tr><td colspan="' + data.head.length + '" style="text-align:center;color:#777;">No records.</td></tr>';
-                var details = detailsText();
+                var details = extraDetails || detailsText();
                 var today = new Date().toLocaleDateString('en-US', {
                     year: 'numeric',
                     month: 'long',
@@ -262,6 +265,30 @@ if (!defined('SK_TABLE_EXPORT_LOADED')) {
                     btn.innerHTML = original;
                 }
             }
+
+            // Used by the Print button inside pop-up windows (e.g. activity attendance).
+            window.skPrintTable = function(table, title, details) {
+                var data = readTable(table);
+                var w = window.open('', '_blank');
+                if (!w) {
+                    alert('Please allow pop-ups to print.');
+                    return;
+                }
+                w.document.write(printHtml(title, data, details));
+                w.document.close();
+                w.focus();
+                var img = w.document.querySelector('.banner img');
+                var fire = function() {
+                    w.print();
+                };
+                if (img && !img.complete) {
+                    img.onload = img.onerror = function() {
+                        setTimeout(fire, 100);
+                    };
+                } else {
+                    setTimeout(fire, 300);
+                }
+            };
 
             document.addEventListener('DOMContentLoaded', function() {
                 listTables(document).forEach(function(table, index) {

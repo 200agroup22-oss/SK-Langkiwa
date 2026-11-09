@@ -36,6 +36,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($title === '' || $date === '') {
             setFlash('error', 'Activity title and date are required.');
+        } elseif ($date < date('Y-m-d')) {
+            setFlash('error', 'The activity date cannot be in the past.');
         } else {
             $stmt = $conn->prepare("INSERT INTO program_activities (tab_id, title, description, activity_date, activity_time, venue, audience, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
             $stmt->bind_param('issssssi', $tabId, $title, $description, $date, $time, $venue, $audience, $me['user_id']);
@@ -168,7 +170,7 @@ $activeLink = programActivitiesActiveName($committeeId);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Activities - <?php echo e($programName); ?></title>
+    <title><?php echo e($programName); ?> - Activities</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="<?php echo APP_BASE; ?>/assets/css/admin.css" rel="stylesheet">
@@ -308,7 +310,7 @@ $activeLink = programActivitiesActiveName($committeeId);
                         <div class="row g-2 mb-3">
                             <div class="col-md-6">
                                 <label class="form-label" style="font-size:13px; font-weight:600;">Date</label>
-                                <input type="date" class="form-control form-control-sm" name="activity_date" required>
+                                <input type="date" class="form-control form-control-sm" name="activity_date" min="<?php echo date('Y-m-d'); ?>" required>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label" style="font-size:13px; font-weight:600;">Time</label>
@@ -420,6 +422,7 @@ $activeLink = programActivitiesActiveName($committeeId);
                             </div>
                         </div>
                         <div class="modal-footer border-0">
+                            <button type="button" class="btn btn-sm btn-success" onclick="printAttendanceList(this)"><i class="bi bi-printer me-1"></i> Print</button>
                             <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
                             <button type="submit" name="save_attendance" class="btn btn-sm btn-success"><i class="bi bi-save me-1"></i> Save Attendance</button>
                         </div>
@@ -447,7 +450,7 @@ $activeLink = programActivitiesActiveName($committeeId);
                                 <div class="row g-2 mb-3">
                                     <div class="col-md-6">
                                         <label class="form-label" style="font-size:13px; font-weight:600;">Date</label>
-                                        <input type="date" class="form-control form-control-sm" name="activity_date" value="<?php echo e($act['activity_date']); ?>" required>
+                                        <input type="date" class="form-control form-control-sm" name="activity_date" value="<?php echo e($act['activity_date']); ?>" min="<?php echo e(min($act['activity_date'], date('Y-m-d'))); ?>" required>
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label" style="font-size:13px; font-weight:600;">Time</label>
@@ -724,6 +727,19 @@ $activeLink = programActivitiesActiveName($committeeId);
         if (activityFilterSelect) activityFilterSelect.addEventListener('change', applyActivityFilters);
         if (activitySortSelect) activitySortSelect.addEventListener('change', applyActivityFilters);
         applyActivityFilters();
+    </script>
+    <script>
+        function printAttendanceList(btn) {
+            var modal = btn.closest('.modal');
+            var table = modal.querySelector('table');
+            var title = (modal.querySelector('.modal-title').textContent || '').replace(/\s+/g, ' ').trim();
+            var present = modal.querySelectorAll('select[name^="attendance"]');
+            var p = 0;
+            present.forEach(function(s) {
+                if (s.value === 'present') p++;
+            });
+            if (window.skPrintTable) window.skPrintTable(table, title, 'Present: ' + p + ' of ' + present.length);
+        }
     </script>
 </body>
 
