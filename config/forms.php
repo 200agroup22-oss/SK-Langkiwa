@@ -1056,8 +1056,10 @@ function renderDynamicFormFields($committeeId, $existingAnswers = [], $existingF
         $isLocked = $lockedIdentity !== null && array_key_exists($field['field_key'], $lockedIdentity);
         $value = $isLocked ? e($lockedIdentity[$field['field_key']]) : e($existingAnswers[$field['field_id']] ?? '');
 
-        echo '<div class="' . $colClass . ' mb-3">';
-        echo '<label class="form-label"><i class="bi ' . $icon . ' me-1 text-success"></i>' . $label . ($field['is_required'] ? ' <span class="text-danger">*</span>' : '') . ($isLocked ? ' <i class="bi bi-lock-fill text-muted ms-1" title="Locked to your account"></i>' : '') . '</label>';
+        // Column is a flex box and the label area grows, so when a label wraps onto two lines the inputs next to it
+        // still start at the same height.
+        echo '<div class="' . $colClass . ' mb-3 d-flex flex-column">';
+        echo '<div class="d-flex align-items-end flex-grow-1"><label class="form-label w-100"><i class="bi ' . $icon . ' me-1 text-success"></i>' . $label . ($field['is_required'] ? ' <span class="text-danger">*</span>' : '') . ($isLocked ? ' <i class="bi bi-lock-fill text-muted ms-1" title="Locked to your account"></i>' : '') . '</label></div>';
 
         if (isAddressField($field) && !$isLocked) {
             renderAddressInputs($field['field_key'], $existingAnswers[$field['field_id']] ?? '', $field['is_required']);
