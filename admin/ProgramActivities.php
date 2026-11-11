@@ -38,6 +38,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             setFlash('error', 'Activity title and date are required.');
         } elseif ($date < date('Y-m-d')) {
             setFlash('error', 'The activity date cannot be in the past.');
+        } elseif ($date === date('Y-m-d') && $time !== null && substr($time, 0, 5) < date('H:i')) {
+            setFlash('error', 'The activity time has already passed today.');
         } else {
             $stmt = $conn->prepare("INSERT INTO program_activities (tab_id, title, description, activity_date, activity_time, venue, audience, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
             $stmt->bind_param('issssssi', $tabId, $title, $description, $date, $time, $venue, $audience, $me['user_id']);
