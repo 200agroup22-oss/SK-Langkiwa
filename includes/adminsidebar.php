@@ -211,7 +211,7 @@ function collapseAttrs($expanded)
     <div class="brand">
         <button class="menu-toggle" id="menuToggle"><i class="bi bi-list"></i></button>
         <img src="<?php echo siteLogoUrl(); ?>" alt="Logo">
-        <span class="brand-text d-none d-sm-inline"><?php echo e(siteName()); ?></span>
+        <span class="brand-text d-none d-sm-inline d-lg-none"><?php echo e(siteName()); ?></span>
         <span class="brand-text d-sm-none">SK Langkiwa</span>
     </div>
     <div class="d-flex align-items-center gap-3">
@@ -243,6 +243,9 @@ function collapseAttrs($expanded)
 
 <!-- Sidebar -->
 <div class="sidebar" id="sidebar">
+    <div class="logo-wrap" style="padding-bottom:12px;">
+        <p style="margin:0;"><?php echo e(siteName()); ?></p>
+    </div>
     <nav>
         <a href="<?php echo APP_BASE; ?>/admin/AdminDashboard.php" class="nav-link-item<?php echo navActive('AdminDashboard'); ?>"><i class="bi bi-bar-chart-line-fill"></i> Dashboard</a>
 
