@@ -130,6 +130,17 @@ if (!defined('SK_TABLE_EXPORT_LOADED')) {
                     rows: rows
                 };
             }
+            // Heading of the page (first heading outside modals / menus).
+            function pageHeading() {
+                var hs = document.querySelectorAll('h1, h2, h3, h4');
+                for (var i = 0; i < hs.length; i++) {
+                    if (!hs[i].closest('.modal, nav, .sidebar, #sidebar, header, .topbar, .table-card')) {
+                        var t = clean(hs[i].textContent);
+                        if (t) return t;
+                    }
+                }
+                return clean(document.title);
+            }
 
             function titleText(card) {
                 // A heading right above this table (e.g. a dashboard section) wins over the page heading.
