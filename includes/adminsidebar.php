@@ -211,8 +211,6 @@ function collapseAttrs($expanded)
     <div class="brand">
         <button class="menu-toggle" id="menuToggle"><i class="bi bi-list"></i></button>
         <img class="d-lg-none" src="<?php echo siteLogoUrl(); ?>" alt="Logo">
-        <span class="brand-text d-none d-sm-inline"><?php echo e(siteName()); ?></span>
-        <span class="brand-text d-sm-none">SK Langkiwa</span>
     </div>
     <div class="d-flex align-items-center gap-3">
         <?php
