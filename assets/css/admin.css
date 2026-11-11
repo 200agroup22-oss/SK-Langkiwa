@@ -75,7 +75,7 @@ body {
   bottom: 0;
   background: #fff;
   border-right: 1px solid #ddd;
-  padding: 14px 0;
+  padding: 20px 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -107,9 +107,7 @@ body {
 
 .sidebar nav {
   width: 100%;
-  margin-top: 0;
-  padding: 0 12px;
-  box-sizing: border-box;
+  margin-top: 10px;
 }
 
 .nav-link-item {
@@ -121,10 +119,9 @@ body {
   font-weight: 500;
   color: #333;
   text-decoration: none;
-  border-radius: 10px;
+  border-radius: 0;
   width: 100%;
   box-sizing: border-box;
-  margin-bottom: 2px;
 }
 
 .nav-link-item:hover,
@@ -148,8 +145,7 @@ body {
   justify-content: flex-start;
   background-color: #45b84d;
   color: #fff;
-  margin: 6px 0;
-  padding: 11px 14px;
+  margin: 4px 0;
 }
 
 .nav-parent i {
@@ -308,25 +304,6 @@ body {
   width: 100%;
   border-top: 1px solid #eee;
   padding-top: 8px;
-}
-
-/* Sidebar polish: rounded committee buttons, submenus as one rounded panel */
-.submenu {
-  border-radius: 10px;
-  overflow: hidden;
-  margin-bottom: 6px;
-}
-
-.nav-sub,
-.nav-sub-sub,
-.nav-sub-sub-sub {
-  border-radius: 0;
-  margin-bottom: 0;
-}
-
-.sidebar .config-section {
-  padding: 8px 12px 0;
-  box-sizing: border-box;
 }
 
 .sidebar-overlay {
