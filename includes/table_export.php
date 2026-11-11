@@ -34,7 +34,8 @@ if (!defined('SK_TABLE_EXPORT_LOADED')) {
         (function() {
             var INFO = <?php echo json_encode($__teInfo, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP); ?>;
             // Pages whose tables are settings / charts rather than lists.
-            if (/AdminConfiguration|AdminReports|AdminProgramManagement/i.test(location.pathname)) return;
+            if (/AdminConfiguration|AdminProgramManagement/i.test(location.pathname)) return;
+            var ONLY_LOGS = /AdminReports/i.test(location.pathname);
 
             function clean(t) {
                 return (t || '').replace(/\s+/g, ' ').trim();
@@ -46,7 +47,8 @@ if (!defined('SK_TABLE_EXPORT_LOADED')) {
 
             function listTables(doc) {
                 return Array.prototype.filter.call(doc.querySelectorAll('.table-card table'), function(t) {
-                    return !t.closest('.modal');
+                    if (t.closest('.modal')) return false;
+                    return ONLY_LOGS ? !!t.closest('#activityLogsTab, #auditLogsTab') : true;
                 });
             }
 
@@ -92,50 +94,50 @@ if (!defined('SK_TABLE_EXPORT_LOADED')) {
                 return max;
             }
 
-            // Gathers the table across all pages (page 1..N of the current filters).
+            // Gathers the table across all pages (page 1..N of the current filters). The page links themselves tell us the
+            // name of the page parameter (page, logpage, ...), so every list works the same way.
             async function collect(index, card) {
                 var data = readTable(listTables(document)[index]);
+                var links = Array.prototype.filter.call(card.parentNode.querySelectorAll('.pagination a.page-link'), function(a) {
+                    return /^\d+$/.test(clean(a.textContent)) && a.getAttribute('href') && a.getAttribute('href') !== '#';
+                });
                 var pages = pageCount(card);
-                if (pages <= 1) return data;
-                var current = parseInt(new URLSearchParams(location.search).get('page') || '1', 10);
+                if (pages <= 1 || !links.length) return data;
+                var first = links[0];
+                var key = 'page';
+                new URL(first.href, location.href).searchParams.forEach(function(v, k) {
+                    if (v === clean(first.textContent)) key = k;
+                });
+                var activeItem = card.parentNode.querySelector('.pagination .page-item.active');
+                var current = activeItem ? parseInt(clean(activeItem.textContent), 10) : 1;
                 var rows = [];
                 for (var p = 1; p <= pages; p++) {
                     if (p === current) {
                         rows = rows.concat(data.rows);
                         continue;
                     }
-                    var params = new URLSearchParams(location.search);
-                    params.set('page', p);
-                    var res = await fetch(location.pathname + '?' + params.toString(), {
+                    var u = new URL(first.href, location.href);
+                    u.searchParams.set(key, p);
+                    var res = await fetch(u.pathname + u.search, {
                         credentials: 'same-origin'
                     });
                     var doc = new DOMParser().parseFromString(await res.text(), 'text/html');
                     var t = listTables(doc)[index];
                     if (t) rows = rows.concat(readTable(t).rows);
                 }
-                // keep page order: pages before current were pushed in loop order, current slotted in place
                 return {
                     head: data.head,
                     rows: rows
                 };
             }
 
-            // Heading of the page (first heading outside modals / menus), plus the active tab when there is one.
-            function pageHeading() {
-                var hs = document.querySelectorAll('h1, h2, h3, h4');
-                for (var i = 0; i < hs.length; i++) {
-                    if (!hs[i].closest('.modal, nav, .sidebar, #sidebar, header, .topbar, .table-card')) {
-                        var t = clean(hs[i].textContent);
-                        if (t) return t;
-                    }
-                }
-                return clean(document.title);
-            }
-
             function titleText(card) {
                 // A heading right above this table (e.g. a dashboard section) wins over the page heading.
                 var own = card.parentNode.querySelector(':scope > h5, :scope > h6, :scope > .section-title');
                 var base = own && own.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING ? clean(own.textContent) : pageHeading();
+                var pane = card.closest('.tab-pane-custom');
+                var lab = pane && pane.querySelector('.section-label');
+                if (lab) return clean(lab.textContent.split('(')[0]);
                 var tab = document.querySelector('.nav-tabs .nav-link.active');
                 return tab ? base + ' - ' + clean(tab.textContent.replace(/\d+\s*$/, '')) : base;
             }
@@ -290,7 +292,88 @@ if (!defined('SK_TABLE_EXPORT_LOADED')) {
                 }
             };
 
+            // Dashboard: prints the headline numbers and the charts (as pictures) with the report layout.
+            function printDashboard() {
+                var logo = new URL(INFO.logo, location.href).href;
+                var stats = [];
+                document.querySelectorAll('.stat-card').forEach(function(c) {
+                    var l = c.querySelector('.label'),
+                        v = c.querySelector('.value');
+                    if (l && v) stats.push([clean(l.textContent), clean(v.textContent)]);
+                });
+                document.querySelectorAll('.status-card').forEach(function(c) {
+                    var l = c.querySelector('.s-label'),
+                        v = c.querySelector('.s-value');
+                    if (l && v) stats.push([clean(l.textContent), clean(v.textContent)]);
+                });
+                var rowsHtml = stats.map(function(r) {
+                    return '<tr><td>' + esc(r[0]) + '</td><td style="width:140px;text-align:right;font-weight:bold;">' + esc(r[1]) + '</td></tr>';
+                }).join('');
+                var charts = '';
+                document.querySelectorAll('.chart-card').forEach(function(card) {
+                    var cv = card.querySelector('canvas'),
+                        t = card.querySelector('.chart-title');
+                    if (!cv) return;
+                    charts += '<div class="chart"><h3>' + esc(t ? clean(t.textContent) : '') + '</h3><img src="' + cv.toDataURL('image/png') + '"></div>';
+                });
+                var today = new Date().toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                });
+                var html = '<!doctype html><html><head><meta charset="utf-8"><title>Dashboard Overview</title><style>' +
+                    '@page{size:landscape;margin:0}*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;color:#222;-webkit-print-color-adjust:exact;print-color-adjust:exact}' +
+                    '.banner{background:#44b94f;color:#fff;padding:14px 30px;display:flex;align-items:center;gap:18px}.banner img{width:70px;height:70px;object-fit:cover;background:#fff}.banner h1{margin:0;font-size:24px}' +
+                    '.page{padding:0 30px 20px}h2{text-align:center;color:#2e7d32;font-size:22px;margin:20px 0 14px;padding-bottom:12px;border-bottom:2px solid #44b94f;text-transform:uppercase}' +
+                    'table{width:100%;border-collapse:collapse;font-size:13px}th{background:#a8dcaa;text-align:left;border:1px solid #222;padding:8px}td{border:1px solid #222;padding:7px 8px}tbody tr:nth-child(even) td{background:#eff8f0}' +
+                    '.charts{display:flex;gap:20px;margin-top:18px}.chart{flex:1;border:1px solid #ccc;padding:10px;page-break-inside:avoid;text-align:center}.chart h3{margin:0 0 8px;font-size:13px;text-align:left;text-transform:uppercase}.chart img{max-width:100%;max-height:300px}' +
+                    '.signwrap{margin-top:30px;page-break-inside:avoid;display:flex;justify-content:space-between}.by{font-size:13px;margin-bottom:38px}.sign{width:260px;text-align:center;border-top:1px solid #222;padding-top:4px}.sign b{display:block;font-size:13px;text-transform:uppercase}.sign span{display:block;color:#666;font-size:12px}.sign i{display:block;color:#666;font-size:11px;margin-top:3px}.sign.blank{height:0;padding:0}' +
+                    '</style></head><body><div class="banner"><img src="' + esc(logo) + '" alt=""><div><h1>' + esc(INFO.site) + '</h1></div></div>' +
+                    '<div class="page"><h2>Dashboard Overview</h2><table><thead><tr><th>Summary</th><th style="text-align:right;">Total</th></tr></thead><tbody>' + rowsHtml + '</tbody></table>' +
+                    '<div class="charts">' + charts + '</div>' +
+                    '<div class="signwrap"><div><div class="by">Prepared by:</div><div class="sign"><b>' + esc(INFO.name) + '</b><span>' + esc(INFO.position) + '</span><i>Generated on ' + esc(today) + '</i></div></div><div><div class="by">Checked by:</div><div class="sign blank"></div></div></div>' +
+                    '</div></body></html>';
+                var w = window.open('', '_blank');
+                if (!w) {
+                    alert('Please allow pop-ups to print.');
+                    return;
+                }
+                w.document.write(html);
+                w.document.close();
+                w.focus();
+                var img = w.document.querySelector('.banner img');
+                var fire = function() {
+                    w.print();
+                };
+                if (img && !img.complete) {
+                    img.onload = img.onerror = function() {
+                        setTimeout(fire, 100);
+                    };
+                } else {
+                    setTimeout(fire, 400);
+                }
+            }
+
             document.addEventListener('DOMContentLoaded', function() {
+                if (/AdminDashboard/i.test(location.pathname)) {
+                    var h = document.querySelector('.main-content h4');
+                    if (h) {
+                        var sub = h.nextElementSibling;
+                        var holder = document.createElement('div');
+                        holder.className = 'd-flex justify-content-between align-items-start flex-wrap gap-2';
+                        var left = document.createElement('div');
+                        h.parentNode.insertBefore(holder, h);
+                        holder.appendChild(left);
+                        left.appendChild(h);
+                        if (sub && sub.tagName === 'P') left.appendChild(sub);
+                        var pb = document.createElement('button');
+                        pb.type = 'button';
+                        pb.className = 'btn btn-sm btn-success';
+                        pb.innerHTML = '<i class="bi bi-printer me-1"></i> Print';
+                        pb.addEventListener('click', printDashboard);
+                        holder.appendChild(pb);
+                    }
+                }
                 listTables(document).forEach(function(table, index) {
                     var card = table.closest('.table-card');
                     if (!card || card.previousElementSibling && card.previousElementSibling.classList.contains('tbl-export-bar')) return;
@@ -304,8 +387,9 @@ if (!defined('SK_TABLE_EXPORT_LOADED')) {
                     });
 
                     // Beside the Search box when the page has one (top right), otherwise right above the table.
-                    var sb = index === 0 ? document.querySelector('.search-box') : null;
-                    if (sb && sb.parentNode && !sb.closest('.modal')) {
+                    var sb = card.parentNode.querySelector('.search-box');
+                    if (sb && sb.parentNode && !sb.closest('.modal') && !sb.dataset.printed) {
+                        sb.dataset.printed = '1';
                         var wrap = document.createElement('div');
                         wrap.className = 'd-flex align-items-center gap-2 flex-wrap';
                         sb.parentNode.insertBefore(wrap, sb);
