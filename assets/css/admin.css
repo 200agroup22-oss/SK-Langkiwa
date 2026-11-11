@@ -811,21 +811,3 @@ a.doc-item:hover {
   margin: 0;
   font-size: 13.5px;
 }
-
-/* Desktop: the sidebar runs the full height of the screen (logo and title at its top), and the green bar only
-   spans the area to the right of it, holding just the role badge and the account menu. */
-@media (min-width: 992px) {
-  .sidebar {
-    top: 0;
-    z-index: 1000;
-  }
-
-  body:has(.sidebar) .topbar {
-    left: 250px;
-    justify-content: flex-end;
-  }
-
-  body:has(.sidebar) .topbar .brand {
-    display: none;
-  }
-}
