@@ -278,8 +278,6 @@ class ReportPDF extends FPDF
             $scopeLine .= '   |   Term: ' . $this->termLabel;
         }
         $this->Cell(0, 5, pdfEnc($scopeLine), 0, 1);
-        $this->SetXY($textX, 18.5);
-        $this->Cell(0, 5, pdfEnc('Period: ' . $this->dateRange), 0, 1);
         $this->SetTextColor(0, 0, 0);
         $this->SetY(32);
         // The report's title (centered, with a green rule) repeats under the banner on every page.
@@ -287,13 +285,17 @@ class ReportPDF extends FPDF
             $this->SetFont('Helvetica', 'B', 15);
             $this->SetTextColor(...reportColor('heading'));
             $this->Cell(0, 8, pdfEnc($this->pageTitle), 0, 1, 'C');
+            // the period the report covers goes with the title
+            $this->SetFont('Helvetica', '', 9.5);
+            $this->SetTextColor(90, 90, 90);
+            $this->Cell(0, 5, pdfEnc('Period: ' . $this->dateRange), 0, 1, 'C');
             $this->SetDrawColor(...reportColor('header'));
             $this->SetLineWidth(0.6);
             $this->Line(10, $this->GetY() + 1.5, $this->GetPageWidth() - 10, $this->GetY() + 1.5);
             $this->SetDrawColor(0, 0, 0);
             $this->SetLineWidth(0.2);
             $this->SetTextColor(30, 30, 30);
-            $this->SetY(46);
+            $this->SetY(52);
         }
     }
 
@@ -543,17 +545,26 @@ function renderTotalLine($pdf, $text)
 // then the printed name/position/date beneath it) at the end of the report.
 function renderSignatureBlock($pdf, $name, $position)
 {
-    if ($pdf->GetY() > $pdf->GetPageHeight() - 45) {
+    if ($pdf->GetY() > $pdf->GetPageHeight() - 50) {
         $pdf->AddPage();
     }
-    $pdf->Ln(16);
+    $pdf->Ln(6);
     $blockWidth = 80;
-    $x = $pdf->GetPageWidth() - 10 - $blockWidth;
+    $x = 10; // left side of the page
+    $pdf->SetX($x);
+    $pdf->SetFont('Helvetica', '', 10);
+    $pdf->SetTextColor(30, 30, 30);
+    $pdf->Cell($blockWidth, 6, pdfEnc('Prepared by:'), 0, 0, 'L');
+    // lower right: who checks the report (left blank for a handwritten name and signature)
+    $xr = $pdf->GetPageWidth() - 10 - $blockWidth;
+    $pdf->SetX($xr);
+    $pdf->Cell($blockWidth, 6, pdfEnc('Checked by:'), 0, 1, 'L');
+    $pdf->Ln(10);
     $y = $pdf->GetY();
     $pdf->Line($x, $y, $x + $blockWidth, $y);
+    $pdf->Line($xr, $y, $xr + $blockWidth, $y);
     $pdf->SetXY($x, $y + 1);
     $pdf->SetFont('Helvetica', 'B', 10.5);
-    $pdf->SetTextColor(30, 30, 30);
     $pdf->Cell($blockWidth, 6, pdfEnc(strtoupper($name)), 0, 2, 'C');
     $pdf->SetX($x);
     $pdf->SetFont('Helvetica', '', 9);
@@ -561,7 +572,7 @@ function renderSignatureBlock($pdf, $name, $position)
     $pdf->Cell($blockWidth, 5, pdfEnc($position !== '' ? $position : 'System Administrator'), 0, 2, 'C');
     $pdf->SetX($x);
     $pdf->SetFont('Helvetica', 'I', 8);
-    $pdf->Cell($blockWidth, 5, pdfEnc('Printed by / Generated on ' . date('F j, Y')), 0, 1, 'C');
+    $pdf->Cell($blockWidth, 5, pdfEnc('Generated on ' . date('F j, Y')), 0, 1, 'C');
 }
 
 $pdf = new ReportPDF('L', 'mm', 'A4');

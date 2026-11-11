@@ -263,7 +263,7 @@ $activeLink = 'EducationScholarList';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scholars</title>
+    <title>iSKolar ng Langkiwa - Scholars</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="<?php echo APP_BASE; ?>/assets/css/admin.css" rel="stylesheet">
@@ -457,7 +457,7 @@ $activeLink = 'EducationScholarList';
                             </div>
                             <div class="col-3">
                                 <div class="info-label">Allowance</div>
-                                <div class="info-value fw-bold text-success">₱<?php echo number_format($sch['allowance']['amount'], 2); ?></div>
+                                <div class="info-value fw-bold text-success">PHP <?php echo number_format($sch['allowance']['amount'], 2); ?></div>
                             </div>
                             <div class="col-12">
                                 <div class="info-label">Full Name</div>

@@ -1356,7 +1356,7 @@ $activeLink = 'AdminProgramManagement';
                                                 <div class="col-md-4">
                                                     <label class="form-label">Amount / Value</label>
                                                     <div class="input-group">
-                                                        <span class="input-group-text">&#8369;</span>
+                                                        <span class="input-group-text">PHP </span>
                                                         <input type="number" step="0.01" class="form-control" name="amount" value="<?php echo e($t['amount'] ?? ''); ?>" <?php echo $dis; ?>>
                                                     </div>
                                                 </div>
@@ -1374,14 +1374,14 @@ $activeLink = 'AdminProgramManagement';
                                                         <div class="col-md-6">
                                                             <label class="form-label">Minimum amount <span class="text-muted fw-normal">(optional)</span></label>
                                                             <div class="input-group">
-                                                                <span class="input-group-text">&#8369;</span>
+                                                                <span class="input-group-text">PHP </span>
                                                                 <input type="number" step="0.01" min="0" class="form-control" name="min_amount" placeholder="No minimum" value="<?php echo e($t['min_amount'] ?? ''); ?>" <?php echo $dis; ?>>
                                                             </div>
                                                         </div>
                                                         <div class="col-md-6">
                                                             <label class="form-label">Maximum amount <span class="text-muted fw-normal">(optional)</span></label>
                                                             <div class="input-group">
-                                                                <span class="input-group-text">&#8369;</span>
+                                                                <span class="input-group-text">PHP </span>
                                                                 <input type="number" step="0.01" min="0" class="form-control" name="max_amount" placeholder="No maximum" value="<?php echo e($t['max_amount'] ?? ''); ?>" <?php echo $dis; ?>>
                                                             </div>
                                                         </div>
@@ -1698,7 +1698,7 @@ $activeLink = 'AdminProgramManagement';
                             <div class="col-md-4 cash-fields">
                                 <label class="form-label">Amount / Value</label>
                                 <div class="input-group">
-                                    <span class="input-group-text">&#8369;</span>
+                                    <span class="input-group-text">PHP </span>
                                     <input type="number" step="0.01" class="form-control" name="amount" placeholder="0.00">
                                 </div>
                             </div>
@@ -1717,14 +1717,14 @@ $activeLink = 'AdminProgramManagement';
                                     <div class="col-md-6">
                                         <label class="form-label">Minimum amount <span class="text-muted fw-normal">(optional)</span></label>
                                         <div class="input-group">
-                                            <span class="input-group-text">&#8369;</span>
+                                            <span class="input-group-text">PHP </span>
                                             <input type="number" step="0.01" min="0" class="form-control" name="min_amount" placeholder="No minimum">
                                         </div>
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">Maximum amount <span class="text-muted fw-normal">(optional)</span></label>
                                         <div class="input-group">
-                                            <span class="input-group-text">&#8369;</span>
+                                            <span class="input-group-text">PHP </span>
                                             <input type="number" step="0.01" min="0" class="form-control" name="max_amount" placeholder="No maximum">
                                         </div>
                                     </div>
@@ -1815,7 +1815,7 @@ $activeLink = 'AdminProgramManagement';
                             </div>
                             <div class="col-6">
                                 <div class="info-label">Amount</div>
-                                <div class="info-value"><?php echo $p['amount'] !== null ? '₱' . number_format($p['amount'], 2) : '—'; ?></div>
+                                <div class="info-value"><?php echo $p['amount'] !== null ? 'PHP ' . number_format($p['amount'], 2) : '—'; ?></div>
                             </div>
                             <div class="col-6">
                                 <div class="info-label">Release Schedule</div>
@@ -1888,7 +1888,7 @@ $activeLink = 'AdminProgramManagement';
                                 <div class="col-md-4 cash-fields" <?php echo in_array($p['assistance_type'], ['cash', 'both'], true) ? '' : ' style="display:none;"'; ?>>
                                     <label class="form-label">Amount / Value</label>
                                     <div class="input-group">
-                                        <span class="input-group-text">&#8369;</span>
+                                        <span class="input-group-text">PHP </span>
                                         <input type="number" step="0.01" class="form-control" name="amount" value="<?php echo e($p['amount']); ?>" <?php echo in_array($p['assistance_type'], ['cash', 'both'], true) ? '' : ' disabled'; ?>>
                                     </div>
                                 </div>
@@ -1906,14 +1906,14 @@ $activeLink = 'AdminProgramManagement';
                                         <div class="col-md-6">
                                             <label class="form-label">Minimum amount <span class="text-muted fw-normal">(optional)</span></label>
                                             <div class="input-group">
-                                                <span class="input-group-text">&#8369;</span>
+                                                <span class="input-group-text">PHP </span>
                                                 <input type="number" step="0.01" min="0" class="form-control" name="min_amount" placeholder="No minimum" value="<?php echo e($p['min_amount'] ?? ''); ?>" <?php echo in_array($p['assistance_type'], ['cash', 'both'], true) ? '' : ' disabled'; ?>>
                                             </div>
                                         </div>
                                         <div class="col-md-6">
                                             <label class="form-label">Maximum amount <span class="text-muted fw-normal">(optional)</span></label>
                                             <div class="input-group">
-                                                <span class="input-group-text">&#8369;</span>
+                                                <span class="input-group-text">PHP </span>
                                                 <input type="number" step="0.01" min="0" class="form-control" name="max_amount" placeholder="No maximum" value="<?php echo e($p['max_amount'] ?? ''); ?>" <?php echo in_array($p['assistance_type'], ['cash', 'both'], true) ? '' : ' disabled'; ?>>
                                             </div>
                                         </div>

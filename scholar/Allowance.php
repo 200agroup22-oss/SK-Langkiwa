@@ -98,7 +98,7 @@ $statusLabel = ['pending' => 'Awaiting Approval', 'approved' => 'Released', 'dec
             <div class="row g-3 mb-4">
                 <div class="col-6 col-md-3">
                     <div class="summary-card">
-                        <div class="num text-success">₱<?php echo number_format($allowance['amount'], 0); ?></div>
+                        <div class="num text-success">PHP <?php echo number_format($allowance['amount'], 0); ?></div>
                         <div class="lbl">Allowance This Semester</div>
                     </div>
                 </div>
@@ -177,7 +177,7 @@ $statusLabel = ['pending' => 'Awaiting Approval', 'approved' => 'Released', 'dec
                         </div>
                         <div class="d-flex justify-content-between mb-2" style="font-size: 13px;">
                             <span class="text-muted">Total Allowance</span>
-                            <span class="fw-semibold text-success">₱<?php echo number_format($allowance['amount'], 0); ?></span>
+                            <span class="fw-semibold text-success">PHP <?php echo number_format($allowance['amount'], 0); ?></span>
                         </div>
                         <div class="d-flex justify-content-between mb-2" style="font-size: 13px;">
                             <span class="text-muted">Release Schedule</span>

@@ -213,7 +213,7 @@ function benStatusBadge($status)
                         <?php if ($app['ben_type'] === 'cash'): ?>
                             <div class="detail-row">
                                 <span class="text-muted">Amount</span>
-                                <span class="fw-semibold text-success">₱<?php echo number_format($app['amount'], 2); ?></span>
+                                <span class="fw-semibold text-success">PHP <?php echo number_format($app['amount'], 2); ?></span>
                             </div>
                         <?php else: ?>
                             <div class="detail-row">

@@ -305,7 +305,7 @@ $activeLink = 'HealthCashAssistance';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo e($activeProgram ? $activeProgram['name'] : 'Health'); ?> Cash Assistance Beneficiaries</title>
+    <title><?php echo e($activeProgram ? $activeProgram['name'] : 'Health'); ?> - Cash Assistance</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="<?php echo APP_BASE; ?>/assets/css/admin.css" rel="stylesheet">
@@ -406,7 +406,7 @@ $activeLink = 'HealthCashAssistance';
                                 <td><?php echo str_pad($row['application_id'], 3, '0', STR_PAD_LEFT); ?></td>
                                 <td><?php echo e($row['full_name']); ?></td>
                                 <td><?php echo e($row['address']); ?></td>
-                                <td><?php echo $row['beneficiary_id'] ? '₱' . number_format((float)$row['amount'], 2) : '—'; ?></td>
+                                <td><?php echo $row['beneficiary_id'] ? 'PHP ' . number_format((float)$row['amount'], 2) : '—'; ?></td>
                                 <td><span class="badge text-bg-<?php echo statusBadgeClass($row['display_status']); ?>"><?php echo statusLabel($row['display_status']); ?></span><?php if ($isRecurringProgram && !empty($row['beneficiary_id'])): ?> <small class="text-muted">Round <?php echo (int)($row['round_no'] ?? 1); ?></small><?php endif; ?></td>
                                 <td class="d-flex gap-1">
                                     <?php if ($row['beneficiary_id']): ?>
@@ -461,7 +461,7 @@ $activeLink = 'HealthCashAssistance';
                                 <div class="col-md-6">
                                     <label class="info-label">Amount <span class="text-danger">*</span></label>
                                     <div class="input-group input-group-sm">
-                                        <span class="input-group-text">&#8369;</span>
+                                        <span class="input-group-text">PHP </span>
                                         <input type="number" step="0.01" min="0.01" class="form-control" name="amount" id="addAmountInput" placeholder="Program amount">
                                     </div>
                                 </div>
@@ -512,7 +512,7 @@ $activeLink = 'HealthCashAssistance';
                         <div class="row g-3 mb-2">
                             <div class="col-md-4">
                                 <div class="info-label">Amount</div>
-                                <div class="info-value">&#8369;<?php echo number_format((float)$row['amount'], 2); ?></div>
+                                <div class="info-value">PHP <?php echo number_format((float)$row['amount'], 2); ?></div>
                             </div>
                             <div class="col-md-4">
                                 <div class="info-label">Status</div>
@@ -574,7 +574,7 @@ $activeLink = 'HealthCashAssistance';
                                 <div class="col-md-4">
                                     <label class="form-label" style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;">Amount</label>
                                     <div class="input-group input-group-sm">
-                                        <span class="input-group-text">&#8369;</span>
+                                        <span class="input-group-text">PHP </span>
                                         <input type="number" step="0.01" min="0.01" class="form-control" name="amount" value="<?php echo e($row['amount']); ?>" required>
                                     </div>
                                     <?php echo cashAmountHint($row['application_id']); ?>
@@ -643,7 +643,7 @@ $activeLink = 'HealthCashAssistance';
                             <p class="text-muted" style="font-size:12px; margin-bottom:14px;">This confirms the cash assistance amount has been given to the beneficiary.</p>
                             <div style="background:#e8f5e9;border-radius:8px;padding:10px 12px;margin-bottom:14px;">
                                 <div style="font-size:11px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.4px;">Amount to release</div>
-                                <div style="font-size:24px;font-weight:700;color:#2e7d32;">&#8369;<?php echo number_format((float)$row['amount'], 2); ?></div>
+                                <div style="font-size:24px;font-weight:700;color:#2e7d32;">PHP <?php echo number_format((float)$row['amount'], 2); ?></div>
                                 <div style="font-size:12px;color:#555;"><?php echo e($row['full_name']); ?></div>
                             </div>
                             <div class="text-start">
@@ -694,7 +694,7 @@ $activeLink = 'HealthCashAssistance';
                                             <td><?php echo str_pad($ab['application_id'], 3, '0', STR_PAD_LEFT); ?></td>
                                             <td><?php echo e($ab['full_name']); ?></td>
                                             <td><?php echo e($ab['address']); ?></td>
-                                            <td>₱<?php echo number_format((float)$ab['amount'], 2); ?></td>
+                                            <td>PHP <?php echo number_format((float)$ab['amount'], 2); ?></td>
                                             <td><?php echo date('Y-m-d H:i', strtotime($ab['archived_at'])); ?></td>
                                             <td class="text-center">
                                                 <form method="post">

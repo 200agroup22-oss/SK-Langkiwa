@@ -316,7 +316,7 @@ $activeLink = 'EducationAllowanceDistribution';
                             </div>
                             <div class="col-6">
                                 <div class="info-label">Allowance Amount</div>
-                                <div class="info-value fw-bold text-success">₱<?php echo number_format($sch['allowance']['amount'], 2); ?></div>
+                                <div class="info-value fw-bold text-success">PHP <?php echo number_format($sch['allowance']['amount'], 2); ?></div>
                             </div>
                             <div class="col-6">
                                 <div class="info-label">Academic Year</div>

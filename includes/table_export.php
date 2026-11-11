@@ -182,7 +182,7 @@ if (!defined('SK_TABLE_EXPORT_LOADED')) {
                     'table.data th{background:#a8dcaa;color:#111;text-align:left;border:1px solid #222;padding:9px 8px}' +
                     'table.data td{border:1px solid #222;padding:8px;vertical-align:middle}table.data tbody tr:nth-child(even) td{background:#eff8f0}table.data tr{page-break-inside:avoid}table.data thead{display:table-header-group}' +
                     '.total{text-align:right;font-weight:bold;font-size:13px;margin:12px 0 0}' +
-                    '.sign{width:260px;margin:46px 0 0 auto;text-align:center;border-top:1px solid #222;padding-top:4px;page-break-inside:avoid}' +
+                    '.signwrap{margin-top:30px;page-break-inside:avoid;display:flex;justify-content:space-between}.signwrap .by{font-size:13px;margin-bottom:38px}.sign.blank{border-top:1px solid #222;height:0;padding:0}.sign{width:260px;margin:0;text-align:center;border-top:1px solid #222;padding-top:4px}' +
                     '.sign b{display:block;font-size:13px;text-transform:uppercase}.sign span{display:block;color:#666;font-size:12px}.sign i{display:block;color:#666;font-size:11px;margin-top:3px}' +
                     '.foot{text-align:center;color:#888;font-size:11px;margin-top:28px;font-style:italic}' +
                     '</style></head><body>' +
@@ -190,7 +190,7 @@ if (!defined('SK_TABLE_EXPORT_LOADED')) {
                     '<div class="page" style="padding-top:0">' +
                     '<table class="data"><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table>' +
                     '<p class="total">Total Records: ' + data.rows.length + '</p>' +
-                    '<div class="sign"><b>' + esc(INFO.name) + '</b><span>' + esc(INFO.position) + '</span><i>Printed by / Generated on ' + esc(today) + '</i></div>' +
+                    '<div class="signwrap"><div><div class="by">Prepared by:</div><div class="sign"><b>' + esc(INFO.name) + '</b><span>' + esc(INFO.position) + '</span><i>Generated on ' + esc(today) + '</i></div></div><div><div class="by">Checked by:</div><div class="sign blank"></div></div></div>' +
                     '<div class="foot">Generated ' + esc(stamp()) + '</div></div></td></tr></tbody><tfoot><tr><td><div class="spacer"></div></td></tr></tfoot></table></body></html>';
             }
 

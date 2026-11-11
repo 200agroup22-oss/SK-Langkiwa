@@ -1055,7 +1055,7 @@ $activeLink = 'AdminReports';
                                     <td><span class="committee-tag"><?php echo e($row['name']); ?></span></td>
                                     <td><?php echo $row['programs']; ?></td>
                                     <td><?php echo $row['beneficiaries']; ?></td>
-                                    <td>&#8369;<?php echo number_format($row['funds'], 0); ?></td>
+                                    <td>PHP <?php echo number_format($row['funds'], 0); ?></td>
                                     <td><?php echo e($row['inkind']); ?></td>
                                     <td><?php echo $row['approval'] !== null ? $row['approval'] . '%' : '—'; ?></td>
                                 </tr>
