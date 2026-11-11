@@ -304,15 +304,15 @@ if (!defined('SK_TABLE_EXPORT_LOADED')) {
             };
 
             // Dashboard: prints the headline numbers and the charts (as pictures) with the report layout.
-            function printDashboard() {
+            function printDashboard(onlyCard) {
                 var logo = new URL(INFO.logo, location.href).href;
                 var stats = [];
-                document.querySelectorAll('.stat-card').forEach(function(c) {
+                if (!onlyCard) document.querySelectorAll('.stat-card').forEach(function(c) {
                     var l = c.querySelector('.label'),
                         v = c.querySelector('.value');
                     if (l && v) stats.push([clean(l.textContent), clean(v.textContent)]);
                 });
-                document.querySelectorAll('.status-card').forEach(function(c) {
+                if (!onlyCard) document.querySelectorAll('.status-card').forEach(function(c) {
                     var l = c.querySelector('.s-label'),
                         v = c.querySelector('.s-value');
                     if (l && v) stats.push([clean(l.textContent), clean(v.textContent)]);
@@ -321,10 +321,13 @@ if (!defined('SK_TABLE_EXPORT_LOADED')) {
                     return '<tr><td>' + esc(r[0]) + '</td><td style="width:140px;text-align:right;font-weight:bold;">' + esc(r[1]) + '</td></tr>';
                 }).join('');
                 var charts = '';
+                var chartTitle = '';
                 document.querySelectorAll('.chart-card').forEach(function(card) {
+                    if (onlyCard && card !== onlyCard) return;
                     var cv = card.querySelector('canvas'),
                         t = card.querySelector('.chart-title');
                     if (!cv) return;
+                    if (onlyCard && t) chartTitle = clean(t.textContent);
                     charts += '<div class="chart"><h3>' + esc(t ? clean(t.textContent) : '') + '</h3><img src="' + cv.toDataURL('image/png') + '"></div>';
                 });
                 var today = new Date().toLocaleDateString('en-US', {
@@ -332,15 +335,15 @@ if (!defined('SK_TABLE_EXPORT_LOADED')) {
                     month: 'long',
                     day: 'numeric'
                 });
-                var html = '<!doctype html><html><head><meta charset="utf-8"><title>Dashboard Overview</title><style>' +
+                var html = '<!doctype html><html><head><meta charset="utf-8"><title>Dashboard</title><style>' +
                     '@page{size:landscape;margin:0}*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;color:#222;-webkit-print-color-adjust:exact;print-color-adjust:exact}' +
                     '.banner{background:#44b94f;color:#fff;padding:14px 30px;display:flex;align-items:center;gap:18px}.banner img{width:70px;height:70px;object-fit:cover;background:#fff}.banner h1{margin:0;font-size:24px}' +
                     '.page{padding:0 30px 20px}h2{text-align:center;color:#2e7d32;font-size:22px;margin:20px 0 14px;padding-bottom:12px;border-bottom:2px solid #44b94f;text-transform:uppercase}' +
                     'table{width:100%;border-collapse:collapse;font-size:13px}th{background:#a8dcaa;text-align:left;border:1px solid #222;padding:8px}td{border:1px solid #222;padding:7px 8px}tbody tr:nth-child(even) td{background:#eff8f0}' +
-                    '.charts{display:flex;gap:20px;margin-top:18px}.chart{flex:1;border:1px solid #ccc;padding:10px;page-break-inside:avoid;text-align:center}.chart h3{margin:0 0 8px;font-size:13px;text-align:left;text-transform:uppercase}.chart img{max-width:100%;max-height:300px}' +
+                    '.charts{display:flex;gap:20px;margin-top:18px}.chart{flex:1;max-width:100%;border:1px solid #ccc;padding:10px;page-break-inside:avoid;text-align:center}.chart h3{margin:0 0 8px;font-size:13px;text-align:left;text-transform:uppercase}.chart img{max-width:100%;max-height:300px}' +
                     '.signwrap{margin-top:30px;page-break-inside:avoid;display:flex;justify-content:space-between}.by{font-size:13px;margin-bottom:38px}.sign{width:260px;text-align:center;border-top:1px solid #222;padding-top:4px}.sign b{display:block;font-size:13px;text-transform:uppercase}.sign span{display:block;color:#666;font-size:12px}.sign i{display:block;color:#666;font-size:11px;margin-top:3px}.sign.blank{height:0;padding:0}' +
                     '</style></head><body><div class="banner"><img src="' + esc(logo) + '" alt=""><div><h1>' + esc(INFO.site) + '</h1></div></div>' +
-                    '<div class="page"><h2>Dashboard Overview</h2><table><thead><tr><th>Summary</th><th style="text-align:right;">Total</th></tr></thead><tbody>' + rowsHtml + '</tbody></table>' +
+                    '<div class="page"><h2>' + esc(onlyCard ? chartTitle : 'Dashboard Overview') + '</h2>' + (onlyCard ? '' : '<table><thead><tr><th>Summary</th><th style="text-align:right;">Total</th></tr></thead><tbody>' + rowsHtml + '</tbody></table>') +
                     '<div class="charts">' + charts + '</div>' +
                     '<div class="signwrap"><div><div class="by">Prepared by:</div><div class="sign"><b>' + esc(INFO.name) + '</b><span>' + esc(INFO.position) + '</span><i>Generated on ' + esc(today) + '</i></div></div><div><div class="by">Checked by:</div><div class="sign blank"></div></div></div>' +
                     '</div></body></html>';
@@ -381,9 +384,26 @@ if (!defined('SK_TABLE_EXPORT_LOADED')) {
                         pb.type = 'button';
                         pb.className = 'btn btn-sm btn-success';
                         pb.innerHTML = '<i class="bi bi-printer me-1"></i> Print';
-                        pb.addEventListener('click', printDashboard);
+                        pb.addEventListener('click', function() {
+                            printDashboard(null);
+                        });
                         holder.appendChild(pb);
                     }
+                    // a small printer button on every graph prints just that graph
+                    document.querySelectorAll('.chart-card').forEach(function(card) {
+                        var title = card.querySelector('.chart-title');
+                        if (!title || !card.querySelector('canvas')) return;
+                        title.classList.add('d-flex', 'align-items-center', 'justify-content-between', 'gap-2');
+                        var b = document.createElement('button');
+                        b.type = 'button';
+                        b.title = 'Print this graph';
+                        b.className = 'btn btn-sm btn-outline-success py-0 px-2';
+                        b.innerHTML = '<i class="bi bi-printer"></i>';
+                        b.addEventListener('click', function() {
+                            printDashboard(card);
+                        });
+                        title.appendChild(b);
+                    });
                 }
                 listTables(document).forEach(function(table, index) {
                     var card = table.closest('.table-card');
